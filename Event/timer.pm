@@ -14,18 +14,15 @@ sub new {
     shift;
     my %arg = @_;
 
-    for (qw(repeat after at interval hard callback)) {
+    for (qw(desc repeat after at interval hard callback)) {
 	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
     }
-
-    $arg{repeat} = 0 if !exists $arg{repeat};
 
     if (exists $arg{after}) {
 	croak "'after' and 'at' are mutually exclusive"
 	    if exists $arg{at};
 	$arg{when} = time() + $arg{after};
-	$arg{interval} = $arg{after} if
-	    ($arg{repeat} and !exists $arg{interval});
+	$arg{interval} = $arg{after} if !exists $arg{interval};
     }
     elsif (exists $arg{at}) {
 	$arg{when} = 0 + $arg{at};
@@ -43,16 +40,12 @@ sub new {
     $arg{priority} = PRIO_NORMAL + ($arg{priority} or 0);
     $arg{hard} ||= 0;
 
-    my $o = bless \%arg, __PACKAGE__;
+    my $o = Event::init(bless \%arg, __PACKAGE__);
     _insert($o);
-    Event::init($o);
+    $o;
 }
 
 sub prepare { 
-    while (@timer) {
-	last if !$timer[0]->{'cancelled'};
-	shift @timer;
-    }
     @timer? $timer[0]->{'when'} - time() : 3600;
 }
 
@@ -60,6 +53,7 @@ sub check {
     my $now = time();
     while (@timer and $timer[0]->{'when'} <= $now) {
 	my $timer = shift @timer;
+	$timer->{queued} = 0;
 	next if $timer->{'cancelled'};
 
 	my $cb = $timer->{'callback'};
@@ -81,7 +75,7 @@ sub check {
 }
 
 sub _insert {
-    my $obj = shift;
+    my $obj=shift;
 
     # Should do binary insertion sort?  No.  Long-term timers deserve
     # the performance hit.  Code should be optimal for short-term timers.
@@ -114,16 +108,19 @@ sub _insert {
 }
 
 sub again {
-    my $timer = shift;
+    my $obj = shift;
 
-    croak "$timer->again: is cancelled"
-	if $timer->{'cancelled'};
-    croak "$timer->again: no interval specified"
-	unless exists $timer->{'interval'};
+    croak "$obj->again: is cancelled"
+	if $obj->{'cancelled'};
+    croak "$obj->again: no interval specified"
+	unless exists $obj->{'interval'};
 
-    $timer->{'when'} = $timer->{'interval'} +
-	($timer->{'hard'} ? $timer->{'when'} : time());
-    _insert($timer);
+    return if $obj->{queued};
+    $obj->{queued} = 1;
+
+    $obj->{'when'} = $obj->{'interval'} +
+	($obj->{'hard'} ? $obj->{'when'} : time());
+    _insert($obj);
 }
 
 1;

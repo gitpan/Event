@@ -29,7 +29,7 @@ Event->timer(
 	        	Event->exit if ++$count == 2;
 		    },
 		after    => 0.5,
-		interval => 0.2
+		interval => .2
 	    );
 	},
     at => $when

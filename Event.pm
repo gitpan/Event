@@ -8,10 +8,10 @@ BEGIN {
 }
 
 package Event;
-use Carp;
+use Carp qw(carp cluck croak confess);
 use Time::HiRes qw(time);  #can be optional? XXX
 use vars qw($VERSION $DebugLevel %Set);
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 # 0    FAST, FAST, FAST!
 # 1    COLLECT SOME STATISTICS
@@ -34,6 +34,8 @@ BOOT_XS: {
     }->(__PACKAGE__);
 }
 
+my $_DEBUGLEVEL;
+my $warn_old_style=0;
 sub init {
     croak "Event::init wants 1 arg" if @_ != 1;
     local $Carp::CarpLevel = 1;
@@ -45,8 +47,13 @@ sub init {
 
     $o->{cancelled} = 0;
     if ($o->can('again')) {
-	$o->{repeat} = 1 if !exists $o->{repeat};
+	$o->{repeat} = 0 if !exists $o->{repeat};
+	$o->{queued} = 0;
     }
+    
+    $_DEBUGLEVEL = $DebugLevel if !defined $_DEBUGLEVEL;
+    croak "\$DebugLevel cannot be changed at run-time"
+	if $_DEBUGLEVEL != $DebugLevel;
 
     if ($DebugLevel) {
 	croak "re-initialized" if $o->{initialized};
@@ -54,11 +61,22 @@ sub init {
 
 	# pick a style and stick with it!
 	my @old = grep /^-/, keys %$o;
-	carp "noticed old style keys (".join(',',@old).")" if @old;
+	carp "noticed old style keys (".join(',',@old).")"
+	    if @old && ++$warn_old_style < 3;
 
-	$o->{desc} ||= join(':', (caller 1)[1,2]); # 1 ok?
-	warn "Event::init($o) at $o->{desc}\n"
-	    if $DebugLevel >= 2;
+	cluck "Event::init ".ref($o)." $o->{desc}\n"
+	    if ($DebugLevel >= 2 or ($DebugLevel and !$o->{desc}));
+
+	my $where;
+	for my $up (1..4) {
+	    my @fr = caller $up;  # try to cope with optimized-away frames
+	    next if !@fr;
+	    my ($file,$line) = @fr[1,2];
+	    $file =~ s,^.*/,,;
+	    $where = "$file:$line";
+	}
+	$where ||= '?';
+	$o->{desc} ||= $where;
 
 	for (qw(ran elapse total_elapse)) {
 	    $o->{$_} = 0;
@@ -75,17 +93,33 @@ sub cancel {
 }
 
 #----------- these should only be called if $DebugLevel >= 1
+sub Status {
+    warn sprintf("\n%7s %-40s\n", 'WHAT', 'DESCRIPTION')."\n";
+    for my $e (sort { $b->{elapse} <=> $a->{elapse} } values %Set) {
+	my $name = ref $e;
+	$name =~ s/^Event:://;
+	warn sprintf("%7s %-40s %4d %6.2f %6.2f\n", $name, $e->{desc}, $e->{ran},
+		     $e->{total_elapse}, $e->{elapse});
+    }
+}
+
 my $start_time;
 sub invoking {
     my ($e) = @_;
-    warn "Event: invoking '$e->{desc}'\n"
+    if (!exists $Set{ 0+$e }) {
+	require Data::Dumper;
+	warn "bogus event in queue:\n".Data::Dumper::Dumper($e);
+	return;
+    }
+    warn "Event: invoking ".ref($e)." $e->{desc}\n"
 	if $DebugLevel >= 2;
     $start_time = time;
 }
 
 sub completed {
     my ($e) = @_;
-    warn "Event: completed '$e->{desc}'\n"
+    return if !exists $Set{ 0+$e };
+    warn "Event: completed ".ref($e)." $e->{desc}\n"
 	if $DebugLevel >= 3;
     ++$e->{ran};
     $e->{elapse} = time - $start_time;
@@ -119,7 +153,7 @@ sub _register {
 
     if (! $package->isa('Event')) {
 #	carp "\@$package\::ISA must include Event";
-	push @{"$package\::ISA"}, 'Event';
+	unshift @{"$package\::ISA"}, 'Event';
     }
 
     my $name = $package;
@@ -239,6 +273,10 @@ sub waitForEvents {
     Event::OS::WaitForEvent($wait);
 
     for my $e (@Event::Sources) { $e->check }
+
+    if ($wait) {
+	for my $e (@Event::AsyncSources) { $e->check }
+    }
 }
 
 sub doOneEvent {
@@ -253,6 +291,7 @@ sub doOneEvent {
     return 1 if emptyQueue();
 
     while (my $idle = shift @Idle) {
+	$idle->{queued} = 0;
 	next if $idle->{'cancelled'};
 
 	if (!$Event::DebugLevel) {
@@ -262,6 +301,7 @@ sub doOneEvent {
 	    $idle->{'callback'}->($idle);
 	    Event::completed($idle);
 	}
+	$idle->again if $idle->{repeat};
 	return 1;
     }
     0;
@@ -291,8 +331,7 @@ sub exitLoop {
 package Event::idle;
 use Carp;
 use builtin qw(min);
-use vars qw(@ISA @Idle);
-@ISA = 'Event';
+use vars qw(@Idle);
 *Idle = \@Event::Loop::Idle;
 
 'Event'->register;
@@ -322,8 +361,8 @@ sub new {
     $arg{priority} = Event::Loop::QUEUES + 1;  #fool init
 
     my $o = bless \%arg, __PACKAGE__;
-    push @Idle, $o;
-    Event::init($o);
+    Event::init($o)->again;
+    $o;
 }
 
 sub prepare {
@@ -340,6 +379,11 @@ sub prepare {
 
 sub check {}
 
-sub again { push @Idle, shift }
+sub again {
+    my $o = shift;
+    return if $o->{queued};
+    $o->{queued} = 1;
+    push @Idle, $o;
+}
 
 1;

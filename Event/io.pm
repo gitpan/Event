@@ -11,7 +11,7 @@ sub new {
 
     shift;
     my %arg = @_;
-    for (qw(handle events callback)) {
+    for (qw(desc handle events callback)) {
 	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
     }
 
@@ -30,7 +30,7 @@ sub cancel {
     delete $cb{$self};
     @cb = values %cb;
     Event::OS::RemoveSource($self->{'handle'}, $self->{'events'});
-    $self->{'cancelled'} = 1;
+    $self->SUPER::cancel();
 }
 
 sub prepare { 3600 }
