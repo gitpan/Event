@@ -90,6 +90,7 @@ WKEYMETH(_watcher_callback) {
 	    WaPERLCB_off(ev);
 	    ev->callback = 0;
 	    ev->ext_data = 0;
+	    pe_watcher_stop(ev, 0);
 	} else if (SvROK(nval) && (SvTYPE(sv=SvRV(nval)) == SVt_PVCV)) {
 	    WaPERLCB_on(ev);
 	    ev->callback = SvREFCNT_inc(nval);
