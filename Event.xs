@@ -40,8 +40,7 @@ static void Event_warn(const char* pat, ...) {
 #  define warn Event_warn
 #endif
 
-/* this is not well tested but could be very useful for debugging */
-#if 0
+#if 1
 #ifdef warn
 #  undef warn
 #endif

@@ -155,8 +155,13 @@ static void pe_event_postCB(pe_cbframe *fp) {
 	    Estat.scrub(fp->stats, wa);
 	    fp->stats = 0;
 	}
-	if (CurCBFrame >= 0)
-	    Estat.resume((CBFrame + CurCBFrame)->stats);
+	if (CurCBFrame >= 0) {
+	    pe_cbframe *pfp = CBFrame + CurCBFrame;
+	    if (!pfp->stats)
+		pfp->stats = Estat.enter(CurCBFrame, pfp->ev->up->max_cb_tm);
+	    else
+		Estat.resume(pfp->stats);
+	}
     }
     /* this must be last because it can destroy the watcher */
     pe_event_release(ev);
