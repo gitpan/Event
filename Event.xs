@@ -531,6 +531,13 @@ DESTROY(ref)
 	}
 }
 
+int
+pe_watcher::pending()
+	CODE:
+	RETVAL = THIS->event_counter;
+	OUTPUT:
+	RETVAL
+
 void
 pe_watcher::again()
 	CODE:

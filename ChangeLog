@@ -1,3 +1,15 @@
+2000-02-04  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.64.
+
+	* Applied patch from gbarr@pobox.com that allows one to obtain the
+ 	number of events a watcher has pending in the event queue.  Also,
+ 	included was a cosmetic fix for the typemap.
+
+	* Load the basic watcher types by default.
+
+	* Adjust hup.t test (conrad@fringehead.org).
+
 2000-02-03  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.63.

@@ -13,7 +13,7 @@ use Carp;
 eval { require Carp::Heavy; };  # work around perl_call_pv bug XXX
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.63';
+$VERSION = '0.64';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -54,15 +54,11 @@ sub _load_watcher {
     1;
 }
 
-# We use AUTOLOAD to load the Event source packages, so
-# Event->process will load Event::process
-
 sub AUTOLOAD {
     my $sub = ($Event::AUTOLOAD =~ /(\w+)$/)[0];
     _load_watcher($sub) or croak $@ . ', Undefined subroutine &' . $sub;
     carp "Autoloading with Event->$sub(...) is deprecated;
-\tplease 'use Event::type qw($sub);' explicitly
-\tor 'use Event::type qw(:all)';";
+\tplease 'use Event::type qw($sub);' explicitly";
     goto &$sub;
 }
 
@@ -185,12 +181,14 @@ sub add_hooks {
     }
 }
 
-END { $_->cancel for all_watchers() }
-
-require Event::Watcher;
+END { $_->cancel for all_watchers() } # buggy? XXX
 
 package Event::Event::Io;
 use vars qw(@ISA);
 @ISA = 'Event::Event';
+
+package Event;
+require Event::Watcher;
+_load_watcher($_) for qw(idle io signal timer var);
 
 1;

@@ -1,7 +1,6 @@
 # leak -*-perl-*-
 use Test; plan test => 6;
 use Event qw(all_watchers);
-use Event::type ':all';
 
 my @e = Event::all_watchers();
 ok @e, 0;

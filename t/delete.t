@@ -3,7 +3,6 @@
 use strict;
 use Test; plan tests => 1;
 use Event 0.40 qw(loop unloop);
-use Event::type qw(timer);
 
 package Foo;
 

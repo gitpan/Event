@@ -3,7 +3,6 @@
 use strict;
 use Test; plan test => 4;
 use Event qw(sweep sleep);
-use Event::type qw(timer);
 
 my ($p,$c,$ac,$cb) = (0)x4;
 

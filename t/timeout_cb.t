@@ -2,7 +2,6 @@
 
 use Test; plan tests => 6;
 use Event qw(loop);
-require Event::io;
 
 sub step1 {
     my ($e) = @_;

@@ -14,8 +14,6 @@ BEGIN {
 
 use Test; plan tests => 5;
 use Event qw(loop unloop time all_events one_event);
-require Event::idle;
-require Event::timer;
 
 # $Event::Eval = 1;
 # $Event::DebugLevel = 4;

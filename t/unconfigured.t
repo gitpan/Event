@@ -3,7 +3,6 @@
 use strict;
 use Test; plan test => 7;
 use Event;
-use Event::type ':all';
 
 eval { Event->io };
 ok $@, '/unconfigured/';

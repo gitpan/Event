@@ -179,6 +179,11 @@ not affected by suspend.
 
 Reports whether the C<$watcher> is suspended.
 
+=item $watcher->pending
+
+Returns how many events this watcher has with the callback still pending
+in the event queue.
+
 =back
 
 =head2 Watcher Types
@@ -269,7 +274,8 @@ the ones with the highest priority are serviced first.
   use Event qw(PRIO_HIGH PRIO_NORMAL);   # some constants
 
   LEVELS: -1      0      1      2      3      4      5      6
-                     PRIO_HIGH            PRIO_NORMAL
+          ----------------------+-------------+---------------
+                            PRIO_HIGH     PRIO_NORMAL
 
 A negative priority causes the callback to be invoked immediately upon
 event occurance.  Use this with caution.  While it may seem

@@ -2,7 +2,6 @@
 
 use Test; plan tests => 6;
 use Event qw(loop unloop);
-require Event::timer;
 
 # $Event::DebugLevel = 4;
 

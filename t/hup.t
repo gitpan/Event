@@ -10,9 +10,8 @@ BEGIN {
 
 # contributed by Gisle Aas <aas@gaustad.sys.sol.no>
 
-use Event qw(loop unloop);
-use Event::type qw(io);
 use Test; plan test => 1;
+use Event qw(loop unloop);
 
 $| = 1;
 my $pid = open(PIPE, "-|");

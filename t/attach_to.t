@@ -3,7 +3,6 @@
 use strict;
 use Test; plan tests => 3;
 use Event 0.53;
-use Event::type qw(timer);
 
 # $Event::DebugLevel = 3;
 

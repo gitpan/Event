@@ -3,7 +3,6 @@
 use strict;
 use Test; plan test => 6;
 use Event qw(loop unloop);
-use Event::type qw(var idle);
 
 # $Event::DebugLevel = 2;
 
