@@ -24,7 +24,7 @@ static void pe_idle_dtor(pe_watcher *ev) {
     EvFree(3, ev);
 }
 
-static void pe_idle_start(pe_watcher *ev, int repeating) {
+static char *pe_idle_start(pe_watcher *ev, int repeating) {
     double now;
     double min,max;
     pe_idle *ip = (pe_idle*) ev;
@@ -48,6 +48,7 @@ static void pe_idle_start(pe_watcher *ev, int repeating) {
 	    pe_timeable_start(&ip->tm);
 	}
     }
+    return 0; /* always succeeds */
 }
 
 static void pe_idle_alarm(pe_watcher *wa, pe_timeable *_ignore) {

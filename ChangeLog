@@ -1,3 +1,10 @@
+2000-02-01  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.62.  ** Please upgrade if you installed 0.61. **
+
+	* Allow implied stop() if required attributes are explicitly
+ 	unset.
+
 2000-01-31  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.61.
@@ -17,7 +24,7 @@
 
 2000-01-26  Joshua Pritikin  <joshua.pritikin@db.com>
 
-	* If parked=>0 then the constructor will not invoke
+	* If parked=>1 then the constructor will not invoke
  	$watcher->start().  (uri@sysarch.com)
 
 	* Release 0.60.

@@ -77,7 +77,7 @@ struct pe_watcher_vtbl {
     int did_require;
     HV *stash;
     void (*dtor)(pe_watcher *);
-    void (*start)(pe_watcher *, int);
+    char*(*start)(pe_watcher *, int);
     void (*stop)(pe_watcher *);
     void (*alarm)(pe_watcher *, pe_timeable *);
     pe_event_vtbl *event_vtbl;

@@ -15,7 +15,7 @@ static void pe_tied_dtor(pe_watcher *ev) {
     EvFree(6, ev);
 }
 
-static void pe_tied_start(pe_watcher *ev, int repeat) {
+static char *pe_tied_start(pe_watcher *ev, int repeat) {
     HV *stash = SvSTASH(SvRV(ev->mysv));
     GV *gv;
     dSP;
@@ -28,6 +28,8 @@ static void pe_tied_start(pe_watcher *ev, int repeat) {
     if (!gv)
 	croak("Cannot find %s->_start()", HvNAME(stash));
     perl_call_sv((SV*)GvCV(gv), G_DISCARD);
+    /* allow return of error! XXX */
+    return 0;
 }
 
 static void pe_tied_stop(pe_watcher *ev) {

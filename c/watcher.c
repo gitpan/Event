@@ -229,8 +229,8 @@ static void pe_watcher_nomethod(pe_watcher *ev, char *meth) {
     croak("%s::%s is missing", HvNAME(stash), meth);
 }
 
-static void pe_watcher_nostart(pe_watcher *ev, int repeat)
-{ pe_watcher_nomethod(ev,"start"); }
+static char *pe_watcher_nostart(pe_watcher *ev, int repeat)
+{ pe_watcher_nomethod(ev,"start"); return 0; }
 static void pe_watcher_nostop(pe_watcher *ev)
 { pe_watcher_nomethod(ev,"stop"); }
 static void pe_watcher_alarm(pe_watcher *ev, pe_timeable *tm)
@@ -311,18 +311,21 @@ static void pe_watcher_resume(pe_watcher *ev) {
 	warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,n_a),
 	     WaACTIVE(ev)?" ACTIVE":"");
     if (WaACTIVE(ev))
-	pe_watcher_on(ev, 0);
+	pe_watcher_on(ev, 0);  /* ignore failure */
 }
 
-static void pe_watcher_on(pe_watcher *wa, int repeat) {
+static char *pe_watcher_on(pe_watcher *wa, int repeat) {
+    char *excuse;
     if (WaPOLLING(wa) || WaSUSPEND(wa)) return;
     if (WaCANCELLED(wa)) {
 	STRLEN n_a;
 	croak("Event: attempt to start cancelled watcher '%s'",
 	      SvPV(wa->desc,n_a));
     }
-    (*wa->vtbl->start)(wa, repeat);
-    WaPOLLING_on(wa); /* must happen nowhere else!! */
+    excuse = (*wa->vtbl->start)(wa, repeat);
+    if (!excuse)
+	WaPOLLING_on(wa); /* must happen nowhere else!! */
+    return excuse;
 }
 
 static void pe_watcher_off(pe_watcher *wa) {
@@ -332,12 +335,15 @@ static void pe_watcher_off(pe_watcher *wa) {
 }
 
 static void pe_watcher_start(pe_watcher *ev, int repeat) {
+    char *excuse;
     STRLEN n_a;
     if (WaACTIVE(ev))
 	return;
     if (WaDEBUGx(ev) >= 4)
 	warn("Event: active ON '%s'\n", SvPV(ev->desc,n_a));
-    pe_watcher_on(ev, repeat);
+    excuse = pe_watcher_on(ev, repeat);
+    if (excuse)
+	croak("Event: can't start '%s' %s", SvPV(ev->desc,n_a), excuse);
     WaACTIVE_on(ev); /* must happen nowhere else!! */
     ++ActiveWatchers;
 }

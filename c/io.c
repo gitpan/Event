@@ -32,7 +32,7 @@ static void pe_io_dtor(pe_watcher *_ev) {
     EvFree(4, _ev);
 }
 
-static void pe_io_start(pe_watcher *_ev, int repeat) {
+static char *pe_io_start(pe_watcher *_ev, int repeat) {
     STRLEN n_a;
     int ok=0;
     pe_io *ev = (pe_io*) _ev;
@@ -59,9 +59,7 @@ static void pe_io_start(pe_watcher *_ev, int repeat) {
 	WaCBTIME_off(ev);
 	ev->poll &= ~PE_T;
     }
-    if (!ok)
-	croak("Event: attempt to start unconfigured io watcher '%s'",
-	      SvPV(ev->base.desc, n_a));
+    return ok? 0 : "because there is nothing to watch";
 }
 
 static void pe_io_stop(pe_watcher *_ev) {
@@ -110,10 +108,10 @@ static void pe_io_alarm(pe_watcher *_wa, pe_timeable *hit) {
 static void _io_restart(pe_watcher *ev) {
     if (!WaPOLLING(ev)) return;
     pe_watcher_off(ev);
-    pe_watcher_on(ev, 0);
+    pe_watcher_on(ev, 0); /* ignore failure */
 }
 
-static void pe_io_reset_handle(pe_watcher *ev) {
+static void pe_io_reset_handle(pe_watcher *ev) {  /* used by unix_io */
     pe_io *io = (pe_io*)ev;
     SvREFCNT_dec(io->handle);
     io->handle = &PL_sv_undef;

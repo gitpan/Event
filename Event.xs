@@ -128,7 +128,7 @@ static void pe_watcher_resume(pe_watcher *ev);
 static void pe_watcher_now(pe_watcher *ev);
 static void pe_watcher_start(pe_watcher *ev, int repeat);
 static void pe_watcher_stop(pe_watcher *ev, int cancel_events);
-static void pe_watcher_on(pe_watcher *wa, int repeat);
+static char*pe_watcher_on(pe_watcher *wa, int repeat);
 static void pe_watcher_off(pe_watcher *wa);
 
 /* The newHVhv in perl seems to mysteriously break in some cases.  Here

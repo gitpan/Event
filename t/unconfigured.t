@@ -22,7 +22,7 @@ ok $@, '/watching what/';
 my $var = 1;
 
 eval { Event->var(poll => 0, var => \$var) };
-ok $@, '/no events/';
+ok $@, '/no poll events/';
 
 eval { Event->var(var => \$1) };
 ok $@, '/read\-only/';

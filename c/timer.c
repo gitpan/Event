@@ -19,7 +19,7 @@ static void pe_timer_dtor(pe_watcher *ev) {
     EvFree(7, ev);
 }
 
-static void pe_timer_start(pe_watcher *ev, int repeat) {
+static char *pe_timer_start(pe_watcher *ev, int repeat) {
     STRLEN n_a;
     pe_timer *tm = (pe_timer*) ev;
     if (repeat) {
@@ -28,18 +28,17 @@ static void pe_timer_start(pe_watcher *ev, int repeat) {
 	double interval;
 
 	if (!sv_2interval(tm->interval, &interval))
-	    croak("Event: repeating timer '%s' has no interval",
-		  SvPV(tm->base.desc, n_a));
+	    return "repeating timer has no interval";
 	if (interval <= 0)
-	    croak("Event: timer '%s' has non-positive interval",
-		  SvPV(tm->base.desc, n_a));
+	    return "non-positive interval";
 
 	tm->tm.at = interval + (WaHARD(ev)? tm->tm.at : NVtime());
     }
     if (!tm->tm.at)
-	croak("Event: timer '%s' unset", SvPV(tm->base.desc, n_a));
+	return "timer unset";
 
     pe_timeable_start(&tm->tm);
+    return 0;
 }
 
 static void pe_timer_stop(pe_watcher *ev)

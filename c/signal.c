@@ -46,16 +46,15 @@ static void pe_signal_dtor(pe_watcher *ev) {
     EvFree(5, ev);
 }
 
-static void pe_signal_start(pe_watcher *_ev, int repeat) {
+static char *pe_signal_start(pe_watcher *_ev, int repeat) {
     pe_signal *ev = (pe_signal*) _ev;
     int sig = ev->signal;
-    if (sig == 0) {
-	STRLEN n_a;
-	croak("Event: '%s' watching no signal", SvPV(ev->base.desc, n_a));
-    }
+    if (sig == 0)
+	return "no signal";
     if (PE_RING_EMPTY(&Sigring[sig]))
 	rsignal(sig, process_sighandler);
     PE_RING_UNSHIFT(&ev->sring, &Sigring[sig]);
+    return 0;
 }
 
 static void pe_signal_stop(pe_watcher *_ev) {
