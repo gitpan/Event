@@ -2,9 +2,26 @@ use strict;
 package Event::process;
 BEGIN { 'Event::Loop'->import(qw(PRIO_HIGH queueEvent)); }
 
-'Event'->registerAsync;
-
 my %cb = ();		# hash of pid/callbacks
+
+'Event'->register(asynccheck => sub {
+    my @val = _reap();
+    while(@val) {
+	my($pid,$status) = splice(@val,0,2);
+
+	my $cbq = exists $cb{$pid}
+	    ? delete $cb{$pid}
+	    : exists $cb{"0"}
+		? $cb{"0"}
+		: undef;
+
+	if ($cbq) {
+	    for my $e (@$cbq) {
+		queueEvent($e, $pid, $status);
+	    }
+	}
+    }
+});
 
 sub new {
     #lock %Event::;
@@ -23,38 +40,6 @@ sub new {
     push @{$cb{ $obj->{pid} } ||= []}, $obj;
 
     Event::init($obj);
-}
-
-sub check {
-    my @val = _reap();
-
-    while(@val) {
-	my($pid,$status) = splice(@val,0,2);
-
-	my $cbq = exists $cb{$pid}
-	    ? delete $cb{$pid}
-	    : exists $cb{"0"}
-		? $cb{"0"}
-		: undef;
-
-	if ($cbq) {
-	    for my $e (@$cbq) {
-		my @a = ($e, $pid, $status);
-		my $cb = $e->{'callback'};
-		my $sub;
-		if (!$Event::DebugLevel) {
-		    $sub = sub { $cb->(@a); };
-		} else {
-		    $sub = sub {
-			Event::invoking($e);
-			$cb->(@a);
-			Event::completed($e);
-		    };
-		}
-		queueEvent($e->{priority}, $sub);
-	    }
-	}
-    }
 }
 
 sub cancel {

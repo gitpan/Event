@@ -13,22 +13,47 @@ B<BEFORE IT IS RELEASED FOR GENERAL USE.>
     
     # initialize application
     
-    Event->Loop;
+    my $ret = Event::Loop::Loop();
     
     # and some callback will call
-    Event->exit;
+    Event::Loop::exitLoop('ok');
 
 
 =head1 DESCRIPTION
 
+=head1 EVENTS
+
+The following properties are common to all events.
+
+=over 4
+
+=item queuing
+
+An event can only be queued once.
+
+=item cancel
+
+=item priority
+
+A default priority is assigned to each event upon creation.  The
+default depends on the type of the event.  A +- offset from the
+default can be passed via the C<priority> key.  If the C<priority> is
+a negative number the callback will be called immediately, otherwise
+it will be pushed onto the event queue.  While it may seem
+advantageous to use a negative priorities, it defeats the purpose of
+even having an event queue in the first place.
+
+=item now
+
+Events can be queued manually with the C<now> method.  Any C<now>
+additional arguments passed to now are forwarded to the event
+callback.  You must provide whatever arguments your event handler is
+expecting since the C<now> method bypasses the usual dispatch
+apparatus.
+
+=back
+
 =head1 EVENT TYPES
-
-All events have a few properties in common.
-
-A default priority is assigned depending on the type of the event.  A
-+- offset from the default can be passed via the C<priority> key.
-
-ALl events can be cancelled via the C<cancel> method.
 
 =over 4
 
@@ -42,13 +67,10 @@ Call C<&idle> when the loop is idle.
 
     $e = Event->watchvar(
 	variable => \$var,
-	async    => 0,
 	callback => \&watcher,
     );
 
-Call C<&watcher> when C<$var> is changed. If C<async> is I<true> then
-C<&watcher> will be called immediately, otherwise the call to
-C<&watcher> will be pushed onto the event queue.
+Call C<&watcher> when C<$var> is changed.
 
 When called C<&watcher> will be passed C<$e> as the first argument.
 
@@ -129,7 +151,45 @@ C<pid> is not specified.
 
 =back
 
-=head1 FUTURE ENHANCEMENTS
+=head1 CALLBACK ARGUMENTS
+
+The arguments passed to the event callback depends on the type of the
+event handler:
+
+  io             $event
+  process        $event, $pid, $status
+  signal         $event, $name, $count
+  timer          $event, $when
+  watchvar       $event, $ref
+
+=head1 Event::Loop API
+
+=over 4
+
+=item $Now
+
+Time::HiRes::time() cache for low-accuracy clients.
+
+=item queueEvent
+
+=item doOneEvent
+
+=item Loop
+
+=item exitLoop
+
+=item PRIO_HIGH, PRIO_NORMAL, QUEUES
+
+=back
+
+=head1 A COMMENT ON THE DESIGN
+
+While object-oriented design has gained popularity in recent times,
+Event does not follow these ideas as strictly as it might.
+Performance cannot be sacrificed for theoretical beauty.  Real beauty
+is to balance the solution to the requirements, without elaboration.
+
+=head1 DIRECTION
 
     # generate an event when we can successfully run an op
     $e = Event->semaphore(

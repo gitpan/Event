@@ -4,9 +4,6 @@ BEGIN { 'Event::Loop'->import(qw(PRIO_NORMAL queueEvent)); }
 
 'Event'->register;
 
-sub prepare { 3600 }
-sub check {}
-
 sub new {
     # lock %Event::;
 
@@ -21,23 +18,11 @@ sub new {
     my $cb  = $arg{'callback'};
 
     $arg{priority} = PRIO_NORMAL + ($arg{priority} or 0);
+    $arg{priority} -= 10 if $arg{async};
 
     my $obj = bless \%arg, __PACKAGE__;
 
-    my $sub;
-    if (!$Event::DebugLevel) {
-	$sub = sub { $cb->($obj,$ref) };
-    } else {
-	$sub = sub {
-	    Event::invoking($obj);
-	    $cb->($obj,$ref);
-	    Event::completed($obj);
-	};
-    }
-
-    $obj->{'callback'} = ($arg{async}?
-			  $sub : sub { queueEvent($obj->{priority}, $sub) });
-
+    $obj->{'modified'} = sub { queueEvent($obj, $ref) };
     $obj->_watchvar;
 
     Event::init($obj);

@@ -2,9 +2,17 @@ use strict;
 package Event::io;
 BEGIN { 'Event::Loop'->import(qw(PRIO_NORMAL queueEvent)); }
 
-'Event'->register;
-
 my (%cb,@cb);
+
+'Event'->register(check => sub {
+    # OPTIMIZE
+    # need a faster mapping from file descriptor to event objects XXX
+
+    for my $o (@cb) {
+	next unless Event::OS::GotEvent($o->{'handle'}, $o->{'events'});
+	queueEvent($o);
+    }
+});
 
 sub new {
 #    lock %Event::;
@@ -31,32 +39,6 @@ sub cancel {
     @cb = values %cb;
     Event::OS::RemoveSource($self->{'handle'}, $self->{'events'});
     $self->SUPER::cancel();
-}
-
-sub prepare { 3600 }
-
-sub check {
-    # OPTIMIZE
-    # have a faster mapping from file descriptor to event object XXX
-
-    for my $o (@cb) {
-	next unless Event::OS::GotEvent($o->{'handle'}, $o->{'events'});
-
-	my $cb = $o->{'callback'};
-	my $sub;
-	if (!$Event::DebugLevel) {
-	    $sub = sub {
-		$cb->($o);
-	    };
-	} else {
-	    $sub = sub {
-		Event::invoking($o);
-		$cb->($o);
-		Event::completed($o);
-	    };
-	}
-	queueEvent($o->{'priority'}, $sub);
-    }
 }
 
 1;

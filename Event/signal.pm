@@ -2,8 +2,6 @@ use strict;
 package Event::signal;
 BEGIN { 'Event::Loop'->import(qw(PRIO_HIGH queueEvent)); }
 
-'Event'->registerAsync;
-
 my %sig;
 
 BEGIN {
@@ -23,6 +21,18 @@ BEGIN {
     my $chld = RealSigName('CHLD') || RealSigName('CLD');
     delete $sig{$chld} if defined $chld;
 }
+
+'Event'->register(asynccheck => sub {
+    my @val = _reap();
+    while(@val) {
+	my($name,$count) = splice(@val,0,2);
+	next if !exists $sig{$name}; #?
+
+	for my $e (@{$sig{$name}}) {
+	    queueEvent($e, $name, $count);
+	}
+    }
+});
 
 sub new {
     # lock %Event::
@@ -59,33 +69,6 @@ sub cancel {
     _unwatch_signal($name) if @{$sig{$name}} == 0;
 
     $o->SUPER::cancel();
-}
-
-sub check {
-    my @val = _reap();
-
-    while(@val) {
-	my($name,$count) = splice(@val,0,2);
-	next if !exists $sig{$name}; #?
-
-	for my $e (@{$sig{$name}}) {
-	    
-	    my $cb = $e->{'callback'};
-	    my $sub;
-	    if (!$Event::DebugLevel) {
-		$sub = sub {
-		    $cb->($e, $name, $count);
-		};
-	    } else {
-		$sub = sub {
-		    Event::invoking($e);
-		    $cb->($e, $name, $count);
-		    Event::completed($e);
-		};
-	    }
-	    queueEvent($e->{priority}, $sub);
-	}
-    }
 }
 
 1;

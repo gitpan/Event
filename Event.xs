@@ -66,7 +66,7 @@ SV *sv;
     if (!SvIOK(sv) && SvIOKp(sv))
 	SvIOK_on(sv);
 
-    if (cvptr = hv_fetch((HV*)SvRV(obj),"callback",8,0)) {
+    if (cvptr = hv_fetch((HV*)SvRV(obj),"modified",8,0)) {
 	PUSHMARK(sp);
 	XPUSHs(obj);
 	XPUSHs(sv);

@@ -6,6 +6,4 @@ The %Event::Set stuff forces people to manually delete stuff or leak
 events.  The conversion to C should address this annoyance.  We can
 keep back-pointers instead of increasing the refcnt.
 
-time() cache for low-accuracy clients
-
 allow 'again' to be called on cancelled events?
