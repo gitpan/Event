@@ -23,7 +23,7 @@ priority order when it is safe for callbacks to execute.
 
 =head1 PERL API
 
-Events (the occurance of such) are noticed and queued by 'event
+Events (the occurrence of such) are noticed and queued by 'event
 watchers'.  The creation and configuration of event watchers is the
 primary topic of the rest of this document.
  
@@ -167,7 +167,7 @@ watchers.
 =item $watcher->again
 
 This is the same as the C<start> except if a watcher has special
-repeat behavior.  For example, repeating timers recalcuate their alarm
+repeat behavior.  For example, repeating timers recalculate their alarm
 time using the C<interval> parameter.
 
 =item $watcher->now
@@ -303,7 +303,7 @@ equal priority are serviced in first-in-first-out order.
                             PRIO_HIGH     PRIO_NORMAL
 
 A negative priority causes the callback to be invoked immediately upon
-event occurance.  Use this with caution.  While it may seem
+event occurrence.  Use this with caution.  While it may seem
 advantageous to use negative priorities, they bypass the whole point
 of having an event queue.
 
@@ -371,6 +371,11 @@ for this purpose.  See the full description of C<DIED> below.
 =item cbtime => $time
 
 When the callback was invoked most recently.
+
+=item data => $anything
+
+Use the C<data()> method to associate arbitrary data with a watcher.
+Each caller's package accesses its own private data attribute.
 
 =item debug => $bool
 
@@ -607,12 +612,12 @@ Threads can either substitute for an event loop or complement it.
 Threads are similar to processes in that the operating system manages
 task switching for you.  However, the difference is that all threads
 share the same address space.  This is good and bad.  Higher
-performance can be acheived but since data is shared between threads,
+performance can be achieved but since data is shared between threads,
 extreme care must be taken to access or modify global data.  The
 operating system can switch threads at any moment or can execute
-multiple threads simultaineously.  I hope this sounds dangerous!  It
+multiple threads simultaneously.  I hope this sounds dangerous!  It
 is!  Threads can introduce maddeningly complicated and hard to debug
-syncronization problems.
+synchronization problems.
 
 Threads are like rocket fuel.  They are essential when you really need
 them but most applications would be better off with a simple event
@@ -691,7 +696,7 @@ Even if this module does not end up being the One and True Event Loop,
 the author will insure that it is source compatible with its
 successor, or arrange for gradual migration.  Back in the early days,
 the Event programming API was changing at every release.  Care was
-taken to allow the old API to continue to work, and the transistion
+taken to allow the old API to continue to work, and the transition
 was eased by printing out lots of warnings about the new usage.  So
 you shouldn't sit on your hands in anticipation of the One and True
 Event Loop.  Just start coding!

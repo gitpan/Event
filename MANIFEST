@@ -25,12 +25,12 @@ c/var.c
 c/watcher.c
 demo/echo.t
 demo/group.t
+demo/msg.pm
 demo/perlqt.t
 demo/process.pm
 demo/rand_interval.t
 demo/readline.t
 demo/repeat.t
-demo/msg.pm
 demo/semaphore.pm
 lib/Event.pm
 lib/Event.pod
@@ -49,6 +49,7 @@ ppport.h
 t/attach_to.t
 t/bored.t
 t/callback.t
+t/data.t
 t/delete.t
 t/eval.t
 t/fifo.t

@@ -1,4 +1,16 @@
+2000-04-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.74.
+
+	* Resolved data() quandary.  Added test.
+
+2000-04-12  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Updated perlqt.t example.
+
 2000-03-24  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Spell checked pod.
 
 	* Release 0.73.
 

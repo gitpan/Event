@@ -99,8 +99,12 @@ sub configure {
 
 sub data {  # assumes $self is a HASH ref
     my $self = shift;
-    $self->{Event_data} = shift if @_;
-    $self->{Event_data};
+    my $pkg = caller;
+    if (@_) {
+	$self->{$pkg} = shift
+    } else {
+	$self->{$pkg};
+    }
 }
 
 sub clump {
