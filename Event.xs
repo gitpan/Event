@@ -574,19 +574,20 @@ DESTROY(ref)
 	}
 }
 
-int
+void
 pe_watcher::pending()
-	CODE:
+	PPCODE:
 {
-    pe_ring *lk = &THIS->events;
-    RETVAL = 0;
-    while (lk->next->self) {  /* should not be too wasteful */
-	++RETVAL;
-	lk = lk->next;
+    if (GIMME_V == G_ARRAY) {
+	pe_event *ev = (pe_event *) THIS->events.prev->self;
+	while (ev) {
+	    XPUSHs(event_2sv(ev));
+	    ev = (pe_event*) ev->peer.prev->self;
+	}
+    } else {
+	XPUSHs(THIS->events.next->self? &PL_sv_yes : &PL_sv_no);
     }
 }
-	OUTPUT:
-	RETVAL
 
 void
 pe_watcher::again()
@@ -640,19 +641,9 @@ pe_watcher::use_keys(...)
 	warn("use_keys is deprecated");
 
 void
-pe_watcher::running(...)
-	PPCODE:
-	PUTBACK;
-	warn("running renamed to is_running");
-	_watcher_running(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
-	SPAGAIN;
-
-void
 pe_watcher::is_running(...)
 	PPCODE:
-	PUTBACK;
-	_watcher_running(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
-	SPAGAIN;
+	XPUSHs(sv_2mortal(newSViv(THIS->running)));
 
 void
 pe_watcher::is_active(...)
@@ -665,12 +656,6 @@ pe_watcher::is_suspended(...)
 	PPCODE:
 	PUTBACK;
 	XPUSHs(boolSV(WaSUSPEND(THIS)));
-
-void
-pe_watcher::is_queued(...)
-	PPCODE:
-	PUTBACK;
-	XPUSHs(boolSV(WaFLAGS(THIS) & PE_QUEUED));
 
 void
 pe_watcher::is_cancelled(...)

@@ -131,7 +131,7 @@ customized by passing extra attributes to the constructor.  When
 created, watcher objects are "started" and are waiting for events
 (see C<$event-E<gt>start> below).
 
-L<NetServer::ProcessTop> displays watchers in real-time, formatted
+L<NetServer::Portal> can display watchers in real-time, formatted
 similarly to the popular C<top> program.  You may find this a useful
 aide for debugging.
 
@@ -285,14 +285,6 @@ of the main callback.
 =item signal
 
 Extra attribute: signal => $str
-
-=item semaphore
-
-Not yet implemented.
-
-=item msg
-
-Not yet implemented.
 
 =back
     
@@ -695,7 +687,7 @@ descriptors.
 
 =head1 ALSO SEE
 
-L<Time::HiRes>, L<NetServer::ProcessTop>, L<IPC::LDT>, L<Event-tcp>,
+L<Time::HiRes>, L<NetServer::Portal>, L<IPC::LDT>, L<Event-tcp>,
 and L<Time::Warp>.
 
 While Tk does not yet support Event, L<PerlQt> does.

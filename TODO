@@ -2,16 +2,11 @@ finish up lexical warnings
 
 omitting parked=>1 should be a warning, not an error?
 
-attribute set methods should return the new value
+attribute set methods should return the new value?
 
 add timeout for var watchers?
 
-remove PE_QUEUED (unused?)
-
 find owner for Win32 port
-
-I am planning to change $watcher->pending to return the T/F in a
-scalar context and the actual events in a list context.
 
 discontinue inactivity watchers
 
@@ -53,8 +48,6 @@ loop
 -----------------------------------------------------------------------
 -----------------------------------------------------------------------
 
-Move process.pm to external module!
-
-export_fail hook to autoload?
+Move process.pm to external module?
 
 accept "%f minutes" & "%f hours" for all time specifications?

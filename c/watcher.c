@@ -207,15 +207,6 @@ WKEYMETH(_watcher_repeat) {
     }
 }
 
-WKEYMETH(_watcher_running) {
-    if (!nval) {
-	dSP;
-	XPUSHs(sv_2mortal(newSViv(ev->running)));
-	PUTBACK;
-    } else
-	croak("'e_running' is read-only");
-}
-
 WKEYMETH(_watcher_suspend) {
     if (!nval) {
 	dSP;
@@ -272,8 +263,6 @@ static void boot_pe_watcher() {
     vt->alarm = pe_watcher_alarm;
     newCONSTSUB(stash, "ACTIVE", newSViv(PE_ACTIVE));
     newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
-    newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));
-    newCONSTSUB(stash, "RUNNING", newSViv(PE_RUNNING));
     newCONSTSUB(stash, "R", newSViv(PE_R));
     newCONSTSUB(stash, "W", newSViv(PE_W));
     newCONSTSUB(stash, "E", newSViv(PE_E));

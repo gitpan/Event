@@ -92,13 +92,10 @@ struct pe_watcher_vtbl {
 #define PE_PERLCB	0x020
 #define PE_RUNNOW	0x040
 #define PE_TMPERLCB	0x080
-#define PE_QUEUED	0x100  /* virtual flag */
-#define PE_RUNNING	0x200  /* virtual flag */
 #define PE_CANCELLED	0x400
 #define PE_DESTROYED	0x800
 
-#define PE_VISIBLE_FLAGS \
-(PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
+#define PE_VISIBLE_FLAGS (PE_ACTIVE | PE_SUSPEND)
 
 #ifdef DEBUGGING
 #  define WaDEBUGx(ev) (SvIV(DebugLevel) + WaDEBUG(ev))

@@ -1,3 +1,19 @@
+2000-03-10  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.72.
+
+2000-03-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Rename NetServer::ProcessTop -> NetServer::Portal.
+
+2000-03-08  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Removed unused QUEUED & RUNNING flags.
+
+2000-03-07  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Made pending() aware of context.  Added tests.
+
 2000-03-03  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.71.

@@ -76,9 +76,7 @@ WKEYMETH(_tied_at) {
 WKEYMETH(_tied_flags) {
     if (!nval) {
 	dSP;
-	XPUSHs(sv_2mortal(newSViv((ev->flags & PE_VISIBLE_FLAGS) |
-				  (ev->running? PE_RUNNING : 0) |
-				  (PE_RING_EMPTY(&ev->events)? 0:PE_QUEUED))));
+	XPUSHs(sv_2mortal(newSViv(ev->flags & PE_VISIBLE_FLAGS)));
 	PUTBACK;
     } else {
 	IV nflags = SvIV(nval);

@@ -3,7 +3,7 @@ package Event::Watcher;
 use base 'Exporter';
 use Carp;
 use vars qw(@EXPORT_OK @ATTRIBUTE);
-@EXPORT_OK = qw(ACTIVE SUSPEND QUEUED RUNNING R W E T);
+@EXPORT_OK = qw(ACTIVE SUSPEND R W E T);
 @ATTRIBUTE = qw(cb cbtime desc debug prio reentrant repeat max_cb_tm);
 
 sub register {
