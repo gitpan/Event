@@ -1,4 +1,4 @@
-static void invalidate_sv(SV *ref)
+static void invalidate_sv(SV *ref, void *to)
 {
   SV *iobj;
   assert(ref);
@@ -6,7 +6,7 @@ static void invalidate_sv(SV *ref)
   iobj = SvRV(ref);
   assert(SvTYPE(iobj) == SVt_PVHV);
   assert(SvOBJECT(iobj));
-  HvNAME(iobj) = 0;
+  HvNAME(iobj) = to;
   /*warn("Invalidate (%s=0x%x)", HvNAME(SvSTASH(iobj)), iobj); /**/
 }
 

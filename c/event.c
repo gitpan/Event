@@ -28,9 +28,12 @@ static void pe_event_dtor(pe_event *ev)
 	warn("Event=0x%x '%s' destroyed (SV=0x%x)",
 	     ev, SvPV(wa->desc, n_a), ev->mysv? SvRV(ev->mysv) : 0);
     if (ev->mysv) {
-	invalidate_sv(ev->mysv);
+	/* If watcher is cancelled, these SVs will not be invalidated XXX */
+	invalidate_sv(ev->mysv, wa);
+	sv_bless(ev->mysv, wa->stash);
 	ev->mysv=0;
     }
+    /*
     if (fb) {
 	HE *ent;
 	hv_iterinit(fb);
@@ -211,7 +214,7 @@ static void pe_event_invoke(pe_event *ev)
   frp->ev = ev;
   frp->run_id = ++wa->running;
   if (Estat.on)
-    frp->stats = Estat.enter(CurCBFrame);
+    frp->stats = Estat.enter(CurCBFrame, wa->max_cb_tm);
   assert(ev->priority >= 0 && ev->priority < PE_QUEUES);
   QueueTime[ev->priority] = wa->cbtime = EvNOW(EvCBTIME(wa));
   /* SETUP */
@@ -259,8 +262,9 @@ static void pe_event_invoke(pe_event *ev)
   LEAVE;
 
   if (Estat.on) {
-    Estat.commit(frp->stats, wa);
-    frp->stats=0;
+      if (frp->stats)  /* maybe in transition */
+	  Estat.commit(frp->stats, wa);
+      frp->stats=0;
   }
   if (EvDEBUGx(wa) >= 3)
     warn("Event: completed '%s'\n", SvPV(wa->desc, n_a));

@@ -100,7 +100,7 @@ static int pe_empty_queue(maxprio)
   if (!Estat.on)
     pe_sys_multiplex(tm);
   else {
-    void *st = Estat.enter(-1);
+    void *st = Estat.enter(-1, 0);
     pe_sys_multiplex(tm);
     Estat.commit(st, 0);
   }

@@ -578,6 +578,9 @@ STORE(obj, key, nval)
 	pe_base_vtbl *vt;
 	PPCODE:
 	PUTBACK;
+	/* Otherwise massive confusion when event goes out of scope.
+	   SVs that hold magic that hold the event will cause blow up. XXX */
+	nval = sv_mortalcopy(nval);
 	get_base_vtbl(obj, &vp, &vt);
 	vt->Store(vp, kremap(key), nval);
 	SPAGAIN;

@@ -35,6 +35,7 @@ static void pe_watcher_init(pe_watcher *ev)
   ev->id = NextID;
   ev->desc = newSVpvn("??",2);
   ev->running = 0;
+  ev->max_cb_tm = 1;  /* make default configurable? */
   ev->cbtime = 0;
   ev->priority = PE_QUEUES;
   ev->callback = 0;
@@ -66,7 +67,7 @@ static void pe_watcher_dtor(pe_watcher *ev)
   assert(PE_RING_EMPTY(&ev->events));
   PE_RING_DETACH(&ev->all);
   if (ev->mysv) {
-      invalidate_sv(ev->mysv);
+      invalidate_sv(ev->mysv, 0);
       ev->mysv=0;
   }
   if (ev->FALLBACK)
@@ -227,6 +228,22 @@ WKEYMETH(_watcher_suspend)
     }
 }
 
+WKEYMETH(_watcher_max_cb_tm)
+{
+    if (!nval) {
+	dSP;
+	XPUSHs(sv_2mortal(newSViv(ev->max_cb_tm)));
+	PUTBACK;
+    } else {
+	int tm = SvIOK(nval)? SvIV(nval) : 0;
+	if (tm < 0) {
+	    warn("e_max_cb_tm must be non-negative");
+	    tm=0;
+	}
+	ev->max_cb_tm = tm;
+    }
+}
+
 /********************************** *******************************/
 
 static void pe_watcher_FETCH(void *vptr, SV *svkey)
@@ -375,6 +392,7 @@ static void boot_pe_watcher()
   hv_store(vt->keymethod, "e_repeat",     8, newSViv((IV)_watcher_repeat), 0);
   hv_store(vt->keymethod, "e_running",    9, newSViv((IV)_watcher_running), 0);
   hv_store(vt->keymethod, "e_suspend",    9, newSViv((IV)_watcher_suspend), 0);
+  hv_store(vt->keymethod, "e_max_cb_tm", 11, newSViv((IV)_watcher_max_cb_tm), 0);
   vt->dtor = pe_watcher_dtor;
   vt->start = pe_watcher_nostart;
   vt->stop = pe_watcher_nostop;

@@ -1,3 +1,19 @@
+1999-03-30  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.33.
+
+1999-03-29  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Store 'e_max_cb_tm' and hand-off to stats engine.
+
+1999-03-17  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Morph events into watchers when they go out of scope.
+
+1999-03-16  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Refine typemap fix.
+
 1999-03-15  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.32.

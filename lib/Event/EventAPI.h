@@ -24,34 +24,35 @@ struct pe_ring { void *self; pe_ring *next, *prev; };
 #define PE_ITER_FALLBACK 2
 
 struct pe_watcher {
-    pe_watcher_vtbl *vtbl;
+    pe_watcher_vtbl *vtbl;	/* must match pe_event */
     SV *mysv;
 
-  HV *stash;
-  U32 flags;
-  SV *desc;
-  pe_ring all;
-  pe_ring events;
-  HV *FALLBACK;
-  I16 iter;
-  I16 id;
-  I16 priority;
-  IV running; /* SAVEINT */
-  double cbtime;
-  void *callback;
-  void *ext_data;
-  void *stats;
+    double cbtime;
+    void *callback;
+    void *ext_data;
+    void *stats;
+    HV *stash;
+    IV running; /* SAVEINT */
+    U32 flags;
+    SV *desc;
+    pe_ring all;
+    pe_ring events;
+    HV *FALLBACK;
+    I16 id;
+    I16 iter;
+    I16 priority;
+    I16 max_cb_tm;
 };
 
 struct pe_event {
     pe_event_vtbl *vtbl;
     SV *mysv;  /* must match layout of pe_watcher */
 
-  pe_watcher *up;
-  pe_ring peer;
-  pe_ring que;
-  I16 count;
-  I16 priority;
+    pe_watcher *up;
+    pe_ring peer;
+    pe_ring que;
+    I16 count;
+    I16 priority;
 };
 
 /* This must be placed directly after pe_watcher so the memory
@@ -157,7 +158,7 @@ struct pe_var {
 typedef struct pe_event_stats_vtbl pe_event_stats_vtbl;
 struct pe_event_stats_vtbl {
   int on;
-  void*(*enter)(int frame);
+  void*(*enter)(int frame, int max_tm);
   void (*suspend)(void *);
   void (*resume)(void *);
   void (*commit)(void *, pe_watcher *);
@@ -166,7 +167,7 @@ struct pe_event_stats_vtbl {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 15
+#define EventAPI_VERSION 16
   I32 Ver;
 
   /* EVENTS */
@@ -205,15 +206,15 @@ struct EventAPI {
 
 static struct EventAPI *GEventAPI=0;
 
-#define I_EVENT_API(YourName)							\
-STMT_START {									\
-  SV *sv = perl_get_sv("Event::API",0);						\
-  if (!sv) croak("Event::API not found");					\
-  GEventAPI = (struct EventAPI*) SvIV(sv);					\
-  if (GEventAPI->Ver != EventAPI_VERSION) {					\
-    croak("Event::API version mismatch (%d != %d) -- please recompile %s",	\
-	  GEventAPI->Ver, EventAPI_VERSION, YourName);				\
-  }										\
+#define I_EVENT_API(YourName)						   \
+STMT_START {								   \
+  SV *sv = perl_get_sv("Event::API",0);					   \
+  if (!sv) croak("Event::API not found");				   \
+  GEventAPI = (struct EventAPI*) SvIV(sv);				   \
+  if (GEventAPI->Ver != EventAPI_VERSION) {				   \
+    croak("Event::API version mismatch (%d != %d) -- please recompile %s", \
+	  GEventAPI->Ver, EventAPI_VERSION, YourName);			   \
+  }									   \
 } STMT_END
 
 #endif

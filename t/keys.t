@@ -1,7 +1,7 @@
 #!./perl -w
 
 use strict;
-use Test; plan tests => 6;
+use Test; plan tests => 8;
 use Event 0.28 qw(sweep);
 
 # $Event::DebugLevel = 2;
@@ -22,11 +22,15 @@ inspect(Event->timer(e_after => 0, e_cb => \&inspect));
 inspect(Event->io(e_timeout => .001, e_fd => \*STDIN, e_poll => 'r',
 			   e_cb => \&inspect));
 my $ev;
-my $timer = Event->timer(e_after => 0, e_cb => sub { $ev = shift },
+my $timer = Event->timer(e_after => 0, e_cb => sub {
+			     $ev = shift;
+			     ok exists $ev->{e_hits};
+			 },
 			 stuff => 'stuff');
 ok $timer->{stuff}, 'stuff';
 
 sweep();
 
-eval { ++$ev->{retries} };
-ok $@, '/destroyed/';
+# $ev has morphed from an event into a watcher
+ok !exists $ev->{e_hits};
+ok $timer->{e_id}, $ev->{e_id};
