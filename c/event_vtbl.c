@@ -1,4 +1,3 @@
-
 static int NextID = 0;
 static pe_ring AllEvents;
 static struct pe_event_vtbl pe_event_base_vtbl;
@@ -25,7 +24,7 @@ pe_event_init(pe_event *ev)
   ev->refcnt = 0;  /* maybe can remove later? XXX */
   ev->desc = newSVpvf("Event-0x%x", ev);
   ev->count = 0;
-  ev->priority = -1;
+  ev->priority = QUEUES;
   ev->perl_callback[0] = 0;
   ev->perl_callback[1] = 0;
   ev->c_callback = 0;
@@ -137,6 +136,7 @@ pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
   switch (key[0]) {
   case 'c':
     if (len == 8 && memEQ(key, "callback", 8)) { ok=1;
+    /* move after REFCNT_inc XXX */
       for (xx=0; xx < 2; xx++) {
 	if (ev->perl_callback[xx]) {
 	  SvREFCNT_dec(ev->perl_callback[xx]);
@@ -190,7 +190,12 @@ pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
   case 'p':
     if (len == 8 && memEQ(key, "priority",8)) {
       ok=1;
-      ev->priority = SvIV(nval);
+      if (ev->priority != SvIV(nval)) {
+	int qued = EvQUEUED(ev);
+	if (qued) dequeEvent(ev);
+	ev->priority = SvIV(nval);
+	if (qued) queueEvent(ev, 0);
+      }
       break;
     }
     break;
@@ -307,7 +312,8 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
   if (Stats)
     gettimeofday(&start_tm, 0);
   EvRUNNING_on(ev);
-  if (SvIVX(Eval) + EvDEBUG(ev))
+  /* can't make event specific because of c_callback XXX */
+  if (SvIVX(Eval) || EvDEBUG(ev))
     flags |= G_EVAL;
   /* ignore return value? */
   if (ev->perl_callback[0]) {
@@ -328,8 +334,13 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
       perl_call_method(SvPV(ev->perl_callback[1],na), flags);
     }
     if ((flags & G_EVAL) && SvTRUE(ERRSV)) {
-      warn("Event: fatal error trapped in '%s' callback: %s",
-	   SvPV(ev->desc,na), SvPV(ERRSV, na));
+      SV *eval = perl_get_sv("Event::DIED", 1);
+      dSP;
+      PUSHMARK(SP);
+      XPUSHs(sv_2mortal(event_2sv(ev)));
+      XPUSHs(sv_mortalcopy(ERRSV));
+      PUTBACK;
+      perl_call_sv(eval, G_EVAL|G_KEEPERR|G_DISCARD);
     }
     FREETMPS;
     LEAVE;
@@ -464,7 +475,7 @@ void pe_event_resume(pe_event *ev)
   }
   if (EvQUEUED(ev)) {
     EvQUEUED_off(ev);
-    queueEvent(ev, 1);
+    queueEvent(ev, 0);
   }
 }
 

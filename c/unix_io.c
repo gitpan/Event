@@ -16,6 +16,8 @@ pe_io_fileno(pe_io *ev)
   
   if (!sv)
     return ev->fd;
+  if (SvGMAGICAL(sv))
+    mg_get(sv);
   if (SvROK(sv))
     sv = SvRV(sv);
   else if (SvIOK(sv)) /* maybe non-portable but nice for unixen */

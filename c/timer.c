@@ -9,7 +9,7 @@ struct pe_timer {
   pe_ring tmring;
   int hard;
   double at;
-  double interval;
+  SV *interval;
 };
 
 static pe_event *
@@ -22,9 +22,16 @@ pe_timer_allocate()
   PE_RING_INIT(&ev->tmring, ev);
   ev->hard = 0;
   ev->at = 0;
-  ev->interval = 0;
+  ev->interval = newSVnv(0);
   pe_event_init((pe_event*) ev);
   return (pe_event*) ev;
+}
+
+static void pe_timer_dtor(pe_event *ev)
+{
+  pe_timer *tm = (pe_timer*) ev;
+  SvREFCNT_dec(tm->interval);
+  (*ev->vtbl->up->dtor)(ev);
 }
 
 static void
@@ -68,13 +75,28 @@ pe_timer_start(pe_event *ev, int repeat)
   if (repeat) {
     /* We just finished the callback and need to re-insert at
        the appropriate time increment. */
-    if (!tm->interval)
-      croak("Timer has no interval");
+    SV *sv = tm->interval;
+    double interval;
+
+    if (SvGMAGICAL(sv))
+      mg_get(sv);
+    if (SvNIOK(sv))
+      interval = SvNV(sv);
+    else if (SvROK(sv) && SvNIOK(SvRV(sv)))
+      interval = SvNV(SvRV(sv));
+    else {
+      sv_dump(sv);
+      croak("Interval must be a number or a reference to a number");
+    }
+
+    if (interval <= 0)
+      croak("Timer has non-positive interval");
+
     if (tm->hard) {
-      tm->at = tm->interval + tm->at;
+      tm->at = interval + tm->at;
     } else {
       cacheNow();
-      tm->at = tm->interval + Now;
+      tm->at = interval + Now;
     }
   }
   if (!tm->at)
@@ -131,7 +153,7 @@ pe_timer_FETCH(pe_event *_ev, SV *svkey)
     break;
   case 'i':
     if (len == 8 && memEQ(key, "interval", 8)) {
-      ret = sv_2mortal(newSVnv(ev->interval));
+      ret = ev->interval;
       break;
     }
     break;
@@ -171,7 +193,9 @@ pe_timer_STORE(pe_event *_ev, SV *svkey, SV *nval)
     break;
   case 'i':
     if (len == 8 && memEQ(key, "interval", 8)) {
-      ev->interval = SvNV(nval);
+      SV *old = ev->interval;
+      ev->interval = SvREFCNT_inc(nval);
+      SvREFCNT_dec(old);
       ok=1;
       break;
     }
@@ -203,6 +227,7 @@ boot_timer()
   vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::timer",1));
   vt->keys = sizeof(keylist)/sizeof(char*);
   vt->keylist = keylist;
+  vt->dtor = pe_timer_dtor;
   vt->FETCH = pe_timer_FETCH;
   vt->STORE = pe_timer_STORE;
   vt->start = pe_timer_start;

@@ -28,8 +28,9 @@ sub new {
     }
 
     if (exists $arg{interval}) {
-	$o->{at} = time() + $arg{interval} unless $arg{at};
-	$o->{interval} = $arg{interval};
+	my $i = $arg{interval};
+	$o->{at} = time() + (ref $i? $$i : $i) unless $arg{at};
+	$o->{interval} = $i;
 	$o->{repeat} = 1;
     }
 

@@ -11,8 +11,14 @@ package Event;
 require Exporter;
 *require_version = \&Exporter::require_version;
 use Carp qw(carp cluck croak confess);
-use vars qw($VERSION $DebugLevel $Eval);
-$VERSION = '0.10';
+use vars qw($VERSION $DebugLevel $Eval $DIED);
+$VERSION = '0.11';
+$Eval = 0;
+$DIED = sub {
+    my ($run, $err) = @_;
+    my $desc = $run? $run->{desc} : '?';
+    warn "Event: fatal error trapped in '$desc': $err";
+};
 
 # 0    FAST, FAST, FAST!
 # 1    COLLECT SOME NICE STATISTICS
@@ -20,7 +26,6 @@ $VERSION = '0.10';
 # 3    EXCESSIVE DEBUGGING OUTPUT
 
 $DebugLevel = 0;
-$Eval = 0;
 
 BOOT_XS: {
     # If I inherit DynaLoader then I inherit AutoLoader; Bletch!
@@ -105,10 +110,15 @@ sub register {
 	if !$sub;
     *{$name} = $sub;
 
+    &add_hooks;
+}
+
+sub add_hooks {
     shift;
     while (@_) {
 	my $k = shift;
 	my $v = shift;
+	$k =~ s/^\-//; # optional dash
 	croak "$v must be CODE" if ref $v ne 'CODE';
 	if ($k eq 'prepare') {
 	    push @Event::Loop::Prepare, $v;
@@ -117,7 +127,7 @@ sub register {
 	} elsif ($k eq 'asynccheck') {
 	    push @Event::Loop::AsyncCheck, $v;
 	} else {
-	    carp "Event: register '$k' => $v (ignored)";
+	    carp "Event: add_hooks '$k' => $v (ignored)";
 	}
     }
 }
@@ -158,8 +168,15 @@ sub Loop {
     local $Result = 'abnormal';
     local $LoopLevel = $LoopLevel+1;
     ++$ExitLevel;
-    doEvents();
-#    doOneEvent() while $ExitLevel >= $LoopLevel;
+    while (1) {
+	eval { doEvents() };
+	if ($@) {
+	    my $err = $@;
+	    $Event::DIED->(scalar running(), $err);
+	    next;
+	}
+	last;
+    }
     $Result;
 }
 

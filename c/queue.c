@@ -1,5 +1,3 @@
-/* Hard to imagine a need for more than 7 queues... */
-#define QUEUES 7
 static pe_ring Queue[QUEUES];
 static int queueCount = 0;
 static pe_stat idleStats;
@@ -42,7 +40,7 @@ queueEvent(pe_event *ev, int count)
 {
   int prio = ev->priority;
   int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
-  assert(count > 0);
+  assert(count >= 0);
   ev->count += count;
   if (EvSUSPEND(ev))
     return;
@@ -87,7 +85,6 @@ static unsigned doe_enter=0, doe_leave=0;
 
 static void pe_map_check(AV *av)
 {
-  /* untested XXX */
   int xx;
   ENTER;
   SAVETMPS;
@@ -102,6 +99,28 @@ static void pe_map_check(AV *av)
   FREETMPS;
   LEAVE;
 }
+
+/*
+  recover if exited via longjmp
+
+  @AsyncCheck
+
+  return 1 if emptyQueue(QUEUES-2)
+
+  tm = min @Prepare
+
+  pe_io_waitForEvent(tm)
+
+  @Check
+
+  if (tm) @AsyncCheck
+
+  return 1 if emptyQueue(QUEUES)
+
+  return 1 runIdle
+
+  return 0
+ */
 
 static int
 doOneEvent()
@@ -132,7 +151,7 @@ doOneEvent()
   pe_signal_asynccheck();
   if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
 
-  if (emptyQueue(QUEUES)) {
+  if (emptyQueue(QUEUES-2)) {
     ++doe_leave;
     return 1;
   }

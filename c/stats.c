@@ -113,10 +113,11 @@ static void pe_stat_restart()
     cacheNow();
     RollTimer = (pe_timer*) pe_timer_allocate();
     RollTimer->at = Now;
-    RollTimer->interval = PE_STAT_SECONDS;
+    sv_setnv(RollTimer->interval, PE_STAT_SECONDS);
     ev = (pe_event*) RollTimer;
     EvREPEAT_on(ev);
     sv_setpv(ev->desc, "Event::Stats");
+    ev->priority = PE_PRIO_NORMAL + 1;
     ev->c_callback = pe_stat_roll_cb;
     pe_timer_start(ev, 0);
   }

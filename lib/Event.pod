@@ -4,8 +4,8 @@ Event - Event loop processing
 
 =head1 WARNING
 
-B<THIS IS EXPERIMENTAL AND IS LIKELY TO CHANGE CONSIDERABLY BEFORE
-BEING DEEMED STABLE.>
+B<THIS IS EXPERIMENTAL AND IS LIKELY TO CHANGE BEFORE BEING DECLARED
+STABLE.>
 
 Thank you for your patience.
 
@@ -33,7 +33,7 @@ be prepended with a dash (-) or not depending on your preferance.
 =item callback
 
 Use either a code ref or an array containing an object and the method
-to call.
+name.
 
 =item count
 
@@ -202,6 +202,8 @@ Event does not follow these ideas as strictly as it might.
 Performance cannot be sacrificed for theoretical beauty.  Real beauty
 is to balance a solution to the requirements, without elaboration.
 
+More documentation is needed.
+
 =head1 DIRECTION
 
     # generate an event when we can successfully run an op
@@ -217,6 +219,10 @@ is to balance a solution to the requirements, without elaboration.
 	callback => \&doit
     );
     
+=head1 ALSO SEE
+
+L<NetServer::ProcessTop>
+
 =head1 SUPPORT
 
 This extension is discussed on the perl-loop@perl.org mailing list.

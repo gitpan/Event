@@ -9,5 +9,5 @@ Event->timer(at => time)->cancel;
 my $var = 1;
 Event->watchvar(variable => \$var)->cancel;
 
-my $got = join(', ', map { ref } Event::Stats->events()) || 'None';
+my $got = join(', ', map { ref } Event::Loop::events()) || 'None';
 ok($got, 'None');

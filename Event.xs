@@ -7,26 +7,34 @@
 
 #define PE_NEWID ('e'+'v')  /* for New() macro */
 
-static int Stats=0;
-static SV *DebugLevel, *Eval;
-
-#include "Event.h"
-
 #if defined(HAS_POLL)
 # include <poll.h>
 
-# ifndef POLLRDNORM
-# define POLLRDNORM POLLIN
-# endif
+/*
+	Many operating systems claim to support poll, yet they
+	actually emulate it with select.  c/unix_io.c supports
+	either poll or select but it doesn't know which one to
+	use.  Here we try to detect if we have a native poll
+	implementation.  If we do, we use it.  Otherwise,
+	select is assumed.
+*/
 
-# ifndef POLLRDBAND
-# define POLLRDBAND POLLIN
+# ifndef POLLOUT
+#  undef HAS_POLL
 # endif
-
+# ifndef POLLWRNORM
+#  undef HAS_POLL
+# endif
 # ifndef POLLWRBAND
-# define POLLWRBAND POLLOUT
+#  undef HAS_POLL
 # endif
 #endif
+
+#include "Event.h"
+
+static int Stats=0;
+static SV *DebugLevel;
+static SV *Eval;
 
 static void queueEvent(pe_event *ev, int count);
 static void dequeEvent(pe_event *ev);
@@ -200,16 +208,6 @@ idle(class, sec)
 	XPUSHs(sv_2mortal(newSVnv(elapse)));
 
 void
-events(class)
-	SV *class;
-	PPCODE:
-	pe_event *ev = AllEvents.next->self;
-	while (ev) {
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
-	  ev = ev->all.next->self;
-	}
-
-void
 restart(class)
 	SV *class
 	CODE:
@@ -250,6 +248,28 @@ null_loops_per_second(sec)
 	RETVAL = count/sec;
 	OUTPUT:
 	RETVAL
+
+void
+events()
+	PPCODE:
+	pe_event *ev = AllEvents.next->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  ev = ev->all.next->self;
+	}
+
+void
+running()
+	PPCODE:
+	pe_event *ev = AllEvents.next->self;
+	while (ev) {
+	  if (EvRUNNING(ev)) {
+	    XPUSHs(sv_2mortal(event_2sv(ev)));
+	    if (GIMME_V != G_ARRAY)
+	      break;
+	  }
+	  ev = ev->all.next->self;
+	}
 
 void
 listQ()

@@ -1,3 +1,48 @@
+1998-09-11  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.11.
+
+1998-09-10  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Regularized exception handling.  $Event::DIED is now called if an
+ 	event dies.
+
+	* Allow timer interval to be a scalar ref.
+
+1998-09-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Tweaked queue scheduling.  Events with priorities <= 5 now
+ 	starve if there are higher priority events available.
+
+	* Changing the event priority of a queued event will now reque the
+ 	event into the appropriate queue.
+
+	* Split NetServer::ProcessTop into it's own tarball.
+
+1998-09-04  Joshua Pritikin  <joshua@eq1062.wks.na.deuba.com>
+
+	* Release 0.10.
+
+	* NetServer::ProcessTop implements a top-style control panel
+ 	available via telnet ($$ % 7000).  See util/top.pl.
+
+	* Proxy "tied" event type that allows completely perl-side
+ 	implementation of new event handlers.
+
+	* Event::process is working again (implementation is entirely in
+ 	perl).
+
+	* Eliminated race conditions in signal handling.
+
+	* Zombie events are still not being collected due to mysterious
+ 	refcnt problems.  It is possible that this cannot be resolved
+ 	until perl implements tied hashes properly (through a VTBL!).
+
+	* Removed $Event::*::Count since it is superceded by
+ 	NetServer::ProcessTop.
+	
+	* Fixed serious bug in the event destructor.
+
 1998-08-28  Joshua Pritikin  <joshua@eq1062.wks.na.deuba.com>
 
 	* Fixed serious bug in the event destructor.

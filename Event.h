@@ -1,3 +1,6 @@
+/* Hard to imagine a need for more than 7 queues... */
+#define QUEUES 7
+
 typedef struct pe_ring pe_ring;
 struct pe_ring { void *self; pe_ring *next, *prev; };
 
@@ -129,11 +132,12 @@ struct pe_event {
 #define EvQUEUED_on(ev)		(EvFLAGS(ev) |= PE_QUEUED)
 #define EvQUEUED_off(ev)	(EvFLAGS(ev) &= ~PE_QUEUED)
 
+/* note: can have multiple events running if they nest... */
 #define EvRUNNING(ev)		(EvFLAGS(ev) & PE_RUNNING)
 #define EvRUNNING_on(ev)	(EvFLAGS(ev) |= PE_RUNNING)
 #define EvRUNNING_off(ev)	(EvFLAGS(ev) &= ~PE_RUNNING)
 
-#define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 1:0) /*arthimetic*/
+#define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 1:0) /*arthimetical*/
 #define EvDEBUG_on(ev)		(EvFLAGS(ev) |= PE_DEBUG)
 #define EvDEBUG_off(ev)		(EvFLAGS(ev) &= ~PE_DEBUG)
 

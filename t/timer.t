@@ -1,6 +1,6 @@
 # the time for -*-perl-*-
 
-use Test; plan tests => 5;
+use Test; plan tests => 6;
 use Event;
 
 #$Event::DebugLevel = 2;
@@ -24,9 +24,10 @@ Event->timer(after => .5, callback => sub {
 		 }
 	     }, desc => "after");
 
-Event->timer(interval => .5, callback => sub {
-		 Event::Loop::exitLoop('ok') if $count > 30
-	     }, desc => "exit");
+my $ok = Event->timer(interval => .5, callback => sub {
+			  Event::Loop::exitLoop('ok') if $count > 30
+		      }, desc => "exit");
+ok abs($ok->{at} - time) < 3, 1, "diff was ".($ok->{at} - time);
 
 my $long;
 for (1..10) {

@@ -1,9 +1,9 @@
 # This -*- perl -*- script makes the Makefile
 
-require 5.002;
+require 5.00405;
 use ExtUtils::MakeMaker;
 
-# Parasoft's Insure++ makes C programmer bearable!
+# Parasoft's Insure++!
 @Safe = (
 	 OPTIMIZE => '-g',
 	 CC => 'insure',
@@ -17,7 +17,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
 	      @PREFIX,
 	      PREREQ_PM => {
-			    IO => 1.19,
+			    IO => '1.19',
 			    Test => 1,
 			   },
 	      VERSION_FROM	=> "./lib/Event.pm",

@@ -22,7 +22,6 @@ c/unix_io.c
 c/watchvar.c
 lib/Event.pm
 lib/Event.pod
-lib/Event/TopServer.pm
 lib/Event/io.pm
 lib/Event/msg.pm
 lib/Event/process.pm
@@ -42,4 +41,3 @@ typemap
 util/bench.pl
 util/filehandle.txt
 util/junk
-util/top.pl

@@ -1,3 +1,12 @@
+If you get compile errors like this:
+
+  "c/io.c", line 133: error(1020): identifier "POLLIN" is undefined
+        if (mask & (POLLIN | POLLRDNORM))
+
+Try adding '#undef HAS_POLL' to the beginning of Event.xs.
+
+---
+
 The design and implementation of this extension is discussed on the
 perl-loop mailing list.  Please send email to majordomo@perl.org to
 subscribe!
