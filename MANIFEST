@@ -37,6 +37,7 @@ t/idle.t
 t/io.t
 t/leak.t
 t/process.t
+t/reenter.t
 t/signal.t
 t/timer.t
 t/var.t

@@ -110,7 +110,9 @@ pe_io_waitForEvent(double timeout)
       if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_IO_W;
       if (mask & (POLLRDBAND | POLLPRI)) got |= PE_IO_E;
       if (got & ev->events) {
-	ev->got = got;
+	/* must use |= since watcher can trigger more than once
+	   before it is serviced */
+	ev->got |= got;
 	queueEvent((pe_event*) ev, 1);
 	--ret;
       }
@@ -204,7 +206,9 @@ pe_io_waitForEvent(double timeout)
       if (FD_ISSET(fd, &wfds)) got |= PE_IO_W;
       if (FD_ISSET(fd, &efds)) got |= PE_IO_E;
       if (got & ev->events) {
-	ev->got = got;
+	/* must use |= since watcher can trigger more than once
+	   before it is serviced */
+	ev->got |= got;
 	queueEvent((pe_event*) ev, 1);
 	--ret;
       }

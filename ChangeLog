@@ -1,14 +1,27 @@
+1998-09-28  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.14.
+
+	* Gutted the internals to make events reentrant.
+
+	* The $Now cache was not being refreshed and that was causing
+ 	timers to be queued, well, never.
+
+	* Fixed whitespace in Event.pod.  (Gisle Aas again.)
+
+	* Optimized priority queue (hopefully).
+
 1998-09-27  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.13.
 	
 	* Moved and renamed lots of methods.  Yet, added code to ease
- 	backward compatibility.
+ 	backward compatibility.  (perl-loop suggested)
 
 1998-09-24  Joshua Pritikin  <joshua.pritikin@db.com>
 
-	* Integrated rewritten documentation contributed by perl-loop
- 	participants (Thanks!).
+	* Integrated rewritten documentation contributed by Gisle
+ 	Aas. Thanks!
 
 1998-09-21  Joshua Pritikin  <joshua.pritikin@db.com>
 

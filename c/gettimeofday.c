@@ -1,28 +1,3 @@
-static SV *NowSV=0;
-
-static void boot_gettimeofday()
-{
-  NowSV = perl_get_sv("Event::Now", 1);
-}
-
-/*
-  Make virtual method for:
-  - alternate time encodings
-  - changing speed of time
-  - for year 2000 testing :-)
-*/
-static void pe_cache_now()
-{
-  double got;
-  struct timeval now_tm;
-  gettimeofday(&now_tm, 0);
-  got = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
-  if (!SvNOK(NowSV))
-    sv_setnv(NowSV, got);
-  else
-    SvNVX(NowSV) = got;
-}
-
 #ifdef WIN32
 #include <time.h>
 #else
@@ -63,3 +38,40 @@ gettimeofday (struct timeval *tp, void *nothing)
 }
 #endif
 
+/* Yet another hard to maintain API in the name of performance!! */
+
+static SV *NowSV;
+static int pe_now_valid;
+
+static void boot_gettimeofday()
+{
+  NowSV = perl_get_sv("Event::Now", 1);
+  pe_now_valid = 0;
+}
+
+/*
+  Make virtual method for:
+  - alternate time encodings
+  - changing speed of time
+  - for year 2000 testing :-)
+*/
+static double pe_cache_now()
+{
+  double got;
+  struct timeval now_tm;
+  gettimeofday(&now_tm, 0);
+  got = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
+  if (!SvNOK(NowSV))
+    sv_setnv(NowSV, got);
+  else
+    SvNVX(NowSV) = got;
+  /*  pe_now_valid = 1; XXX */
+  return got;
+}
+
+static void pe_invalidate_now_cache()
+{
+  pe_now_valid = 0;
+}
+
+#define EvNOW (pe_now_valid? SvNVX(NowSV) : pe_cache_now())

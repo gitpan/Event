@@ -4,7 +4,7 @@ use Test; plan tests => 2;
 use Event qw(loop unloop);
 use Symbol;
 
-$Event::DebugLevel = 1;
+# $Event::DebugLevel = 1;
 
 sub new_pipe {
     my ($cnt) = @_;

@@ -10,7 +10,7 @@ STABLE AS GRANITE.>
 Thank you for your patience.
 
 =head1 SYNOPSIS
- 
+
  use Event qw(loop unloop);
  
  # initialize application
@@ -24,7 +24,7 @@ Thank you for your patience.
  unloop('ok');
 
 =head1 DESCRIPTION
- 
+
 The Event module provide a central facility to watch for various types
 of events and invoke a callback when these events occur.  The key idea
 is to delay the handling of events so they can be dispatched in order
@@ -39,7 +39,7 @@ The following functions control and interrogate the event loop as a
 whole:
 
 =over 4
- 
+
 =item $result = loop()
 
 Will enter a loop that calls one_event() until unloop() is called.
@@ -57,23 +57,27 @@ implemented with an exception.  It works by effectly calling
 C<unloop(undef)> for each pending loop.
 
 =item one_event([$timeout])
- 
+
 If any events have happened, invoke the corresponding callback of the
 highest priority event.  If no event has happened yet, block until
 forever or until $timeout.
 
 =item all_events()
- 
+
 Return a list of all events created (including cancelled events).
- 
+
 =item all_running()
- 
+
 Return a list of all events running inside its callback at the moment.
 This can be more than one event!
- 
+
 =item all_queued()
- 
+
 Return all events queued in order of priority.
+
+=item all_idle()
+
+Return all events in the idle queue.
 
 =back
 
@@ -94,7 +98,7 @@ include: idle, io, timer, watchvar, signal, and process.
 The new watcher object is returned initialized with the attributes
 passed to the constructor.  The watcher is already active.  More
 precisely, the watcher object is "started" and already waiting for
-events (see C<$event->start> below).
+events (see C<$event-E<gt>start> below).
 
 =head1 SHARED WATCHER ATTRIBUTES
 
@@ -115,9 +119,9 @@ watchers types also offer additional attributes.
 =over 4
 
 =item -id => $int
- 
+
 An integer that identifies this event.  This attribute is read-only.
- 
+
 =item -callback => \&code
 
 =item -callback => [$class_or_object, $method]
@@ -150,7 +154,7 @@ differently.  It is an offset from the default priority of the event
 type.
 
 =item -desc => $string
- 
+
 Some identifying name.  If not passed to the constructor it will be
 initialized with some string that attempts to identify the location in
 the source code where the event object was constructed.
@@ -159,16 +163,16 @@ the source code where the event object was constructed.
  
 The flag attribute encodes some information about the state of an
 event.  [XXX Fill in exact bits]
- 
+
 =item -repeat => $bool
- 
+
 The repeat flag controls if callback should be one-shot or if the
 watcher should continue waiting for new events of this kind occur.
 The default depends on the type of watcher.  It defaults to TRUE for
 the I<io>, I<signal>, I<watchvar> types.
 
 =item -debug => $bool
- 
+
 Debugging can be activated per watcher.  When debugging is enabled,
 $Event::DebugLevel is treated as one level higher for this watcher.  A
 level of 1, 2, or 3 give progressively more noise on STDERR.
@@ -182,7 +186,7 @@ The following methods can be invoked on an event:
 =over 4
 
 =item $watcher->start
- 
+
 Activate the watcher.  Many constructors will automatically invoke
 $watcher->start.
 
@@ -193,7 +197,7 @@ something special when they repeat.  For example, repeating timers
 recalcuate their alarm time using their C<interval> parameter.
 
 =item $watcher->cancel
- 
+
 Don't look for any events any more.  Note that the watcher can be
 reactivated by calling the C<start> or C<again> methods.
 
@@ -203,7 +207,7 @@ Make the watcher callback trigger now.  Note that the callback may or
 may not be run immediately depending upon its priority.
 
 =item ($runs, $elapse) = $watcher->stats( $sec )
- 
+
 Return statistics for the last $sec seconds of operation.  Two numbers
 are returned: the number of times the callback has been invoked and
 the number of seconds spent within the callback.  Also see
@@ -226,7 +230,7 @@ Extra attribute: -variable => \$var
 Triggered when the value of C<$var> is changed.
 
 =item timer
-    
+
 Extra attributes: -at => $time, -interval => $sec, -hard => $bool
 
 The callback in invoked at the specified (-at) point in time.  The
@@ -263,7 +267,7 @@ Note that it is your choice whether to have multiple watchers per
 filehandle or a single watcher that handles all event flavors.
 
 =item signal
-    
+
 Extra attribute: -signal => $str
 
 The callback will be invoked when the specified signal has been
@@ -283,7 +287,7 @@ terminates that does not have it's own event handler.
 =item semaphore
 
 Not implemented.
-    
+
 =item msg
 
 Not implemented.
@@ -300,8 +304,9 @@ L<Event::Advanced> (to be written) and L<NetServer::ProcessTop>
 
 =head1 AUTHORS
 
-Graham Barr E<lt>F<gbarr@pobox.com>E<gt>,
+Graham Barr E<lt>F<gbarr@pobox.com>E<gt>
 Joshua Pritikin E<lt>F<bitset@mindspring.com>E<gt>
+Gisle Aas E<lt>F<gisle@aas.no>E<gt>
 
 =head1 COPYRIGHT
 

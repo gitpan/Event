@@ -14,7 +14,7 @@ use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now
 	    @Prepare @Check @AsyncCheck);
 # $Now is refreshed at least every time the event queue is empty. XXX
-$VERSION = '0.13';
+$VERSION = '0.14';
 BOOT_XS: {
     # If I inherit DynaLoader then I inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -33,7 +33,7 @@ $DebugLevel = 0;
 $Eval = 0;  #should avoid because c_callback is exempt
 $DIED = \&default_exception_handler;
 
-@EXPORT_OK = qw(time $Now all_events all_running all_queued
+@EXPORT_OK = qw(time $Now all_events all_running all_queued all_idle
 		one_event loop unloop unloop_all
 		QUEUES PRIO_NORMAL PRIO_HIGH);
 
@@ -53,9 +53,9 @@ sub AUTOLOAD {
 }
 
 sub default_exception_handler {
-    my $run = all_running();
+    my $run = shift;
     my $desc = $run? $run->{desc} : '?';
-    warn "Event: fatal error trapped in '$desc': $@";
+    warn "Event: trapped error in '$desc': $@";
     #Carp::cluck "Event: fatal error trapped in '$desc'";
 }
 
@@ -67,9 +67,18 @@ sub loop {
     local $Result = undef;
     local $LoopLevel = $LoopLevel+1;
     ++$ExitLevel;
+    my $errsv = '';
     while (1) {
-	eval { _loop() };
-	if ($@) { $Event::DIED->(); next }
+	# like G_EVAL | G_KEEPERR
+	eval { $@ = $errsv; _loop() };
+	if ($@) {
+	    if ($Event::DebugLevel >= 2) {
+		my $e = all_running();
+		warn "Event: '$e->{desc}' died with: $@";
+	    }
+	    $errsv = $@;
+	    next
+	}
 	last;
     }
     $Result;

@@ -175,8 +175,14 @@ pe_io_stop(pe_event *_ev)
   IOWatch_OK = 0;
 }
 
-static void
-boot_io()
+static void pe_io_cbdone(pe_cbframe *fp)
+{
+  pe_io *io = (pe_io*) fp->ev;
+  io->got = 0;
+  pe_event_cbdone(fp);
+}
+
+static void boot_io()
 {
   static char *keylist[] = {
     "handle",
@@ -195,6 +201,7 @@ boot_io()
   vt->STORE = pe_io_STORE;
   vt->start = pe_io_start;
   vt->stop = pe_io_stop;
+  vt->cbdone = pe_io_cbdone;
   newCONSTSUB(stash, "R", newSViv(PE_IO_R));
   newCONSTSUB(stash, "W", newSViv(PE_IO_W));
   newCONSTSUB(stash, "E", newSViv(PE_IO_E));

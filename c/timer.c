@@ -50,8 +50,7 @@ static void pe_timer_start(pe_event *ev, int repeat)
     if (tm->hard) {
       tm->tm.at = interval + tm->tm.at;
     } else {
-      pe_cache_now();
-      tm->tm.at = interval + SvNVX(NowSV);
+      tm->tm.at = interval + EvNOW;
     }
   }
   if (!tm->tm.at)

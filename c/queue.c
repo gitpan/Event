@@ -1,5 +1,4 @@
-static pe_ring Queue[PE_QUEUES];
-static int queueCount = 0;
+static pe_ring NQueue;
 static pe_stat idleStats;
 static AV *Prepare, *Check, *AsyncCheck;
 static int StarvePrio = PE_QUEUES - 2;
@@ -9,9 +8,7 @@ boot_queue()
 {
   int xx;
   HV *stash = gv_stashpv("Event", 1);
-  for (xx=0; xx < PE_QUEUES; xx++) {
-    PE_RING_INIT(&Queue[xx], 0);
-  }
+  PE_RING_INIT(&NQueue, 0);
   newCONSTSUB(stash, "QUEUES", newSViv(PE_QUEUES));
   newCONSTSUB(stash, "PRIO_NORMAL", newSViv(PE_PRIO_NORMAL));
   newCONSTSUB(stash, "PRIO_HIGH", newSViv(PE_PRIO_HIGH));
@@ -33,51 +30,50 @@ static void dequeEvent(pe_event *ev)
   assert(!EvSUSPEND(ev));
   PE_RING_DETACH(&ev->que);
   EvQUEUED_off(ev);
-  --queueCount;
+}
+
+static void db_show_queue()
+{
+  pe_event *ev;
+  ev = NQueue.next->self;
+  while (ev) {
+    warn("0x%x : %d\n", ev, ev->priority);
+    ev = ev->que.next->self;
+  }
 }
 
 static void queueEvent(pe_event *ev, int count)
 {
+  pe_ring *rg;
   int prio = ev->priority;
   int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
+
+  if (EvSUSPEND(ev)) return;
+
   assert(count >= 0);
   ev->count += count;
-  if (EvSUSPEND(ev))
-    return;
-  if (prio < 0) {
+
+  if (prio < 0) {  /* invoke the event immediately! */
     if (debug >= 3)
       warn("Event: calling %s asyncronously (priority %d)\n",
 	   SvPV(ev->desc,na), prio);
     pe_event_invoke(ev);
     return;
   }
+
   if (EvQUEUED(ev))
     return;
   if (prio >= PE_QUEUES)
     prio = PE_QUEUES-1;
   if (debug >= 3)
-    warn("Event: queuing %s at priority %d\n", SvPV(ev->desc,na), prio);
-  PE_RING_UNSHIFT(&ev->que, &Queue[prio]);
+    warn("Event: queuing '%s' at priority %d\n", SvPV(ev->desc,na), prio);
+  /*  warn("-- adding 0x%x/%d\n", ev, prio); db_show_queue();/**/
+  rg = NQueue.next;
+  while (rg->self && ((pe_event*)rg->self)->priority <= prio)
+    rg = rg->next;
+  PE_RING_ADD_BEFORE(&ev->que, rg);
+  /*  warn("=\n"); db_show_queue();/**/
   EvQUEUED_on(ev);
-  ++queueCount;
-}
-
-static int emptyQueue(int max)
-{
-  int qx;
-  if (!queueCount)
-    return 0;
-  assert(max >= 0 && max <= PE_QUEUES);
-  for (qx=0; qx < max; qx++) {
-    pe_event *ev;
-    if (PE_RING_EMPTY(&Queue[qx]))
-      continue;
-    ev = Queue[qx].prev->self;
-    dequeEvent(ev);
-    pe_event_invoke(ev);
-    return 1;
-  }
-  return 0;
 }
 
 static void pe_map_check(AV *av)
@@ -119,41 +115,24 @@ static void pe_map_check(AV *av)
   return 0
  */
 
-static unsigned doe_enter=0, doe_leave=0;
+#define EMPTYQUEUE(max)				\
+STMT_START {					\
+  pe_event *ev = NQueue.next->self;		\
+  if (ev && ev->priority < max) {		\
+    dequeEvent(ev);				\
+    pe_event_invoke(ev);			\
+    return 1;					\
+  }						\
+} STMT_END
 
 static int one_event(double tm)
 {
-  int debug = SvIVX(DebugLevel);
-
-  if (doe_enter != doe_leave) {
-    pe_event *ev;
-    if (debug)
-      warn("Event: exit via die detected\n");
-    /* XXX do something more intelligent */
-    ev = AllEvents.next->self;
-    while (ev) {
-      if (EvRUNNING(ev)) {
-	if (debug) 
-	  warn("Event: died in '%s'\n", SvPV(ev->desc,na));
-	EvRUNNING_off(ev);
-      }
-      ev = ev->all.next->self;
-    }
-    if (debug) 
-      warn("Event: trying to continue...\n");
-    doe_enter = doe_leave = 0;
-  }
-  ++doe_enter;
-
   pe_signal_asynccheck();
   if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
 
-  if (emptyQueue(StarvePrio)) {
-    ++doe_leave;
-    return 1;
-  }
+  EMPTYQUEUE(StarvePrio);
 
-  if (queueCount || wantIdle()) {
+  if (!PE_RING_EMPTY(&NQueue) || wantIdle()) {
     tm = 0;
   }
   else {
@@ -185,8 +164,8 @@ static int one_event(double tm)
     LEAVE;
   }
 
-  if (debug >= 3)
-    warn("Event: waitForEvent(%f) wantIdle=%d", tm, wantIdle());
+  if (SvIVX(DebugLevel) >= 2)
+    warn("Event: waitForEvent(%f) wantIdle=%d\n", tm, wantIdle());
   {
     struct timeval start_tm;
     if (Stats)
@@ -209,16 +188,17 @@ static int one_event(double tm)
     if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
   }
 
-  if (emptyQueue(PE_QUEUES)) {
-    ++doe_leave;
-    return 1;
-  }
+  EMPTYQUEUE(PE_QUEUES);
   
-  if (runIdle()) {
-    ++doe_leave;
+  if (runIdle())
     return 1;
-  }
 
-  ++doe_leave;
   return 0;
 }
+
+static int safe_one_event(double maxtm)
+{
+  pe_check_recovery();
+  return one_event(maxtm);
+}
+

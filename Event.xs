@@ -57,7 +57,6 @@ static void pe_event_start(pe_event *ev, int repeat);
 #include "queue.c"
 #include "stats.c"
 
-
 MODULE = Event		PACKAGE = Event
 
 PROTOTYPES: DISABLE
@@ -81,18 +80,18 @@ BOOT:
     SV *apisv;
     New(PE_NEWID, api, 1, struct EventAPI);
     api->Ver = EventAPI_VERSION;
-    api->one_event = one_event;
+    api->one_event = safe_one_event;
     api->start = pe_event_start;
     api->queue = queueEvent;
     api->now = pe_event_now;
     api->suspend = pe_event_suspend;
     api->resume = pe_event_resume;
     api->cancel = pe_event_cancel;
-    api->new_idle = pe_idle_allocate;
-    api->new_timer = (pe_timer*(*)()) pe_timer_allocate;
-    api->new_io = (pe_io*(*)()) pe_io_allocate;
+    api->new_idle =     (pe_idle*(*)())         pe_idle_allocate;
+    api->new_timer =    (pe_timer*(*)())       pe_timer_allocate;
+    api->new_io =       (pe_io*(*)())             pe_io_allocate;
     api->new_watchvar = (pe_watchvar*(*)()) pe_watchvar_allocate;
-    api->new_signal = (pe_signal*(*)()) pe_signal_allocate;
+    api->new_signal =   (pe_signal*(*)())     pe_signal_allocate;
     apisv = perl_get_sv("Event::API", 1);
     sv_setiv(apisv, (IV)api);
     SvREADONLY_on(apisv);
@@ -156,29 +155,30 @@ void
 all_running()
 	PROTOTYPE:
 	PPCODE:
-	pe_event *ev = AllEvents.next->self;
-	while (ev) {
-	  if (EvRUNNING(ev)) {
-	    XPUSHs(sv_2mortal(event_2sv(ev)));
-	    if (GIMME_V != G_ARRAY)
-	      break;
-	  }
-	  ev = ev->all.next->self;
+	int fx;
+	for (fx = CurCBFrame; fx >= 0; fx--) {
+	  pe_event *ev = (CBFrame + fx)->ev;
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  if (GIMME_V != G_ARRAY)
+	    break;
 	}
 
 void
 all_queued()
 	PROTOTYPE:
 	PPCODE:
-	int xx;
 	pe_event *ev;
-	for (xx=0; xx < PE_QUEUES; xx++) {
-	  ev = Queue[xx].prev->self;
-	  while (ev) {
-	    XPUSHs(sv_2mortal(event_2sv(ev)));
-	    ev = ev->que.prev->self;
-	  }
+	ev = NQueue.next->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  ev = ev->que.next->self;
 	}
+
+void
+all_idle()
+	PROTOTYPE:
+	PPCODE:
+	pe_event *ev;
 	ev = Idle.prev->self;
 	while (ev) {
 	  XPUSHs(sv_2mortal(event_2sv(ev)));
@@ -200,7 +200,7 @@ one_event(...)
 	CODE:
 	double maxtm = 60;
 	if (items == 1) maxtm = SvNV(ST(0));
-	RETVAL = one_event(maxtm);
+	RETVAL = safe_one_event(maxtm);
 	OUTPUT:
 	RETVAL
 
@@ -210,8 +210,16 @@ _loop()
 	CODE:
 	SV *exitL = perl_get_sv("Event::ExitLevel", 1);
 	SV *loopL = perl_get_sv("Event::LoopLevel", 1);
+	pe_check_recovery();
+	assert(SvIOK(exitL) && SvIOK(loopL));
 	while (SvIVX(exitL) >= SvIVX(loopL))
 	  one_event(60);
+
+void
+_check_recovery()
+	CODE:
+	pe_check_recovery();
+
 
 MODULE = Event		PACKAGE = Event::Watcher
 

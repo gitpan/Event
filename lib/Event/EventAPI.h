@@ -27,7 +27,7 @@ typedef struct pe_ring pe_ring;
 
 struct pe_ring { void *self; pe_ring *next, *prev; };
 
-struct pe_event {
+struct pe_event {  /* 96 bytes; easy come easy go... */
   pe_event_vtbl *vtbl;
   HV *stash;
   pe_ring all, que;
@@ -39,8 +39,9 @@ struct pe_event {
   int priority;
   SV *desc;
 
+  int running;
   double cbtime;
-  int count;	/* reentrant problem XXX */
+  int count;
   SV *perl_callback[2];
   void (*c_callback)();
   void *ext_data;
@@ -89,6 +90,14 @@ struct pe_timeable {
 #define PE_IO_E 4
 /*#define PE_IO_T 8 */
 
+typedef struct pe_idle pe_idle;
+struct pe_idle {
+  pe_event base;
+  pe_timeable tm;
+  pe_ring iring;
+  double min_interval, max_interval; /* not yet XXX */
+};
+
 typedef struct pe_io pe_io;
 struct pe_io {
   pe_event base;
@@ -96,7 +105,7 @@ struct pe_io {
   pe_ring ioring;
   SV *handle;
   int events;
-  int got;	/* CB */
+  int got;
 /* ifdef UNIX */
   int fd;
   int xref;  /*private: for poll*/
@@ -125,7 +134,7 @@ struct pe_watchvar {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 2
+#define EventAPI_VERSION 3
   I32 Ver;
 
   /* PUBLIC API */
@@ -137,7 +146,7 @@ struct EventAPI {
   void (*resume)(pe_event *ev);
   void (*cancel)(pe_event *ev);
 
-  pe_event    *(*new_idle)();
+  pe_idle     *(*new_idle)();
   pe_timer    *(*new_timer)();
   pe_io       *(*new_io)();
   pe_watchvar *(*new_watchvar)();

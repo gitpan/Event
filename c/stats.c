@@ -132,10 +132,9 @@ static void pe_stat_restart()
     pe_stat_init(&idleStats);
     pe_stat_init(&totalStats);
     
-    pe_cache_now();
     if (!RollTimer)
       RollTimer = (pe_timer*) pe_timer_allocate();
-    RollTimer->tm.at = SvNVX(NowSV);
+    RollTimer->tm.at = EvNOW;
     sv_setnv(RollTimer->interval, PE_STAT_SECONDS);
     ev = (pe_event*) RollTimer;
     EvREPEAT_on(ev);

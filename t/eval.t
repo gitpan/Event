@@ -2,14 +2,14 @@
 
 use Test; plan tests => 8;
 use Event qw(all_running loop unloop);
-#$Event::DebugLevel = 3;
+# $Event::DebugLevel = 3;
 
 my $status = 'ok';
 
 my $die = Event->idle(callback => sub { die "died\n" }, desc => 'killer');
 
 $Event::DIED = sub {
-    my $e = all_running();
+    my $e = shift;
     my $why = $@;
 
     ok $e->{desc}, 'killer';

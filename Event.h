@@ -43,6 +43,13 @@ STMT_START {					\
   TO = lk->self;				\
 } STMT_END
 
+typedef struct pe_cbframe pe_cbframe;
+struct pe_cbframe {
+  pe_event *ev;
+  int run_id;
+  int cbdone;
+};
+
 struct pe_event_vtbl {
   struct pe_event_vtbl *up; /* dubious; how does it work for more than 1 level? */
   HV *stash;
@@ -58,6 +65,7 @@ struct pe_event_vtbl {
   void (*NEXTKEY)(pe_event *);
   void (*start)(pe_event *, int);
   void (*stop)(pe_event *);
+  void (*cbdone)(pe_cbframe *);
 };
 
 typedef struct pe_run pe_run;
@@ -82,7 +90,7 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define PE_ACTIVE	0x01
 #define PE_SUSPEND	0x02
 #define PE_QUEUED	0x04
-#define PE_RUNNING	0x08
+#define PE_RUNNING	0x08  /* virtual flag */
 #define PE_REENTRANT	0x10
 
 #define PE_VISIBLE_FLAGS \
@@ -102,12 +110,7 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define EvQUEUED_on(ev)		(EvFLAGS(ev) |= PE_QUEUED)
 #define EvQUEUED_off(ev)	(EvFLAGS(ev) &= ~PE_QUEUED)
 
-/* note: can have multiple events running if they nest... */
-#define EvRUNNING(ev)		(EvFLAGS(ev) & PE_RUNNING)
-#define EvRUNNING_on(ev)	(EvFLAGS(ev) |= PE_RUNNING)
-#define EvRUNNING_off(ev)	(EvFLAGS(ev) &= ~PE_RUNNING)
-
 #define EvCANDESTROY(ev)					\
- (ev->refcnt == 0 &&						\
-  !(EvFLAGS(ev)&(PE_ACTIVE|PE_SUSPEND|PE_QUEUED|PE_RUNNING)) &&	\
+ (ev->refcnt == 0 && ev->running == 0 &&			\
+  !(EvFLAGS(ev)&(PE_ACTIVE|PE_SUSPEND|PE_QUEUED)) &&	\
   !ev->c_callback)
