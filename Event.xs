@@ -40,6 +40,31 @@ static void Event_warn(const char* pat, ...) {
 #  define warn Event_warn
 #endif
 
+/* this is not well tested but could be very useful for debugging */
+#if 0
+#ifdef warn
+#  undef warn
+#endif
+#define warn Event_warn
+
+static void Event_warn(const char* pat, ...) {
+    STRLEN n_a;
+    dSP;
+    SV *msg;
+    va_list args;
+    /* perl_require_pv("Carp.pm");     Couldn't possibly be unloaded.*/
+    va_start(args, pat);
+    msg = sv_newmortal();
+    sv_vsetpvfn(msg, pat, strlen(pat), &args, Null(SV**), 0, 0);
+    va_end(args);
+    SvREADONLY_on(msg);
+    PUSHMARK(SP);
+    XPUSHs(msg);
+    PUTBACK;
+    perl_call_pv("Carp::carp", G_DISCARD);
+}
+#endif
+
 #ifdef croak
 #  undef croak
 #endif
@@ -131,8 +156,8 @@ static pe_event_stats_vtbl Estat;
 static double IntervalEpsilon = 0.0002;
 static int TimeoutTooEarly=0;
 
-static double (*myNVtime)();
-#define NVtime() (*myNVtime)()
+static struct EventAPI api;
+#define NVtime() (*api.NVtime)()
 
 static int pe_sys_fileno(SV *sv, char *context);
 
@@ -279,36 +304,34 @@ BOOT:
   boot_group();
   boot_queue();
   {
-      struct EventAPI *api;
       SV *apisv;
-      New(PE_NEWID, api, 1, struct EventAPI);
-      api->Ver = EventAPI_VERSION;
-      api->start = pe_watcher_start;
-      api->queue = queueEvent;
-      api->now = pe_watcher_now;
-      api->suspend = pe_watcher_suspend;
-      api->resume = pe_watcher_resume;
-      api->stop = pe_watcher_stop;
-      api->cancel = pe_watcher_cancel;
-      api->tstart = pe_timeable_start;
-      api->tstop  = pe_timeable_stop;
-      api->new_idle =   (pe_idle*  (*)(HV*,SV*))    pe_idle_allocate;
-      api->new_timer =  (pe_timer* (*)(HV*,SV*))    pe_timer_allocate;
-      api->new_io =     (pe_io*    (*)(HV*,SV*))    pe_io_allocate;
-      api->new_var =    (pe_var*   (*)(HV*,SV*))    pe_var_allocate;
-      api->new_signal = (pe_signal*(*)(HV*,SV*))    pe_signal_allocate;
-      api->add_hook = capi_add_hook;
-      api->cancel_hook = pe_cancel_hook;
-      api->install_stats = pe_install_stats;
-      api->collect_stats = pe_collect_stats;
-      api->AllWatchers = &AllWatchers;
-      api->watcher_2sv = watcher_2sv;
-      api->sv_2watcher = sv_2watcher;
-      api->event_2sv = event_2sv;
-      api->sv_2event = sv_2event;
-      api->unloop = pe_unloop;
+      api.Ver = EventAPI_VERSION;
+      api.start = pe_watcher_start;
+      api.queue = queueEvent;
+      api.now = pe_watcher_now;
+      api.suspend = pe_watcher_suspend;
+      api.resume = pe_watcher_resume;
+      api.stop = pe_watcher_stop;
+      api.cancel = pe_watcher_cancel;
+      api.tstart = pe_timeable_start;
+      api.tstop  = pe_timeable_stop;
+      api.new_idle =   (pe_idle*  (*)(HV*,SV*))    pe_idle_allocate;
+      api.new_timer =  (pe_timer* (*)(HV*,SV*))    pe_timer_allocate;
+      api.new_io =     (pe_io*    (*)(HV*,SV*))    pe_io_allocate;
+      api.new_var =    (pe_var*   (*)(HV*,SV*))    pe_var_allocate;
+      api.new_signal = (pe_signal*(*)(HV*,SV*))    pe_signal_allocate;
+      api.add_hook = capi_add_hook;
+      api.cancel_hook = pe_cancel_hook;
+      api.install_stats = pe_install_stats;
+      api.collect_stats = pe_collect_stats;
+      api.AllWatchers = &AllWatchers;
+      api.watcher_2sv = watcher_2sv;
+      api.sv_2watcher = sv_2watcher;
+      api.event_2sv = event_2sv;
+      api.sv_2event = sv_2event;
+      api.unloop = pe_unloop;
       apisv = perl_get_sv("Event::API", 1);
-      sv_setiv(apisv, (IV)api);
+      sv_setiv(apisv, (IV)&api);
       SvREADONLY_on(apisv);
   }
 
@@ -370,7 +393,7 @@ cache_time_api()
 	SV **svp = hv_fetch(PL_modglobal, "Time::NVtime", 12, 0);
 	if (!svp || !*svp || !SvIOK(*svp))
 	    XSRETURN_NO;
-	myNVtime = (double(*)()) SvIV(*svp);
+	api.NVtime = (double(*)()) SvIV(*svp);
 	XSRETURN_YES;
 
 void

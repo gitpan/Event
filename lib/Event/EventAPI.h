@@ -211,6 +211,7 @@ struct EventAPI {
 
     /* EVERYTHING ELSE */
     void (*unloop)(SV *);
+    double (*NVtime)();
 };
 
 static struct EventAPI *GEventAPI=0;

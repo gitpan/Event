@@ -681,6 +681,8 @@ There seems to be some sort of bug in the global destruction phase:
 
 =head2 WHY MICROSOFT WINDOWS MIGHT BE FASTER THAN UNIX
 
+This section is concerned with advanced kernel architecture.
+
 B<A scalable and explicit event delivery mechanism for UNIX>
 
 I<Abstract:> UNIX applications not wishing to block when doing I/O often

@@ -1,3 +1,13 @@
+2000-05-12  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.77.
+
+2000-05-10  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fixed an obscure SEGV discovered by uri@sysarch.com.
+
+	* EventAPI += NVtime.
+
 2000-04-26  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.76.

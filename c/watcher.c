@@ -116,6 +116,11 @@ WKEYMETH(_watcher_callback) {
 		if (gv && isGV(gv))
 		    ok=1;
 	    }
+	    else {
+		warn("Event: package '%s' doesn't exist (creating)",
+		     SvPV(pkgsv, n_a));
+		pkg = gv_stashsv(pkgsv, 1);
+	    }
 	    if (!ok) {
 		warn("Event: callback method %s->%s doesn't exist",
 		     HvNAME(pkg), name);

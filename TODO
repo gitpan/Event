@@ -1,5 +1,3 @@
-integrate with IPC::Open2/3
-
 finish up lexical warnings
 
 omitting parked=>1 should be a warning, not an error?
