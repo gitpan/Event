@@ -257,10 +257,9 @@ static void pe_sys_multiplex(double timeout)
 	  
 	  if (--ret == 0) { ev=0; continue; }
 	*/
-      }
     }
     ev = ev->ioring.next->self;
-  }  
+  }
 }
 #endif /*HAS_SELECT*/
 

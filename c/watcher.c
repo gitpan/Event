@@ -151,6 +151,16 @@ WKEYMETH(_watcher_priority)
     ev->priority = SvIV(nval);
 }
 
+WKEYMETH(_watcher_refcnt)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(sv_2mortal(newSViv(ev->refcnt)));
+    PUTBACK;
+  } else
+    croak("'e_refcnt' is read-only");
+}
+
 WKEYMETH(_watcher_reentrant)
 {
   if (!nval) {
@@ -336,6 +346,7 @@ static void boot_pe_watcher()
   hv_store(vt->keymethod, "id", 2, newSViv((IV)_watcher_id), 0);
   hv_store(vt->keymethod, "priority", 8, newSViv((IV)_watcher_priority), 0);
   hv_store(vt->keymethod, "reentrant", 9, newSViv((IV)_watcher_reentrant), 0);
+  hv_store(vt->keymethod, "e_refcnt", 8, newSViv((IV)_watcher_refcnt), 0);
   hv_store(vt->keymethod, "repeat", 6, newSViv((IV)_watcher_repeat), 0);
   hv_store(vt->keymethod, "running", 7, newSViv((IV)_watcher_running), 0);
   vt->dtor = pe_watcher_dtor;
@@ -396,66 +407,71 @@ static void pe_watcher_now(pe_watcher *wa)
   methods that should venture to change these flags!
  */
 
-static void pe_watcher_cancel(pe_watcher *ev)
+static void pe_watcher_cancel(pe_watcher *ev) /*how different from _stop? XXX*/
 {
-  if (EvSUSPEND(ev))
-    EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE);
-  else {
-    pe_watcher_stop(ev);
-  }
+  EvSUSPEND_off(ev);
+  pe_watcher_stop(ev);
   if (EvCANDESTROY(ev))
     (*ev->vtbl->dtor)(ev);
 }
-
 
 static void pe_watcher_suspend(pe_watcher *ev)
 {
   int active;
   if (EvSUSPEND(ev))
     return;
-  active = EvACTIVE(ev);
   if (EvDEBUGx(ev) >= 4)
     warn("Event: suspend '%s'%s\n", SvPV(ev->desc,PL_na), active?" ACTIVE":"");
-  if (active)
-    pe_watcher_stop(ev);
-  if (active || (EvINVOKE1(ev) && EvREPEAT(ev)))
-    EvACTIVE_on(ev); /* must happen nowhere else!! */
+  pe_watcher_off(ev);
   EvSUSPEND_on(ev); /* must happen nowhere else!! */
 }
 
 static void pe_watcher_resume(pe_watcher *ev)
 {
-  int active;
   if (!EvSUSPEND(ev))
     return;
-  active = EvACTIVE(ev);
+  EvSUSPEND_off(ev);
   if (EvDEBUGx(ev) >= 4)
-    warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,PL_na), active?" ACTIVE":"");
-  EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE);
-  if (active)
-    pe_watcher_start(ev, 0);
+    warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,PL_na),
+	 EvACTIVE(ev)?" ACTIVE":"");
+  if (EvACTIVE(ev))
+    pe_watcher_on(ev, 0);
+}
+
+static void pe_watcher_on(pe_watcher *wa, int repeat)
+{
+  if (EvPOLLING(wa) || EvSUSPEND(wa)) return;
+  assert(EvACTIVE(wa));
+  (*wa->vtbl->start)(wa, repeat);
+  EvPOLLING_on(wa); /* must happen nowhere else!! */
+}
+
+static void pe_watcher_off(pe_watcher *wa)
+{
+  if (!EvPOLLING(wa) || EvSUSPEND(wa)) return;
+  (*wa->vtbl->stop)(wa);
+  EvPOLLING_off(wa);
 }
 
 static void pe_watcher_start(pe_watcher *ev, int repeat)
 {
-  /* allow SUSPEND'd watchers to be affected by start/stop? XXX */
-  if (EvACTIVE(ev) || EvSUSPEND(ev))
+  if (EvACTIVE(ev))
     return;
   if (EvDEBUGx(ev) >= 4)
     warn("Event: active ON '%s'\n", SvPV(ev->desc,PL_na));
   EvACTIVE_on(ev); /* must happen nowhere else!! */
-  (*ev->vtbl->start)(ev, repeat);
+  pe_watcher_on(ev, repeat);
   ++ActiveWatchers;
 }
 
 static void pe_watcher_stop(pe_watcher *ev)
 {
-  if (!EvACTIVE(ev) || EvSUSPEND(ev))
+  if (!EvACTIVE(ev))
     return;
   if (EvDEBUGx(ev) >= 4)
     warn("Event: active OFF '%s'\n", SvPV(ev->desc,PL_na));
   EvACTIVE_off(ev); /* must happen nowhere else!! */
-  (*ev->vtbl->stop)(ev);
+  pe_watcher_off(ev);
   --ActiveWatchers;
 }
 

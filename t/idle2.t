@@ -1,11 +1,11 @@
-# idle daydreams of -*-perl-*-
+# idle daydreams -*-perl-*-
 
 use Test; plan tests => 5;
 use Event qw(loop unloop time all_events one_event);
 require Event::timer;
 
 # $Event::Eval = 1;
-# $Event::DebugLevel = 2;
+# $Event::DebugLevel = 4;
 $Event::DIED = \&Event::verbose_exception_handler;
 
 #----------- complex idle events; fuzzy timers
@@ -29,9 +29,10 @@ Event->idle(min_interval => $Min, max_interval => $Max, desc => "*IDLE*TEST*",
 my $sleeps=0;
 Event->idle(repeat => 1, callback => sub { Event::sleep $Min; ++$sleeps });
 
+Event::sleep .1; # try to let CPU settle
 loop();
 
-my $epsilon = .025;
+my $epsilon = .05;
 ok $sleeps > 1; #did we test anything?
 ok $min >= $Min-$epsilon;
 ok $max < $Max+$epsilon;

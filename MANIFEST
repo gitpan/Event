@@ -9,7 +9,7 @@ README
 TODO
 WARNING
 c/event.c
-c/event_vtbl.c
+c/watcher.c
 c/gettimeofday.c
 c/idle.c
 c/io.c

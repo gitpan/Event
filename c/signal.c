@@ -69,19 +69,19 @@ WKEYMETH(_signal_signal)
   if (!nval) {
     dSP;
     XPUSHs(sg->signal > 0?
-	   sv_2mortal(newSVpv(Perl_sig_name[sg->signal],0)) : &PL_sv_undef);
+	   sv_2mortal(newSVpv(PL_sig_name[sg->signal],0)) : &PL_sv_undef);
     PUTBACK;
   } else {
-    int active = EvACTIVE(ev);
+    int active = EvPOLLING(ev);
     int sig = Perl_whichsig(SvPV(nval,PL_na));
     /*warn("whichsig(%s) = %d", SvPV(nval,na), sig); /**/
     if (sig == 0)
       croak("Unrecognized signal '%s'", SvPV(nval,PL_na));
     if (!PE_SIGVALID(sig))
       croak("Signal '%s' cannot be caught", SvPV(nval,PL_na));
-    if (active) pe_watcher_stop(ev);
+    if (active) pe_watcher_off(ev);
     sg->signal = sig;
-    if (active) pe_watcher_start(ev, 0);
+    if (active) pe_watcher_on(ev, 0);
   }
 }
 

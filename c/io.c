@@ -80,9 +80,9 @@ static void pe_io_alarm(pe_watcher *_wa, pe_timeable *hit)
 
 static void _io_restart(pe_watcher *ev)
 {
-  if (!EvACTIVE(ev)) return;
-  pe_watcher_stop(ev);
-  pe_watcher_start(ev, 0);
+  if (!EvPOLLING(ev)) return;
+  pe_watcher_off(ev);
+  pe_watcher_on(ev, 0);
 }
 
 WKEYMETH(_io_events)
@@ -93,26 +93,13 @@ WKEYMETH(_io_events)
     XPUSHs(sv_2mortal(events_mask_2sv(io->events)));
     PUTBACK;
   } else {
-    io->events = io->timeout? PE_T : 0;
-    if (SvPOK(nval)) {  /* disable HAS_POLL junk XXX */
-      io->events |= sv_2events_mask(nval, PE_R|PE_W|PE_E);
-#ifdef HAS_POLL
-    } else if (SvIOK(nval)) {
-      int mask;
-      warn("please set events mask with a string");
-      /* backward compatible support for POLL constants;
-	 want to switch to our own constants! */
-      mask = SvIV(nval);
-      if (mask & (POLLIN | POLLRDNORM))
-	io->events |= PE_R;
-      if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND))
-	io->events |= PE_W;
-      if (mask & (POLLRDBAND | POLLPRI))
-	io->events |= PE_E;
-#endif
-    } else
-      croak("'events' expecting a string");
-    _io_restart(ev);
+    int nev = sv_2events_mask(nval, PE_R|PE_W|PE_E|PE_T);
+    if (io->timeout) nev |=  PE_T;
+    else             nev &= ~PE_T;
+    if (io->events != nev) {
+      io->events = nev;
+      _io_restart(ev);
+    }
   }
 }
 

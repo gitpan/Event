@@ -22,6 +22,12 @@ all_queued()
 #include <perl.h>
 #include <XSUB.h>
 
+#include "patchlevel.h"
+#if SUBVERSION < 53
+#  define PL_vtbl_uvar vtbl_uvar
+#  define PL_sig_name sig_name
+#endif
+
 #ifdef WIN32
 #   include <fcntl.h>
 #endif
@@ -72,12 +78,14 @@ static void pe_watcher_resume(pe_watcher *ev);
 static void pe_watcher_now(pe_watcher *ev);
 static void pe_watcher_start(pe_watcher *ev, int repeat);
 static void pe_watcher_stop(pe_watcher *ev);
+static void pe_watcher_on(pe_watcher *wa, int repeat);
+static void pe_watcher_off(pe_watcher *wa);
 
 #include "typemap.c"
 #include "gettimeofday.c"  /* hack? XXX */
 #include "timeable.c"
 #include "event.c"
-#include "event_vtbl.c"
+#include "watcher.c"
 #include "idle.c"
 #include "timer.c"
 #include "io.c"
@@ -219,7 +227,10 @@ void
 all_watchers()
 	PROTOTYPE:
 	PPCODE:
-	pe_watcher *ev = AllWatchers.next->self;
+	pe_watcher *ev;
+	if (!AllWatchers.next)
+	  return;
+	ev = AllWatchers.next->self;
 	while (ev) {
 	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
 	  ev = ev->all.next->self;
@@ -230,6 +241,8 @@ all_idle()
 	PROTOTYPE:
 	PPCODE:
 	pe_watcher *ev;
+	if (!Idle.prev)
+	  return;
 	ev = Idle.prev->self;
 	while (ev) {
 	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
@@ -292,8 +305,13 @@ _loop(...)
 	SV *loopL = perl_get_sv("Event::LoopLevel", 1);
 	pe_check_recovery();
 	assert(SvIOK(exitL) && SvIOK(loopL));
-	while (SvIVX(exitL) >= SvIVX(loopL) && ActiveWatchers)
+	while (SvIVX(exitL) >= SvIVX(loopL) && ActiveWatchers) {
+	  ENTER;
+	  SAVETMPS;
 	  one_event(60);
+	  FREETMPS;
+	  LEAVE;
+	}
 
 void
 _queue_pending()

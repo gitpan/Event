@@ -12,7 +12,7 @@ use base 'Exporter';
 use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.24';
+$VERSION = '0.25';
 BOOT_XS: {
     # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -34,7 +34,7 @@ $DIED = \&default_exception_handler;
 @EXPORT_OK = qw(time $Now
 		all_events all_watchers all_running all_queued all_idle
 		one_event sweep loop unloop unloop_all sleep queue
-		QUEUES PRIO_NORMAL PRIO_HIGH R W E T);
+		QUEUES PRIO_NORMAL PRIO_HIGH);
 
 sub _load_watcher {
     my $sub = shift;
@@ -109,15 +109,20 @@ sub sweep {
 use vars qw($LoopLevel $ExitLevel $Result);
 $LoopLevel = $ExitLevel = 0;
 
+my $loop_timer;
 sub loop {
     use integer;
-    my $timeout;
     if (@_ == 1) {
 	my $how_long = shift;
-	$timeout = Event->timer(desc => "Event::loop timeout",
-				after => $how_long,
-				callback => sub { unloop($how_long) });
-	$timeout->{priority} = PRIO_HIGH();
+	if (!$loop_timer) {
+	    $loop_timer = Event->timer(desc => "Event::loop timeout",
+				       after => $how_long,
+				       callback => sub { unloop($how_long) });
+	    $loop_timer->{priority} = PRIO_HIGH();
+	} else {
+	    $loop_timer->{at} = Event::time() + $how_long,
+	}
+	$loop_timer->start;
     }
     local $Result = undef;
     local $LoopLevel = $LoopLevel+1;
@@ -136,7 +141,9 @@ sub loop {
 	}
 	last;
     }
-    $timeout->cancel if $timeout;
+    $loop_timer->cancel if $loop_timer;
+    warn "Event: [$LoopLevel]unloop(".(defined $Result?$Result:'<undef>').")\n"
+	if $Event::DebugLevel >= 3;
     $Result;
 }
 
@@ -228,7 +235,7 @@ package Event::Watcher;
 use base 'Exporter';
 use Carp;
 use vars qw(@EXPORT_OK);
-@EXPORT_OK = qw(ACTIVE SUSPEND QUEUED RUNNING);
+@EXPORT_OK = qw(ACTIVE SUSPEND QUEUED RUNNING R W E T);
 
 sub register {
     no strict 'refs';

@@ -82,7 +82,7 @@ static void pe_var_start(pe_watcher *_ev, int repeat)
 
     Newz(PE_NEWID, mg, 1, MAGIC);
     mg->mg_type = 'U';
-    mg->mg_virtual = &vtbl_uvar;
+    mg->mg_virtual = &PL_vtbl_uvar;
     *mgp = mg;
 
     New(PE_NEWID, ufp, 1, struct ufuncs);
@@ -130,9 +130,9 @@ static void pe_var_stop(pe_watcher *_ev)
 
 static void _var_restart(pe_watcher *ev)
 {
-  if (!EvACTIVE(ev)) return;
-  pe_watcher_stop(ev);
-  pe_watcher_start(ev, 0);
+  if (!EvPOLLING(ev)) return;
+  pe_watcher_off(ev);
+  pe_watcher_on(ev, 0);
 }
 
 WKEYMETH(_var_events)
@@ -157,12 +157,12 @@ WKEYMETH(_var_variable)
     PUTBACK;
   } else {
     SV *old = vp->variable;
-    int active = EvACTIVE(ev);
+    int active = EvPOLLING(ev);
     if (!SvROK(nval))
       croak("Expecting a reference");
-    if (active) pe_watcher_stop(ev);
+    if (active) pe_watcher_off(ev);
     vp->variable = SvREFCNT_inc(nval);
-    if (active) pe_watcher_start(ev, 0);
+    if (active) pe_watcher_on(ev, 0);
     SvREFCNT_dec(old);
   }
 }

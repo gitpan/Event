@@ -61,7 +61,7 @@ static void boot_gettimeofday()
   NowSV = perl_get_sv("Event::Now", 1);
   sv_setnv(NowSV, 0);
   SvREADONLY_on(NowSV);
-  NowDouble = &SvNVX(NowSV);
+  NowDouble = &SvNVX(NowSV); /* leaks memory XXX */
   pe_now_valid = 0;
   pe_cache_now();
 }

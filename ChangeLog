@@ -1,6 +1,36 @@
+1998-11-20  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.25.
+
+1998-11-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Move SAVETMPS/FREETMPS up to Event::_loop.
+
+1998-11-13  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Split ACTIVE flag into two separate flags, ACTIVE & POLLING, to
+ 	more accurately track watcher state.
+
+1998-11-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Tweaks to io 'events' mask handling.
+
+	* Move @EXPORT_OK list for qw(R W E T) to Event::Watcher.
+
+1998-11-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix SEGV in all_watchers/all_idle if zero watchers present.
+
+1998-11-04  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Nuke obsolete backward support code in io.c.  (Poll constants to
+ 	set event mask.)
+
+	* Rename event_vtbl->watcher.
+
 1998-11-01  Joshua Pritikin  <joshua.pritikin@db.com>
 
-	* Release 0.24.  [Massive code changes; caution advised.]
+	* Release 0.24.  [Massive code changes -- caution advised!]
 
 	* Reengineered hash-object implementation to use HVs.
 

@@ -121,7 +121,7 @@ static SV* events_mask_2sv(int mask)
   return ret;
 }
 
-static int sv_2events_mask(SV *sv, int bits)
+static int sv_2events_mask(SV *sv, int bits) /*poll mask XXX*/
 {
   if (SvPOK(sv)) {
     UV got=0;
@@ -135,13 +135,13 @@ static int sv_2events_mask(SV *sv, int bits)
       case 'e': if (bits & PE_E) { got |= PE_E; continue; }
       case 't': if (bits & PE_T) { got |= PE_T; continue; }
       }
-      warn("ignored '%c'", ep[xx]);
+      warn("Ignored '%c' in poll mask", ep[xx]);
     }
     return got;
   }
   else if (SvIOK(sv)) {
-    UV extra = SvIV(sv) & ~bits;
-    if (extra) warn("ignored extra bits 0x%x", extra);
+    UV extra = SvIVX(sv) & ~bits;
+    if (extra) warn("Ignored extra bits (0x%x) in poll mask", extra);
     return SvIVX(sv) & bits;
   }
   else {

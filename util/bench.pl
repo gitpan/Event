@@ -115,6 +115,26 @@ __END__
 
 -------------------------------------
 
+ benchmark: 0.07
+ Event: 0.24
+ 
+ perl 5.00553
+ uname=SunOS eq1062.wks.na.deuba.com 5.5.1 Generic_103640-19 sun4u sparc SUNW,Ultra-1
+ cc='cc', optimize='-xO3 -g'
+ ccflags='-DDEBUGGING -I/usr/local/include'
+ 
+ Please mail benchmark results to perl-loop@perl.org.  Thanks!
+ 
+Elapse Time:     99.14% of 11 seconds
+Timer/sec:       98.18% (783 total)
+Io/sec:          4911.331 (53562 total)
+Signals/sec      1.93
+Events/sec       5292.045
+Null/sec         114013
+Event/Null       4.64%
+
+-------------------------------------
+
  benchmark: 0.06
  Event: 0.20
  

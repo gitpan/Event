@@ -111,14 +111,15 @@ static void pe_stat_record(pe_stat *st, double elapse);
 
 #define EvFLAGS(ev)		((pe_watcher*)ev)->flags
 #define PE_ACTIVE	0x001
-#define PE_SUSPEND	0x002
-#define PE_QUEUED	0x004  /* virtual flag */
-#define PE_RUNNING	0x008  /* virtual flag */
-#define PE_REENTRANT	0x010
-#define PE_HARD		0x020
-#define PE_PERLCB	0x040
-#define PE_RUNNOW	0x080
-#define PE_CLUMP	0x100
+#define PE_POLLING	0x002
+#define PE_SUSPEND	0x004
+#define PE_REENTRANT	0x008
+#define PE_HARD		0x010
+#define PE_PERLCB	0x020
+#define PE_RUNNOW	0x040
+#define PE_CLUMP	0x080
+#define PE_QUEUED	0x100  /* virtual flag */
+#define PE_RUNNING	0x200  /* virtual flag */
 
 #define PE_VISIBLE_FLAGS \
 (PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
@@ -129,11 +130,15 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #  define EvDEBUGx(ev) 0
 #endif
 
-/* ACTIVE: waiting for something to happen that might cause queueEvent */
-/* controlled by start/stop methods */
+/* logically waiting for something to happen */
 #define EvACTIVE(ev)		(EvFLAGS(ev) & PE_ACTIVE)
 #define EvACTIVE_on(ev)		(EvFLAGS(ev) |= PE_ACTIVE)
 #define EvACTIVE_off(ev)	(EvFLAGS(ev) &= ~PE_ACTIVE)
+
+/* physically registered for poll/select */
+#define EvPOLLING(ev)		(EvFLAGS(ev) & PE_POLLING)
+#define EvPOLLING_on(ev)	(EvFLAGS(ev) |= PE_POLLING)
+#define EvPOLLING_off(ev)	(EvFLAGS(ev) &= ~PE_POLLING)
 
 #define EvSUSPEND(ev)		(EvFLAGS(ev) & PE_SUSPEND)
 #define EvSUSPEND_on(ev)	(EvFLAGS(ev) |= PE_SUSPEND)
@@ -151,6 +156,7 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define EvPERLCB_on(ev)		(EvFLAGS(ev) |= PE_PERLCB)
 #define EvPERLCB_off(ev)	(EvFLAGS(ev) &= ~PE_PERLCB)
 
+/* RUNNOW should be event specific XXX */
 #define EvRUNNOW(ev)		(EvFLAGS(ev) & PE_RUNNOW)
 #define EvRUNNOW_on(ev)		(EvFLAGS(ev) |= PE_RUNNOW)
 #define EvRUNNOW_off(ev)	(EvFLAGS(ev) &= ~PE_RUNNOW)

@@ -33,6 +33,7 @@ static void pe_event_dtor(pe_event *ev)
     ev->up->ev1 = 0;
   ev->count = 0;
   --ev->up->refcnt; /* try destroy XXX */
+  PE_RING_DETACH(&ev->que);
   PE_RING_UNSHIFT(&ev->que, &event_vtbl.freelist);
 }
 
@@ -77,6 +78,7 @@ static void pe_ioevent_dtor(pe_event *ev)
     ev->up->ev1 = 0;
   ev->count = 0;
   --ev->up->refcnt; /* try destroy XXX */
+  PE_RING_DETACH(&ev->que);
   PE_RING_UNSHIFT(&ev->que, &ioevent_vtbl.freelist);
 }
 
@@ -95,8 +97,11 @@ EKEYMETH(_event_got)
 
 static void pe_event_postCB(pe_cbframe *fp)
 {
+  pe_watcher *wa = fp->ev->up;
   (*fp->ev->vtbl->dtor)(fp->ev);
   --CurCBFrame;
+  if (EvACTIVE(wa) && EvINVOKE1(wa) && EvREPEAT(wa))
+    pe_watcher_on(wa, 1);
   /* try to delete event too XXX */
 }
 
@@ -173,7 +178,8 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
 
   /* We could trade memory to preemptively remove suspended
      events from the queue.  Instead we check in various places. XXX */
-  assert(!EvSUSPEND(wa));
+  if (EvSUSPEND(wa))
+    warn("Event: event for suspended watcher");
 
   pe_check_recovery();
   if (Stats)
@@ -204,7 +210,6 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
     SV *cb = SvRV((SV*)wa->callback);
     int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
     dSP;
-    SAVETMPS;
     if (SvTYPE(cb) == SVt_PVCV) {
       PUSHMARK(SP);
       XPUSHs(sv_2mortal(event_2sv(ev)));
@@ -222,7 +227,6 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
     }
     if ((pcflags & G_EVAL) && SvTRUE(ERRSV))
       pe_callback_died(frp);
-    FREETMPS;
   } else if (wa->callback) {
     (* (void(*)(void*,pe_event*)) wa->callback)(wa->ext_data, ev);
   } else {

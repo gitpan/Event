@@ -59,10 +59,10 @@ WKEYMETH(_timer_at)
     XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
     PUTBACK;
   } else {
-    int active = EvACTIVE(ev);
-    if (active) pe_timer_stop(ev);
+    int active = EvPOLLING(ev);
+    if (active) pe_watcher_off(ev);
     tp->tm.at = SvNV(nval);
-    if (active) pe_timer_start(ev, 0);
+    if (active) pe_watcher_on(ev, 0);
   }
 }
 

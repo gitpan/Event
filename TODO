@@ -1,19 +1,24 @@
-ACTIVE flag split into two flags: really active & should be active?
+debugging tools
+  mmap'd circular log to track down callbacks that refuse to return?
+  use SIGALRM?
+
+add attr() method for configuration?
+
+e_ prefix ; rename 'events' -> 'e_poll'
 
 replace pe_watcher::ev1 with a ring of active events?
 
-scope of pe_event should include life of SV?
+scope of pe_event should include life of SV?  Currently, can cause problems.
 
 pe_event_base_vtbl
 
-rename c/event_vtbl.c -> c/watcher.c
+#define macros for inheritance?
 
 comp.lang.perl.announce prerequisites
   portability?  wait for Win32?
 &
   finish -priority => -nice migration (in a few weeks)
   finish leading dashes phase-out
-  io_STORE - switch over to standard events_mask typemap
 
 Some way to assert that a watcher is deleted?  Why still seeing lots
 of zombies?
@@ -39,6 +44,8 @@ loop
   StarvePrio?
 
 make subclassing work as well as possible
+
+Fix process.pm or process.t?  Maybe should be external module?
 
 export_fail hook to autoload?
 

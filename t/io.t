@@ -10,6 +10,7 @@ BEGIN {
 
 use Test; plan tests => 2;
 use Event qw(loop unloop);
+BEGIN { Event::Watcher->import(qw(R W)) }
 use Symbol;
 
 # $Event::DebugLevel = 1;
@@ -22,12 +23,12 @@ sub new_pipe {
     for my $p ($p1,$p2) {
 	Event->io(handle => $p, events => 'rw', callback => sub {
 		      my $e = shift;
-		      if ($e->{got} =~ /r/) {
+		      if ($e->{got} & R) {
 			  my $buf;
 			  sysread $p, $buf, 1;
 			  ++$$cnt;
 		      }
-		      if ($e->{got} =~ /w/) {
+		      if ($e->{got} & W) {
 			  syswrite $p, ".", 1;
 		      }
 	      }, desc => "pair $p");

@@ -21,7 +21,6 @@ static void boot_queue()
 /*inline*/ static void dequeEvent(pe_event *ev)
 {
   assert(ev);
-  assert(ev->count);
   PE_RING_DETACH(&ev->que);
   --ActiveWatchers;
 }
@@ -38,6 +37,7 @@ static void db_show_queue()
 
 static int prepare_event(pe_event *ev, char *forwhat)
 {
+  /* AVOID DIEING IN HERE!! */
   pe_watcher *wa = ev->up;
   if (EvSUSPEND(wa)) {
     EvRUNNOW_off(wa);
@@ -47,21 +47,15 @@ static int prepare_event(pe_event *ev, char *forwhat)
   assert(EvREENTRANT(wa) || !wa->running);
   if (!EvACTIVE(wa)) {
     if (!EvRUNNOW(wa))
-      croak("Event: attempt to run callback for !ACTIVE watcher '%s'",
-	    SvPV(wa->desc,PL_na));
+      warn("Event: event for !ACTIVE watcher '%s'", SvPV(wa->desc,PL_na));
   }
   else {
-    /* cannot be done any later because the callback might want
-       to call again() on itself or whatever */
-    if (EvINVOKE1(wa)) {
+    if (!EvREPEAT(wa))
       pe_watcher_stop(wa);
-      if (EvREPEAT(wa))
-	pe_watcher_start(wa, 1);
-    }
-    else if (!EvREPEAT(wa))
-      pe_watcher_stop(wa);
+    else if (EvINVOKE1(wa))
+      pe_watcher_off(wa);
   }
-  EvRUNNOW_off(wa);
+  EvRUNNOW_off(wa); /* race condition XXX */
   if (EvDEBUGx(wa) >= 3)
     warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,PL_na), ev->priority);
   return 1;
@@ -139,18 +133,12 @@ static void pe_cancel_hook(pe_qcallback *qcb)
 
 static double pe_map_prepare(double tm)
 {
-  int scoped=0;
   pe_qcallback *qcb = Prepare.prev->self;
   while (qcb) {
     if (qcb->is_perl) {
       SV *got;
       double when;
       dSP;
-      if (!scoped) {
-	scoped=1;
-	ENTER;
-	SAVETMPS;
-      }
       PUSHMARK(SP);
       PUTBACK;
       perl_call_sv((SV*)qcb->callback, G_SCALAR);
@@ -166,25 +154,15 @@ static double pe_map_prepare(double tm)
     }
     qcb = qcb->ring.prev->self;
   }
-  if (scoped) {
-    FREETMPS;
-    LEAVE;
-  }
   return tm;
 }
 
 static void pe_map_check(pe_ring *List)
 {
-  int scoped=0;
   pe_qcallback *qcb = List->prev->self;
   while (qcb) {
     if (qcb->is_perl) {
       dSP;
-      if (!scoped) {
-	scoped=1;
-	ENTER;
-	SAVETMPS;
-      }
       PUSHMARK(SP);
       PUTBACK;
       perl_call_sv((SV*)qcb->callback, G_DISCARD);
@@ -194,12 +172,9 @@ static void pe_map_check(pe_ring *List)
     }
     qcb = qcb->ring.prev->self;
   }
-  if (scoped) {
-    FREETMPS;
-    LEAVE;
-  }
 }
 
+/* The caller is responsible for SAVETMPS/FREETMPS! */
 static int pe_empty_queue(maxprio)
 {
   pe_event *ev;
@@ -251,6 +226,7 @@ static void pe_queue_pending()
   if (!PE_RING_EMPTY(&AsyncCheck)) pe_map_check(&AsyncCheck);
 }
 
+/* The caller is responsible for SAVETMPS/FREETMPS! */
 static int one_event(double tm)
 {
   pe_signal_asynccheck();
