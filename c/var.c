@@ -52,7 +52,6 @@ static I32 tracevar_w(IV ix, SV *sv)
 { pe_tracevar((pe_watcher *)ix, sv, PE_W); return 0; /*ignored*/ }
 
 static void pe_var_start(pe_watcher *_ev, int repeat) {
-    dTHR;
     struct ufuncs *ufp;
     MAGIC **mgp;
     MAGIC *mg;

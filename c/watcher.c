@@ -9,9 +9,9 @@ static void pe_watcher_init(pe_watcher *ev, HV *stash, SV *temple) {
     if (!ev->vtbl->stash)
 	croak("sub-class VTBL must have a stash (doesn't!)");
     if (!ev->vtbl->did_require) {
-	dTHR;
 	SV *tmp;
 	char *name = HvNAME(ev->vtbl->stash);
+	dTHX;
 	if (memEQ(name, "Event::", 7))
 	    name += 7;
 	tmp = sv_2mortal(newSVpvf("Event/%s.pm", name));
@@ -21,8 +21,13 @@ static void pe_watcher_init(pe_watcher *ev, HV *stash, SV *temple) {
 		  name, SvPV(ERRSV,n_a));
 	++ev->vtbl->did_require;
     }
+    /* if we have a non-default stash then we need to save it! */
+    ev->mysv = stash || temple ? wrap_watcher(ev, stash, temple) : 0;
     PE_RING_INIT(&ev->all, ev);
     PE_RING_INIT(&ev->events, 0);
+
+    /* no exceptions after this point */
+
     PE_RING_UNSHIFT(&ev->all, &AllWatchers);
     EvFLAGS(ev) = 0;
     EvINVOKE1_on(ev);
@@ -39,8 +44,6 @@ static void pe_watcher_init(pe_watcher *ev, HV *stash, SV *temple) {
     ev->callback = 0;
     ev->ext_data = 0;
     ev->stats = 0;
-    /* if we have a non-default stash then we need to save it! */
-    ev->mysv = stash || temple ? wrap_watcher(ev, stash, temple) : 0;
 }
 
 static void pe_watcher_cancel_events(pe_watcher *wa) {

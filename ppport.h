@@ -184,6 +184,11 @@ __DATA__
 #  endif
 #endif
 
+#ifndef dTHX
+#  define dTHX dTHR
+#  define pTHX_
+#endif
+
 #ifndef boolSV
 #	define boolSV(b) ((b) ? &PL_sv_yes : &PL_sv_no)
 #endif

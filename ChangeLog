@@ -1,3 +1,14 @@
+1999-09-13  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.55.
+
+	* Changes for clean threaded build against 5.5.61.  Unfortunately,
+ 	this breaks threaded 5.5.3.  If this is a problem for you then
+ 	send patches.  The threading variations in the devel track are
+ 	driving me crazy. (dfavor@austin.ibm.com)
+	
+	* Fixed coredump trigger by attach_to test (cpan-testers@perl.org).
+
 1999-09-10  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.54.

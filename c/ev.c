@@ -143,10 +143,13 @@ static void pe_event_postCB(pe_cbframe *fp) {
 
 static void pe_callback_died(pe_cbframe *fp) {
     dSP;
+    dTHX;
     STRLEN n_a;
     pe_watcher *wa = fp->ev->up;
     SV *eval = perl_get_sv("Event::DIED", 1);
-    SV *err = sv_true(ERRSV)? sv_mortalcopy(ERRSV):sv_2mortal(newSVpv("?",0));
+    SV *err = (sv_true(ERRSV)?
+	       sv_mortalcopy(ERRSV):
+	       sv_2mortal(newSVpv("?",0)));
     if (EvDEBUGx(wa) >= 4)
 	warn("Event: '%s' died with: %s\n", SvPV(wa->desc,n_a),
 	     SvPV(ERRSV,n_a));
@@ -162,34 +165,19 @@ static void pe_callback_died(pe_cbframe *fp) {
     }
 }
 
-static void _resume_watcher(void *vp) {
+static void _resume_watcher(pTHX_ void *vp) {
     pe_watcher *wa = (pe_watcher *)vp;
     pe_watcher_resume(wa);
 }
 
 static void pe_check_recovery() {
-    pe_watcher *ev;
     /* NO ASSERTIONS HERE!  EVAL CONTEXT IS VERY MESSY */
+    pe_watcher *ev;
     int alert;
     struct pe_cbframe *fp;
     if (CurCBFrame < 0)
 	return;
 
-    fp = CBFrame + CurCBFrame;
-    ev = fp->ev->up;
-    if (ev->running == fp->run_id) {
-	if (Estat.on)
-	    Estat.suspend(fp->stats);
-	if (!EvREENTRANT(ev) && EvREPEAT(ev) && !EvSUSPEND(ev)) {
-	    /* temporarily suspend non-reentrant watcher until callback is
-	       finished! */
-	    pe_watcher_suspend(ev);
-	    SAVEDESTRUCTOR(_resume_watcher, ev);
-	}
-	return;
-    }
-
-    /* exception detected; alert the militia! */
     alert=0;
     while (CurCBFrame >= 0) {
 	fp = CBFrame + CurCBFrame;
@@ -197,12 +185,11 @@ static void pe_check_recovery() {
 	    break;
 	if (!alert) {
 	    alert=1;
+	    /* exception detected; alert the militia! */
 	    pe_callback_died(fp);
 	}
 	pe_event_postCB(fp);
     }
-    if (!alert)
-	warn("Event: don't know where exception occurred");
 }
 
 static void pe_event_invoke(pe_event *ev) {
@@ -215,6 +202,20 @@ static void pe_event_invoke(pe_event *ev) {
 
     /* SETUP */
     ENTER;
+    if (CurCBFrame >= 0) {
+	pe_watcher *pwa;
+	frp = CBFrame + CurCBFrame;
+	pwa = frp->ev->up;
+	assert(pwa->running == frp->run_id);
+	if (Estat.on)
+	    Estat.suspend(frp->stats);
+	if (!EvREENTRANT(pwa) && EvREPEAT(pwa) && !EvSUSPEND(pwa)) {
+	    /* temporarily suspend non-reentrant watcher until callback is
+	       finished! */
+	    pe_watcher_suspend(pwa);
+	    SAVEDESTRUCTOR(_resume_watcher, pwa);
+	}
+    }
     SAVEINT(wa->running);
     PE_RING_DETACH(&ev->peer);  /* disallow clumping after this point! */
     frp = &CBFrame[++CurCBFrame];
@@ -253,6 +254,7 @@ static void pe_event_invoke(pe_event *ev) {
 	SV *cb = SvRV((SV*)wa->callback);
 	int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
 	dSP;
+	dTHX;
 	SV *evsv = event_2sv(ev);
 	if (SvTYPE(cb) == SVt_PVCV) {
 	    PUSHMARK(SP);
@@ -261,7 +263,6 @@ static void pe_event_invoke(pe_event *ev) {
 	    perl_call_sv((SV*) wa->callback, pcflags);
 	} else {
 	    AV *av = (AV*)cb;
-	    dSP;
 	    assert(SvTYPE(cb) == SVt_PVAV);
 	    PUSHMARK(SP);
 	    XPUSHs(*av_fetch(av, 0, 0));

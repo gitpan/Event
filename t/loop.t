@@ -4,16 +4,16 @@ use strict;
 use Test; plan tests => 3;
 use Event qw(loop unloop);
 
-#$Event::DebugLevel = 3;
+# $Event::DebugLevel = 2;
 
 my %got;
-my $sleep = .1;
+my $sleep = 1;
 my $sleeping;
 my $early = Event->idle(repeat => 1, cb => sub {
 			    return if !$sleeping;
 			    unloop 'early';
 			});
-Event->idle(repeat => 1, cb => sub {
+Event->idle(desc => "main", repeat => 1, cb => sub {
 		my $e = shift;
 		$e->w->reentrant(0);
 		$sleeping = 1;

@@ -33,9 +33,11 @@ static void pe_io_start(pe_watcher *_ev, int repeat) {
 	STRLEN n_a;
 	ev->fd = pe_sys_fileno(ev->handle, SvPV(ev->base.desc, n_a));
     }
+
     /* On Unix, it is possible to set the 'fd' in C code without
-       assigning anything to the 'handle'.  This should be supported
-       somehow but maybe it is too unix specific? */
+       assigning anything to the 'handle'.  This should be more
+       officially supported but maybe it is too unix specific. */
+
     if (ev->fd >= 0) {
 	PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
 	++IOWatchCount;

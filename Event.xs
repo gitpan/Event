@@ -20,6 +20,7 @@ extern "C" {
 #if PERL_REVISION == 5 && PERL_VERSION <= 5 && PERL_SUBVERSION < 53
 #  define PL_vtbl_uvar vtbl_uvar
 #  define PL_sig_name sig_name
+#  define whichsig Perl_whichsig   /* ? */
 #endif
 
 #ifdef croak
@@ -429,11 +430,6 @@ _empty_queue(prio)
 	CODE:
 	pe_check_recovery();
 	while (pe_empty_queue(prio));
-
-void
-_check_recovery()
-	CODE:
-	pe_check_recovery();
 
 void
 queue_time(prio)

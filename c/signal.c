@@ -69,7 +69,7 @@ WKEYMETH(_signal_signal) {
     } else {
 	STRLEN n_a;
 	int active = EvPOLLING(ev);
-	int sig = Perl_whichsig(SvPV(nval, n_a));
+	int sig = whichsig(SvPV(nval, n_a));
 	/*warn("whichsig(%s) = %d", SvPV(nval,na), sig); /**/
 	if (sig == 0)
 	    croak("Unrecognized signal '%s'", SvPV(nval, n_a));
@@ -133,7 +133,7 @@ static void boot_signal() {
     PE_SIGVALID_off(0);
     sigp = nohandle;
     while (*sigp) {
-	sig = Perl_whichsig(*sigp);
+	sig = whichsig(*sigp);
 	if (sig) PE_SIGVALID_off(sig);
 	++sigp;
     }
