@@ -30,10 +30,6 @@ static char *pe_idle_start(pe_watcher *ev, int repeating) {
     pe_idle *ip = (pe_idle*) ev;
     if (!ev->callback)
 	return "without callback";
-    if (SvOK(ip->min_interval) || SvOK(ip->max_interval))
-	WaCBTIME_on(ev);
-    else
-	WaCBTIME_off(ev);
     if (!repeating) ev->cbtime = NVtime();
     now = WaHARD(ev)? ev->cbtime : NVtime();
     if (sv_2interval("min", ip->min_interval, &min)) {

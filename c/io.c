@@ -56,13 +56,11 @@ static char *pe_io_start(pe_watcher *_ev, int repeat) {
 	    assert(!ok);
 	    return "without timeout callback";
 	}
-	WaCBTIME_on(ev);
 	ev->poll |= PE_T;
 	ev->tm.at = NVtime() + ev->timeout;  /* too early okay */
 	pe_timeable_start(&ev->tm);
 	++ok;
     } else {
-	WaCBTIME_off(ev);
 	ev->poll &= ~PE_T;
     }
     return ok? 0 : "because there is nothing to watch";

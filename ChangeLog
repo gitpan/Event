@@ -1,3 +1,29 @@
+2000-11-17  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.79.
+
+	* Removed Event/inactivity.pm
+
+2000-08-29  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* #undef HAS_POLL for sgi (treygraves@yahoo.com)
+
+	* Moved REENTRANT & HARD flags to EventAPI.h. (Jochen)
+
+	* Removed obsolete CBTIME flag. (Jochen)
+
+2000-08-28  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* EventAPI += sv_2interval. (Jochen)
+
+2000-07-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Applied patch for IRIS poll() from R.de.Vries@fokkerspace.nl
+
+2000-05-25  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* EventAPI += unloop_all.
+
 2000-05-24  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.78.

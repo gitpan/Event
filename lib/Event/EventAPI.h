@@ -63,10 +63,11 @@ struct pe_qcallback {
 };
 
 /* PUBLIC FLAGS */
+#define PE_REENTRANT	0x0008
+#define PE_HARD		0x0010
 #define PE_DEBUG	0x1000
 #define PE_REPEAT	0x2000
 #define PE_INVOKE1	0x4000
-#define PE_CBTIME	0x8000
 
 #define WaFLAGS(ev)		((pe_watcher*)ev)->flags
 
@@ -78,13 +79,17 @@ struct pe_qcallback {
 #define WaREPEAT_on(ev)		(WaFLAGS(ev) |= PE_REPEAT)
 #define WaREPEAT_off(ev)	(WaFLAGS(ev) &= ~PE_REPEAT)
 
+#define WaREENTRANT(ev)		(WaFLAGS(ev) & PE_REENTRANT)
+#define WaREENTRANT_on(ev)	(WaFLAGS(ev) |= PE_REENTRANT)
+#define WaREENTRANT_off(ev)	(WaFLAGS(ev) &= ~PE_REENTRANT)
+
+#define WaHARD(ev)		(WaFLAGS(ev) & PE_HARD)
+#define WaHARD_on(ev)		(WaFLAGS(ev) |= PE_HARD)   /* :-) */
+#define WaHARD_off(ev)		(WaFLAGS(ev) &= ~PE_HARD)
+
 #define WaINVOKE1(ev)		(WaFLAGS(ev) & PE_INVOKE1)
 #define WaINVOKE1_on(ev)	(WaFLAGS(ev) |= PE_INVOKE1)
 #define WaINVOKE1_off(ev)	(WaFLAGS(ev) &= ~PE_INVOKE1)
-
-#define WaCBTIME(ev)		(WaFLAGS(ev) & PE_CBTIME)
-#define WaCBTIME_on(ev)		(WaFLAGS(ev) |= PE_CBTIME)
-#define WaCBTIME_off(ev)	(WaFLAGS(ev) &= ~PE_CBTIME)
 
 /* QUEUE INFO */
 #define PE_QUEUES 7	/* Hard to imagine a need for more than 7 queues... */
@@ -161,11 +166,12 @@ struct pe_group {
 typedef struct pe_event_stats_vtbl pe_event_stats_vtbl;
 struct pe_event_stats_vtbl {
     int on;
+    /* if frame == -1 then we are timing pe_multiplex */
     void*(*enter)(int frame, int max_tm);
     void (*suspend)(void *);
     void (*resume)(void *);
-    void (*commit)(void *, pe_watcher *);
-    void (*scrub)(void *, pe_watcher *);
+    void (*commit)(void *, pe_watcher *);  /* callback finished OK */
+    void (*scrub)(void *, pe_watcher *);   /* callback died */
     void (*dtor)(void *);
 };
 
@@ -212,6 +218,8 @@ struct EventAPI {
     /* EVERYTHING ELSE */
     void (*unloop)(SV *);
     double (*NVtime)();
+    void (*unloop_all)(SV *);
+    int (*sv_2interval)(char *label, SV *in, double *out);
 };
 
 static struct EventAPI *GEventAPI=0;

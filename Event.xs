@@ -329,6 +329,8 @@ BOOT:
       api.event_2sv = event_2sv;
       api.sv_2event = sv_2event;
       api.unloop = pe_unloop;
+      api.unloop_all = pe_unloop_all;
+      api.sv_2interval = sv_2interval;
       apisv = perl_get_sv("Event::API", 1);
       sv_setiv(apisv, (IV)&api);
       SvREADONLY_on(apisv);
@@ -380,11 +382,7 @@ unloop(...)
 void
 unloop_all(...)
      CODE:
-{
-    SV *rsv = perl_get_sv("Event::TopResult", 0);
-    sv_setsv(rsv, items? ST(0) : &PL_sv_undef);
-    ExitLevel = 0;
-}
+     pe_unloop_all(items? ST(0) : &PL_sv_undef);
 
 bool
 cache_time_api()

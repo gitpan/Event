@@ -5,6 +5,11 @@
   poll and select scale poorly.
 */
 
+/* select() works better than poll() on IRIX */
+#ifdef sgi
+# undef HAS_POLL
+#endif
+
 static int pe_sys_fileno(SV *sv, char *context) {
     IO *io;
     PerlIO *fp;
@@ -89,7 +94,7 @@ static void pe_sys_multiplex(double timeout) {
 	    ev->xref = -1;
 	    assert(fd >= 0); {
 		int bits=0;
-		if (ev->poll & PE_R) bits |= (POLLIN | POLLRDNORM | POLLHUP);
+		if (ev->poll & PE_R) bits |= (POLLIN | POLLRDNORM);
 		if (ev->poll & PE_W) bits |= (POLLOUT |POLLWRNORM |POLLWRBAND);
 		if (ev->poll & PE_E) bits |= (POLLRDBAND | POLLPRI);
 		assert(bits); {

@@ -39,7 +39,6 @@ lib/Event/MakeMaker.pm
 lib/Event/Watcher.pm
 lib/Event/group.pm
 lib/Event/idle.pm
-lib/Event/inactivity.pm
 lib/Event/io.pm
 lib/Event/signal.pm
 lib/Event/timer.pm

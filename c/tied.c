@@ -78,12 +78,9 @@ WKEYMETH(_tied_flags) {
     if (nval) {
 	IV nflags = SvIV(nval);
 	IV flip = nflags ^ ev->flags;
-	IV other = flip & ~(PE_CBTIME|PE_INVOKE1);
+	IV other = flip & ~(PE_INVOKE1);
 	if (flip & PE_INVOKE1) {
 	    if (nflags & PE_INVOKE1) WaINVOKE1_on(ev); else WaINVOKE1_off(ev);
-	}
-	if (flip & PE_CBTIME) {
-	    if (nflags & PE_CBTIME) WaCBTIME_on(ev); else WaCBTIME_off(ev);
 	}
 	if (other)
 	    warn("Other flags (0x%x) cannot be changed", other);

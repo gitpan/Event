@@ -110,16 +110,17 @@ static void _signal_asynccheck(pe_sig_stat *st) {
     Zero(st, 1, struct pe_sig_stat);
 }
 
-/* This implementation gives no race conditions! */
+/* This implementation gives no race conditions, assuming
+   no kernel-level threads. */
 static void pe_signal_asynccheck() {
     pe_sig_stat *st;
 
-    st = &Sigstat[Sigslot];
     Sigslot = 1;
+    st = &Sigstat[0];
     if (st->Hits) _signal_asynccheck(st);
 
-    st = &Sigstat[Sigslot];
     Sigslot = 0;
+    st = &Sigstat[1];
     if (st->Hits) _signal_asynccheck(st);
 }
 

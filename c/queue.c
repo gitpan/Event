@@ -245,3 +245,10 @@ static void pe_unloop(SV *why) {
 	warn("Event::unloop() to %d", ExitLevel);
     }
 }
+
+static void pe_unloop_all(SV *why) {
+    SV *rsv = perl_get_sv("Event::TopResult", 0);
+    assert(rsv);
+    sv_setsv(rsv, why);
+    ExitLevel = 0;
+}

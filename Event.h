@@ -87,8 +87,6 @@ struct pe_watcher_vtbl {
 #define PE_ACTIVE	0x001
 #define PE_POLLING	0x002
 #define PE_SUSPEND	0x004
-#define PE_REENTRANT	0x008
-#define PE_HARD		0x010
 #define PE_PERLCB	0x020
 #define PE_RUNNOW	0x040
 #define PE_TMPERLCB	0x080
@@ -116,14 +114,6 @@ struct pe_watcher_vtbl {
 #define WaSUSPEND(ev)		(WaFLAGS(ev) & PE_SUSPEND)
 #define WaSUSPEND_on(ev)	(WaFLAGS(ev) |= PE_SUSPEND)
 #define WaSUSPEND_off(ev)	(WaFLAGS(ev) &= ~PE_SUSPEND)
-
-#define WaREENTRANT(ev)		(WaFLAGS(ev) & PE_REENTRANT)
-#define WaREENTRANT_on(ev)	(WaFLAGS(ev) |= PE_REENTRANT)
-#define WaREENTRANT_off(ev)	(WaFLAGS(ev) &= ~PE_REENTRANT)
-
-#define WaHARD(ev)		(WaFLAGS(ev) & PE_HARD)
-#define WaHARD_on(ev)		(WaFLAGS(ev) |= PE_HARD)   /* :-) */
-#define WaHARD_off(ev)		(WaFLAGS(ev) &= ~PE_HARD)
 
 #define WaPERLCB(ev)		(WaFLAGS(ev) & PE_PERLCB)
 #define WaPERLCB_on(ev)		(WaFLAGS(ev) |= PE_PERLCB)

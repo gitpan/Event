@@ -478,9 +478,10 @@ to true.
 
 =item signal => $str
 
-The callback will be invoked when the specified signal is received.
-The $str string should be something like 'INT' or 'QUIT'.  Also see
-the documentation for C<%SIG>.
+The callback is invoked after the specified signal is received.  The
+$str string should be something like 'INT' or 'QUIT'.  Also see the
+documentation for C<%SIG>.  A given signal can be handled by C<%SIG>
+or Event, but not both.
 
 =item suspend => $bool
 
