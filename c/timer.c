@@ -1,7 +1,7 @@
 static struct pe_event_vtbl pe_timer_vtbl;
 static pe_ring Timers;
 /* static double BaseTime; /* make everything relative? XXX */
-static double Now; /* EXPORT XXX */
+static double Now=0; /* EXPORT XXX */
 
 typedef struct pe_timer pe_timer;
 struct pe_timer {
@@ -17,6 +17,7 @@ pe_timer_allocate()
 {
   pe_timer *ev;
   New(PE_NEWID, ev, 1, pe_timer);
+  assert(ev);
   ev->base.vtbl = &pe_timer_vtbl;
   PE_RING_INIT(&ev->tmring, ev);
   ev->hard = 0;
@@ -62,10 +63,9 @@ pe_timer_start(pe_event *ev, int repeat)
 {
   pe_timer *tm = (pe_timer*) ev;
   pe_ring *rg;
-  EvSUSPEND_off(ev);
-  if (EvACTIVE(ev))
+  if (EvACTIVE(ev) || EvSUSPEND(ev))
     return;
-  if (repeat && EvREPEAT(ev)) {
+  if (repeat) {
     /* We just finished the callback and need to re-insert at
        the appropriate time increment. */
     if (!tm->interval)
@@ -94,6 +94,8 @@ static void
 pe_timer_stop(pe_event *ev)
 {
   pe_timer *tm = (pe_timer *) ev;
+  if (!EvACTIVE(ev) || EvSUSPEND(ev))
+    return;
   PE_RING_DETACH(&tm->tmring);
   EvACTIVE_off(ev);
 }

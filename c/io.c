@@ -33,6 +33,7 @@ pe_io_allocate()
   ev->handle = 0;
   ev->events = 0;
   ev->got = 0;
+  EvINVOKE1_off(ev);
   EvREPEAT_on(ev);
   return (pe_event*) ev;
 }
@@ -168,8 +169,7 @@ static void
 pe_io_start(pe_event *_ev, int repeat)
 {
   pe_io *ev = (pe_io*) _ev;
-  EvSUSPEND_off(ev);
-  if (EvACTIVE(ev))
+  if (EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
   EvACTIVE_on(ev);
@@ -181,7 +181,7 @@ static void
 pe_io_stop(pe_event *_ev)
 {
   pe_io *ev = (pe_io*) _ev;
-  if (!EvACTIVE(ev))
+  if (!EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   PE_RING_DETACH(&ev->ioring);
   EvACTIVE_off(ev);
@@ -208,7 +208,6 @@ boot_io()
   vt->STORE = pe_io_STORE;
   vt->start = pe_io_start;
   vt->stop = pe_io_stop;
-  vt->invoke = pe_event_invoke_repeat;
   PE_RING_INIT(&IOWatch, 0);
   IOWatch_OK = 0;
   IOWatchCount = 0;

@@ -48,10 +48,8 @@ typedef struct pe_event pe_event;
 typedef struct pe_event_vtbl pe_event_vtbl;
 
 struct pe_event_vtbl {
-  struct pe_event_vtbl *up; /* dubious; does it work for more than 1 level? */
+  struct pe_event_vtbl *up; /* dubious; how does it work for more than 1 level? */
   HV *stash;
-  SV *instances;
-  SV *default_priority;
   int keys;
   char **keylist;
   void (*init)(pe_event *);
@@ -62,16 +60,36 @@ struct pe_event_vtbl {
   int (*EXISTS)(pe_event *, SV *key);
   void (*FIRSTKEY)(pe_event *);
   void (*NEXTKEY)(pe_event *);
-  void (*invoke)(pe_event *);  /* can destroy event */
   void (*start)(pe_event *, int);
   void (*stop)(pe_event *);
 };
 
+typedef struct pe_run pe_run;
+struct pe_run {
+  double elapse;
+  int ran;
+};
+
+#define PE_STAT_SECONDS 3  /* 3 sec per interval */
+#define PE_STAT_I1  20
+#define PE_STAT_I2  20
+
+typedef struct pe_stat pe_stat;
+struct pe_stat {
+  int xsec, xmin;     /* first index of circular buffers */
+  pe_run sec[PE_STAT_I1];
+  pe_run min[PE_STAT_I2];
+};
+static void pe_stat_init(pe_stat *st);
+static void pe_stat_record(pe_stat *st, double elapse);
+
 struct pe_event {
   pe_event_vtbl *vtbl;
+  HV *stash;
   pe_ring all, que;
   int iter;
   HV *FALLBACK;
+  int id;
   int refcnt;
   int flags;
   int priority;
@@ -82,10 +100,7 @@ struct pe_event {
   void (*c_callback)();
   void *ext_data;
 
-  /* rethink---------> */
-  U32 ran;
-  double elapse_tm;
-  double total_elapse;
+  pe_stat stats;
 };
 
 #define EvFLAGS(ev)		((pe_event*)ev)->flags
@@ -95,6 +110,10 @@ struct pe_event {
 #define PE_RUNNING	0x8
 #define PE_DEBUG	0x10
 #define PE_REPEAT	0x20
+#define PE_INVOKE1	0x40
+
+#define PE_INTERNAL_FLAGS \
+(PE_QUEUED | PE_SUSPEND | PE_RUNNING | PE_DEBUG | PE_REPEAT)
 
 /* ACTIVE: waiting for something to happen that might cause queueEvent */
 /* controlled by start/stop methods */
@@ -122,13 +141,17 @@ struct pe_event {
 #define EvREPEAT_on(ev)		(EvFLAGS(ev) |= PE_REPEAT)
 #define EvREPEAT_off(ev)	(EvFLAGS(ev) &= ~PE_REPEAT)
 
+#define EvINVOKE1(ev)		(EvFLAGS(ev) & PE_INVOKE1)
+#define EvINVOKE1_on(ev)	(EvFLAGS(ev) |= PE_INVOKE1)
+#define EvINVOKE1_off(ev)	(EvFLAGS(ev) &= ~PE_INVOKE1)
+
 #define EvCANDESTROY(ev)					\
- (!(EvFLAGS(ev)&(PE_ACTIVE|PE_SUSPEND|PE_QUEUED|PE_RUNNING))	\
-  && !ev->c_callback						\
-  && ev->refcnt == 0)
+ (ev->refcnt == 0 &&						\
+  !(EvFLAGS(ev)&(PE_ACTIVE|PE_SUSPEND|PE_QUEUED|PE_RUNNING)) &&	\
+  !ev->c_callback)
 
 /* PUBLIC API */
-
+                       /* PRELIMINARY! XXX */
 void pe_event_cancel(pe_event *ev);
 void pe_event_suspend(pe_event *ev);
 void pe_event_now(pe_event *ev);

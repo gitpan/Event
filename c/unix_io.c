@@ -18,6 +18,8 @@ pe_io_fileno(pe_io *ev)
     return ev->fd;
   if (SvROK(sv))
     sv = SvRV(sv);
+  else if (SvIOK(sv)) /* maybe non-portable but nice for unixen */
+    return SvIV(sv);
   if (SvTYPE(sv) == SVt_PVGV) {
     if (!(io=GvIO((GV*)sv)) || !(fp = IoIFP(io))) {
       warn("GLOB(0x%x) isn't a valid IO", sv);
@@ -34,8 +36,6 @@ pe_io_fileno(pe_io *ev)
 /************************************************* POLL */
 #if defined(HAS_POLL) && !PE_IO_WAIT
 #define PE_IO_WAIT 1
-
-#include <poll.h>
 
 static struct pollfd *Pollfd=0;
 static int pollMax=0;
@@ -178,7 +178,7 @@ pe_io_waitForEvent(double timeout)
 	int fd = ev->fd;
 	struct stat buf;
 	if (fd >= 0 && PerlLIO_fstat(fd, &buf) < 0 && errno == EBADF) {
-	  pe_io_remove((pe_event*) ev);
+	  pe_io_stop((pe_event*) ev);
 	  queueEvent((pe_event*) ev, 1);
 	  return;
 	}

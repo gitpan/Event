@@ -11,8 +11,8 @@ package Event;
 require Exporter;
 *require_version = \&Exporter::require_version;
 use Carp qw(carp cluck croak confess);
-use vars qw($VERSION $DebugLevel $Eval $Stats);
-$VERSION = '0.08';
+use vars qw($VERSION $DebugLevel $Eval);
+$VERSION = '0.10';
 
 # 0    FAST, FAST, FAST!
 # 1    COLLECT SOME NICE STATISTICS
@@ -21,7 +21,6 @@ $VERSION = '0.08';
 
 $DebugLevel = 0;
 $Eval = 0;
-$Stats = 0;
 
 BOOT_XS: {
     # If I inherit DynaLoader then I inherit AutoLoader; Bletch!
@@ -48,6 +47,11 @@ sub init {
 	    $o->{$_} = $arg->{$_};
 	}
     }
+    do {
+	no strict 'refs';
+	$o->{priority} = $ { ref($o)."::DefaultPriority" } ||
+	    Event::Loop::PRIO_NORMAL();
+    };
     $o->{priority} += $arg->{"-priority"} || $arg->{priority} || 0;
     $o->{priority} = -1
 	if $arg->{async} || $arg->{'-async'};
@@ -77,13 +81,13 @@ sub init {
 sub AUTOLOAD {
     my $sub = ($Event::AUTOLOAD =~ /(\w+)$/)[0];
 
-    eval { require "Event/" . $sub . ".pm" }
-	or croak $@ . ', Undefined subroutine &' . $Event::AUTOLOAD;
+    eval { require "Event/$sub.pm" }
+	or croak $@ . ', Undefined subroutine &' . $sub;
 
-    croak "Event/$sub.pm did not define Event::${sub}"
-	unless defined &{$Event::AUTOLOAD};
+    croak "Event/$sub.pm did not define Event::$sub"
+	unless defined &$sub;
 
-    goto &{$Event::AUTOLOAD};
+    goto &$sub;
 }
 
 sub register {
@@ -99,20 +103,21 @@ sub register {
     my $sub = \&{"$package\::new"};
     die "can't find $package\::new"
 	if !$sub;
-
     *{$name} = $sub;
 
     shift;
     while (@_) {
 	my $k = shift;
+	my $v = shift;
+	croak "$v must be CODE" if ref $v ne 'CODE';
 	if ($k eq 'prepare') {
-	    push @Event::Loop::Prepare, shift;
+	    push @Event::Loop::Prepare, $v;
 	} elsif ($k eq 'check') {
-	    push @Event::Loop::Check, shift;
+	    push @Event::Loop::Check, $v;
 	} elsif ($k eq 'asynccheck') {
-	    push @Event::Loop::AsyncCheck, shift;
+	    push @Event::Loop::AsyncCheck, $v;
 	} else {
-	    carp "Event: register '$k' => ".shift()." (ignored)";
+	    carp "Event: register '$k' => $v (ignored)";
 	}
     }
 }
@@ -130,13 +135,17 @@ sub exit {
     &Event::Loop::exitLoop
 }
 
+package Event::Stats;
+
+# restart & DESTROY methods are implemented in XS
+
 package Event::Loop;
 use Carp;
 use builtin qw(min);
 use vars qw(@ISA @EXPORT_OK
 	    @Queue $queueCount $Now @Prepare @Check @AsyncCheck);
 @ISA = 'Exporter';
-@EXPORT_OK = qw(queueEvent emptyQueue doOneEvent Loop exitLoop
+@EXPORT_OK = qw(queueEvent doEvents doOneEvent Loop exitLoop
 		$Now @Prepare @Check @AsyncCheck QUEUES PRIO_HIGH PRIO_NORMAL);
 
 #--------------------------------------- Loop
@@ -149,7 +158,8 @@ sub Loop {
     local $Result = 'abnormal';
     local $LoopLevel = $LoopLevel+1;
     ++$ExitLevel;
-    doOneEvent() while $ExitLevel >= $LoopLevel;
+    doEvents();
+#    doOneEvent() while $ExitLevel >= $LoopLevel;
     $Result;
 }
 

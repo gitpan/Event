@@ -23,7 +23,7 @@ runIdle()
   PE_RING_POP(&Idle, ev);
   EvACTIVE_off(ev);
   ++ev->count;
-  (*ev->vtbl->invoke)(ev);
+  pe_event_invoke(ev);
   return 1;
 }
 
@@ -34,9 +34,16 @@ wantIdle()
 static void
 pe_idle_start(pe_event *ev, int repeat)
 {
-  EvSUSPEND_off(ev);
-  if (EvACTIVE(ev) || EvQUEUED(ev))
+  if (EvACTIVE(ev) || EvQUEUED(ev) || EvSUSPEND(ev))
     return;
+  if (EvDEBUG(ev))
+    warn("Event: '%s' %s", SvPV(ev->desc,na), repeat? "again":"start");
+  if (!PE_RING_EMPTY(&ev->que)) {  /* how does this happen? XXX */
+    if (SvIVX(DebugLevel))
+      warn("Event: idle '%s' queued unexpectedly", SvPV(ev->desc,na));
+    /* harmless, but needs to be tracked down! */
+    return;
+  }
   EvACTIVE_on(ev);
   PE_RING_UNSHIFT(&ev->que, &Idle);
 }
@@ -44,9 +51,16 @@ pe_idle_start(pe_event *ev, int repeat)
 static void
 pe_idle_stop(pe_event *ev)
 {
-  PE_RING_DETACH(&ev->que);
+  if (PE_RING_EMPTY(&ev->que))
+    return;
+  if (EvDEBUG(ev))
+    warn("Event: '%s' stop", SvPV(ev->desc,na));
+  if (EvQUEUED(ev)) {
+    /* perhaps via 'now' */
+    dequeEvent(ev);
+  }
   EvACTIVE_off(ev);
-  EvQUEUED_off(ev);
+  PE_RING_DETACH(&ev->que);
 }
 
 static void

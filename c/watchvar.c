@@ -15,6 +15,7 @@ pe_watchvar_allocate()
   pe_event_init((pe_event*) ev);
   ev->variable = 0;
   EvREPEAT_on(ev);
+  EvINVOKE1_off(ev);
   return (pe_event*) ev;
 }
 
@@ -73,8 +74,7 @@ pe_watchvar_start(pe_event *_ev, int repeat)
     pe_watchvar *ev = (pe_watchvar*) _ev;
     SV *sv = ev->variable;
 
-    EvSUSPEND_off(ev);
-    if (EvACTIVE(ev))
+    if (EvACTIVE(ev) || EvSUSPEND(ev))
       return;
     if (!sv)
       croak("No variable specified");
@@ -117,7 +117,7 @@ pe_watchvar_stop(pe_event *_ev)
     pe_watchvar *ev = (pe_watchvar*) _ev;
     SV *sv = SvRV(ev->variable);
 
-    if (!EvACTIVE(ev))
+    if (!EvACTIVE(ev) || EvSUSPEND(ev))
       return;
     EvACTIVE_off(ev);
 
@@ -211,7 +211,6 @@ boot_watchvar()
   vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::watchvar",1));
   vt->FETCH = pe_watchvar_FETCH;
   vt->STORE = pe_watchvar_STORE;
-  vt->invoke = pe_event_invoke_repeat;
   vt->start = pe_watchvar_start;
   vt->stop = pe_watchvar_stop;
   pe_register_vtbl(vt);

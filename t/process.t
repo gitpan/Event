@@ -1,37 +1,34 @@
-# process this -*-perl-*- !!
+# process -*-perl-*-
 
-use Test;
-BEGIN { plan tests => 4 }
+use Test; plan tests => 5;
 use Event;
 
 # $Event::DebugLevel = 3;
 
-my $child = 0;
+my $got=0;
+sub maybe_done { Event->exit if ++$got >= 2 }
 
-Event->idle(
-    callback => sub {
-	ok 1;
+my $child1;
+unless($child1 = fork) { sleep 1; exit 5 }
+Event->process(callback => sub {
+		   my $o = shift;
+		   ok $o->{status}, 5 << 8; #unix only XXX?
+		   ok $o->{pid}, $child1;
 
-	unless($child = fork) {
-	    sleep(1);
-	    exit(0);
-	}
-    }
-);
+		   maybe_done();
+	       });
 
-Event->process(
-    callback =>
-	sub {
-	    my($cb,$pid,$status) = @_;
+my $child2;
+unless ($child2 = fork) { sleep 1; exit 6 }
+Event->process(pid => $child2, callback => sub {
+		   my $o = shift;
+		   ok $o->{status}, 6 << 8;
+		   ok $o->{pid} == $child2;
 
-	    ok !$status;
-	    ok $pid, $child;
-
-	    Event->exit
-	},
-);
+		   maybe_done();
+	       });
 
 Event->Loop;
-
 ok 1;
 
+# try repeating? XXX

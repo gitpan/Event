@@ -4,8 +4,10 @@ Event - Event loop processing
 
 =head1 WARNING
 
-B<THIS IS EXPERIMENTAL CODE AND IS LIKELY TO CHANGE A CONSIDERABLE AMOUNT>
-B<BEFORE IT IS RELEASED FOR GENERAL USE.>
+B<THIS IS EXPERIMENTAL AND IS LIKELY TO CHANGE CONSIDERABLY BEFORE
+BEING DEEMED STABLE.>
+
+Thank you for your patience.
 
 =head1 SYNOPSIS
 
@@ -23,7 +25,7 @@ B<BEFORE IT IS RELEASED FOR GENERAL USE.>
 
 =head1 EVENTS
 
-The following properties are common to all events.  Each property can
+The following properties are common to all events.  Each property may
 be prepended with a dash (-) or not depending on your preferance.
 
 =over 4
@@ -32,6 +34,13 @@ be prepended with a dash (-) or not depending on your preferance.
 
 Use either a code ref or an array containing an object and the method
 to call.
+
+=item count
+
+The number of times the event has been queued.  An event can be queued
+multiple times before it has time to be serviced.  For example, many
+asyncronous signals can arrive before the associated event can be
+dequeued.
 
 =item priority
 
@@ -50,10 +59,6 @@ additional arguments passed to now are forwarded to the event
 callback.  You must provide whatever arguments your event handler is
 expecting since the C<now> method bypasses the usual dispatch
 apparatus.
-
-=item queuing
-
-An event can only be queued once.
 
 =item cancel
 
@@ -159,7 +164,7 @@ C<pid> is not specified.
 
 =back
 
-=head1 CALLBACK ARGUMENTS
+=head1 CALLBACK ARGUMENTS [DEPRECIATED]
 
 The arguments passed to the event callback depends on the type of the
 event handler:

@@ -1,31 +1,35 @@
 
+static int NextID = 0;
 static pe_ring AllEvents;
 static struct pe_event_vtbl pe_event_base_vtbl;
 
 static void
 pe_event_init(pe_event *ev)
 {
+  SV *sv;
+  SV *tmp = newSV(40);
+  SAVEFREESV(tmp);
+  assert(ev);
   assert(ev->vtbl);
   if (!ev->vtbl->stash)
     croak("sub-class VTBL must have a stash (doesn't)");
+  ev->stash = ev->vtbl->stash;
   PE_RING_INIT(&ev->all, ev);
   PE_RING_UNSHIFT(&ev->all, &AllEvents);
   PE_RING_INIT(&ev->que, ev);
   EvFLAGS(ev) = 0;
+  EvINVOKE1_on(ev);
   ev->FALLBACK = 0;
-  ev->refcnt = 0;
-  ev->desc = newSVpvf("ANON-0x%x", ev);
+  NextID = (NextID+1) & 0x7fff; /* make it look like the kernel :-, */
+  ev->id = NextID;
+  ev->refcnt = 0;  /* maybe can remove later? XXX */
+  ev->desc = newSVpvf("Event-0x%x", ev);
   ev->count = 0;
+  ev->priority = -1;
   ev->perl_callback[0] = 0;
   ev->perl_callback[1] = 0;
   ev->c_callback = 0;
-  ev->ran = 0;
-  ev->elapse_tm = 0;
-  ev->total_elapse = 0;
-  assert(ev->vtbl->default_priority);
-  ev->priority = SvIV(ev->vtbl->default_priority);
-  assert(ev->vtbl->instances);
-  ++SvIVX(ev->vtbl->instances);
+  pe_stat_init(&ev->stats);
 }
 
 static void
@@ -44,7 +48,6 @@ pe_event_dtor(pe_event *ev)
     if (ev->perl_callback[xx])
       SvREFCNT_dec(ev->perl_callback[xx]);
   }
-  --ev->vtbl->instances;
   safefree(ev);
 }
 
@@ -85,9 +88,15 @@ pe_event_FETCH(pe_event *ev, SV *svkey)
     if (len == 4 && memEQ(key, "desc", 4)) { ret = ev->desc; break; }
     if (len == 5 && memEQ(key, "debug", 5)) { ret = boolSV(EvDEBUG(ev)); break; }
     break;
-  case 'e':
-    if (len == 9 && memEQ(key, "elapse_tm", 9)) {
-      ret = sv_2mortal(newSVnv(ev->elapse_tm));
+  case 'f':
+    if (len == 5 && memEQ(key, "flags", 5)) {
+      ret = sv_2mortal(newSViv(ev->flags));
+      break;
+    }
+    break;
+  case 'i':
+    if (len == 2 && memEQ(key, "id", 2)) {
+      ret = sv_2mortal(newSViv(ev->id));
       break;
     }
     break;
@@ -98,18 +107,8 @@ pe_event_FETCH(pe_event *ev, SV *svkey)
     }
     break;
   case 'r':
-    if (len == 3 && memEQ(key, "ran", 3)) {
-      ret = sv_2mortal(newSViv(ev->ran));
-      break;
-    }
     if (len == 6 && memEQ(key, "repeat", 6)) {
       ret = boolSV(EvREPEAT(ev));
-      break;
-    }
-    break;
-  case 't':
-    if (len == 12 && memEQ(key, "total_elapse", 12)) {
-      ret = sv_2mortal(newSVnv(ev->total_elapse));
       break;
     }
     break;
@@ -162,9 +161,8 @@ pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
       }
       break;
     }
-    if (len == 5 && memEQ(key, "count", 5)) {
-      ok=1; ev->count = SvIV(nval); break;
-    }
+    if (len == 5 && memEQ(key, "count", 5))
+      croak("'count' is read-only");
     break;
   case 'd':
     if (len == 4 && memEQ(key, "desc", 4)) {
@@ -177,6 +175,17 @@ pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
       if (SvTRUEx(nval)) EvDEBUG_on(ev); else EvDEBUG_off(ev);
       break;
     }
+    break;
+  case 'f':
+    if (len == 5 && memEQ(key, "flags", 5)) {
+      /* can only write to some flags */
+      ev->flags = ((ev->flags & PE_INTERNAL_FLAGS) |
+		   (SvIV(nval) & ~PE_INTERNAL_FLAGS));
+    }
+    break;
+  case 'i':
+    if (len == 2 && memEQ(key, "id", 2))
+      croak("'id' is read-only");
     break;
   case 'p':
     if (len == 8 && memEQ(key, "priority",8)) {
@@ -283,22 +292,19 @@ pe_event_NEXTKEY(pe_event *ev)
   }
 }
 
-static void
-pe_invoke_callback(pe_event *ev)
+static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
 {
   struct timeval start_tm;
   int flags = G_VOID;
   int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
-  if (debug) {
-    if (debug >= 2) {
-      warn("Event: invoking %s\n", SvPV(ev->desc, na));
-    }
-  }
+  assert(!EvSUSPEND(ev));
+  if (debug >= 2)
+    warn("Event: invoking '%s'\n", SvPV(ev->desc, na));
   if (EvRUNNING(ev)) {
-    warn("Event: '%s' invoked recursively (ignored)\n");
+    warn("Event: '%s' invoked recursively (skipped)\n");
     return;
   }
-  if (SvIVX(Stats))
+  if (Stats)
     gettimeofday(&start_tm, 0);
   EvRUNNING_on(ev);
   if (SvIVX(Eval) + EvDEBUG(ev))
@@ -321,7 +327,7 @@ pe_invoke_callback(pe_event *ev)
       PUTBACK;
       perl_call_method(SvPV(ev->perl_callback[1],na), flags);
     }
-    if (flags & G_EVAL && SvTRUE(ERRSV)) {
+    if ((flags & G_EVAL) && SvTRUE(ERRSV)) {
       warn("Event: fatal error trapped in '%s' callback: %s",
 	   SvPV(ev->desc,na), SvPV(ERRSV, na));
     }
@@ -330,41 +336,30 @@ pe_invoke_callback(pe_event *ev)
   } else if (ev->c_callback) {
     (*ev->c_callback)(ev->ext_data);
   } else {
-    croak("No callback");
+    croak("No callback for event '%s'", SvPV(ev->desc,na));
   }
   ev->count = 0;
   EvRUNNING_off(ev);
-  if (SvIVX(Stats)) { /*REVISIT XXX*/
+  if (Stats) {
     struct timeval done_tm;
     gettimeofday(&done_tm, 0);
-    ++ev->ran;
-    ev->elapse_tm = (done_tm.tv_sec - start_tm.tv_sec +
-		     (done_tm.tv_usec - start_tm.tv_usec) / 1000000);
-    ev->total_elapse += ev->elapse_tm;
+    pe_stat_record(&ev->stats, (done_tm.tv_sec - start_tm.tv_sec +
+				(done_tm.tv_usec - start_tm.tv_usec)/1000000.0));
   }
   if (debug >= 3)
-    warn("Event: completed %s\n", SvPV(ev->desc, na));
-}
+    warn("Event: completed '%s'\n", SvPV(ev->desc, na));
 
-static void
-pe_event_invoke_once(pe_event *ev)
-{
-  /* optimized for non-repeating events [DEFAULT] */
-  pe_invoke_callback(ev);
-  EvACTIVE_off(ev);
-  if (EvREPEAT(ev))
-    (*ev->vtbl->start)(ev, 1);
-  else if (EvCANDESTROY(ev))
-    (*ev->vtbl->dtor)(ev);
-}
-
-static void
-pe_event_invoke_repeat(pe_event *ev)
-{
-  /* optimized for repeating events */
-  pe_invoke_callback(ev);
-  if (!EvREPEAT(ev)) {
-    (*ev->vtbl->stop)(ev);
+  if (EvINVOKE1(ev)) {
+    /* optimized for non-repeating events [DEFAULT] */
+    if (EvREPEAT(ev))
+      (*ev->vtbl->start)(ev, 1);
+    else if (EvCANDESTROY(ev))
+      (*ev->vtbl->dtor)(ev);
+  }
+  else {
+    /* optimized for repeating events */
+    if (!EvREPEAT(ev))
+      (*ev->vtbl->stop)(ev);
     if (EvCANDESTROY(ev))
       (*ev->vtbl->dtor)(ev);
   }
@@ -381,7 +376,6 @@ pe_event_nomethod(pe_event *ev, char *meth)
 static void
 pe_event_start(pe_event *ev, int repeat)
 {
-  EvSUSPEND_off(ev);
   pe_event_nomethod(ev,"start");
 }
 
@@ -393,22 +387,20 @@ static void
 boot_pe_event()
 {
   static char *keylist[] = {
+    "id",
     "repeat",
     "priority",
     "desc",
     "count",
     "callback",
     "debug",
-    "ran",
-    "elapse_tm",
-    "total_elapse"
+    "flags"
   };
+  HV *stash = gv_stashpv("Event", 1);
   struct pe_event_vtbl *vt;
   PE_RING_INIT(&AllEvents, 0);
   vt = &pe_event_base_vtbl;
   vt->up = 0;
-  vt->instances = 0;
-  vt->default_priority = 0;
   vt->stash = 0;
   vt->dtor = pe_event_dtor;
   vt->FETCH = pe_event_FETCH;
@@ -419,35 +411,28 @@ boot_pe_event()
   vt->keylist = keylist;
   vt->FIRSTKEY = pe_event_FIRSTKEY;
   vt->NEXTKEY = pe_event_NEXTKEY;
-  vt->invoke = pe_event_invoke_once;
   vt->start = pe_event_start;
   vt->stop = pe_event_stop;
+
+  newCONSTSUB(stash, "ACTIVE", newSViv(PE_ACTIVE));
+  newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
+  newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));
+  newCONSTSUB(stash, "RUNNING", newSViv(PE_RUNNING));
+  newCONSTSUB(stash, "INVOKE1", newSViv(PE_INVOKE1));
 }
 
 static void
 pe_register_vtbl(pe_event_vtbl *vt)
 {
-  SV *tmp = newSV(40);
-  SAVEFREESV(tmp);
-
-  sv_setpv(tmp, HvNAME(vt->stash));
-  sv_catpv(tmp, "::Count");
-  vt->instances = SvREFCNT_inc(perl_get_sv(SvPV(tmp,na), 1));
-  sv_setiv(vt->instances, 0);
-  SvREADONLY_on(vt->instances);
-  
-  sv_setpv(tmp, HvNAME(vt->stash));
-  sv_catpv(tmp, "::DefaultPriority");
-  vt->default_priority = SvREFCNT_inc(perl_get_sv(SvPV(tmp,na), 1));
-  sv_setiv(vt->default_priority, PE_PRIO_NORMAL);
+  /* why?  dunno */
 }
 
 void pe_event_cancel(pe_event *ev)
 {
-  (*ev->vtbl->stop)(ev);
-  if (EvQUEUED(ev)) {
-    PE_RING_DETACH(&ev->que);
-    EvQUEUED_off(ev);
+  if (!EvSUSPEND(ev)) {
+    (*ev->vtbl->stop)(ev);
+    if (EvQUEUED(ev))
+      dequeEvent(ev);
   }
   if (EvCANDESTROY(ev))
     (*ev->vtbl->dtor)(ev);
@@ -455,14 +440,38 @@ void pe_event_cancel(pe_event *ev)
 
 void pe_event_suspend(pe_event *ev)
 {
-  if (!EvSUSPEND(ev)) {
+  if (EvSUSPEND(ev))
+    return;
+  if (EvACTIVE(ev)) {
     (*ev->vtbl->stop)(ev);
-    EvSUSPEND_on(ev);
+    EvACTIVE_on(ev);
+  }
+  if (EvQUEUED(ev)) {
+    dequeEvent(ev);
+    EvQUEUED_on(ev);
+  }
+  EvSUSPEND_on(ev);
+}
+
+void pe_event_resume(pe_event *ev)
+{
+  if (!EvSUSPEND(ev))
+    return;
+  EvSUSPEND_off(ev);
+  if (EvACTIVE(ev)) {
+    EvACTIVE_off(ev);
+    (*ev->vtbl->start)(ev, 0);
+  }
+  if (EvQUEUED(ev)) {
+    EvQUEUED_off(ev);
+    queueEvent(ev, 1);
   }
 }
 
 void pe_event_now(pe_event *ev)
 {
+  if (EvSUSPEND(ev))
+    return;
   if (EvACTIVE(ev))
     (*ev->vtbl->stop)(ev);
   queueEvent(ev, 1);

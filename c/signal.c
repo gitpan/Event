@@ -11,20 +11,32 @@ struct pe_signal {
   int sig;
 };
 
+/* GLOBALS: Sigvalid Sigring Sigstat Sigslot */
+
+static U32 Sigvalid[(1+NSIG)/32]; /*assume 32bit; doesn't matter*/
+#define PE_SIGVALID(sig)  	(Sigvalid[sig>>5] & (1 << ((sig) & 0x1f)))
+#define PE_SIGVALID_off(sig)	Sigvalid[sig>>5] &= ~(1 << ((sig) & 0x1f))
+
 struct pe_sig_stat {
-  int valid;  /* waste 4 bytes to know if is a valid entry! */
-  pe_ring ring;
-  int hits;
+  U32 Hits;
+  U16 hits[NSIG];
 };
-static struct pe_sig_stat Siginfo[NSIG];
-static int Sighits;
+typedef struct pe_sig_stat pe_sig_stat;
+
+static int Sigslot;
+static pe_sig_stat Sigstat[2];
+
+static pe_ring Sigring[NSIG];
+
+/* /GLOBALS */
 
 static Signal_t
 process_sighandler(sig)
 int sig;
 {
-  ++Sighits;  /* is optimization only if signals are rare... */
-  ++Siginfo[sig].hits;
+  pe_sig_stat *st = &Sigstat[Sigslot];
+  ++st->Hits;
+  ++st->hits[sig];
 }
 
 static pe_event *
@@ -37,6 +49,7 @@ pe_signal_allocate()
   ev->sig = 0;
   pe_event_init((pe_event*) ev);
   EvREPEAT_on(ev);
+  EvINVOKE1_off(ev);
   return (pe_event*) ev;
 }
 
@@ -45,14 +58,13 @@ pe_signal_start(pe_event *_ev, int repeat)
 {
   pe_signal *ev = (pe_signal*) _ev;
   int sig = ev->sig;
-  EvSUSPEND_off(ev);
-  if (EvACTIVE(ev))
+  if (EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   if (sig == 0)
     croak("No signal");
-  if (PE_RING_EMPTY(&Siginfo[sig].ring))
+  if (PE_RING_EMPTY(&Sigring[sig]))
     rsignal(sig, process_sighandler);
-  PE_RING_UNSHIFT(&ev->sring, &Siginfo[sig].ring);
+  PE_RING_UNSHIFT(&ev->sring, &Sigring[sig]);
   EvACTIVE_on(ev);
 }
 
@@ -61,10 +73,10 @@ pe_signal_stop(pe_event *_ev)
 {
   pe_signal *ev = (pe_signal*) _ev;
   int sig = ev->sig;
-  if (!EvACTIVE(ev))
+  if (!EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   PE_RING_DETACH(&ev->sring);
-  if (PE_RING_EMPTY(&Siginfo[sig].ring))
+  if (PE_RING_EMPTY(&Sigring[sig]))
     rsignal(sig, SIG_DFL);
   EvACTIVE_off(ev);
 }
@@ -110,11 +122,12 @@ pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
     if (len == 6 && memEQ(key, "signal", 6)) {
       int active = EvACTIVE(ev);
       int sig = Perl_whichsig(SvPV(nval,na));
+      /*warn("whichsig(%s) = %d", SvPV(nval,na), sig); /**/
       ok=1;
       if (sig == 0)
-	croak("Unrecognized signal");
-      if (!Siginfo[sig].valid)
-	croak("Signal %d cannot be caught", sig);
+	croak("Unrecognized signal '%s'", SvPV(nval,na));
+      if (!PE_SIGVALID(sig))
+	croak("Signal '%s' cannot be caught", SvPV(nval,na));
       if (active)
 	pe_signal_stop(_ev);
       ev->sig = sig;
@@ -127,31 +140,38 @@ pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
   if (!ok) (_ev->vtbl->up->STORE)(_ev, svkey, nval);
 }
 
-/* need atomic test-and-set XXX */
 
-static void
-pe_signal_asynccheck()
+static void _signal_asynccheck(pe_sig_stat *st)
 {
-  int xx;
-  if (!Sighits)
-    return;
-  /* mostly harmless race condition for Sighits */
-  Sighits = 0;
-  for (xx = 1 ; xx < NSIG ; xx++) {
-    int got;
-    if (!Siginfo[xx].hits)
+  int xx, got;
+  pe_event *ev;
+
+  for (xx = 1; xx < NSIG; xx++) {
+    if (!st->hits[xx])
       continue;
-    got = Siginfo[xx].hits;
-    /* race condition; might loose signal */
-    Siginfo[xx].hits = 0;
-    if (got) {
-      pe_event *ev = Siginfo[xx].ring.next->self;
-      while (ev) {
-	queueEvent(ev, got);
-	ev = ((pe_signal*)ev)->sring.next->self;
-      }
+    got = st->hits[xx];
+    ev = Sigring[xx].next->self;
+    while (ev) {
+      queueEvent(ev, got);
+      ev = ((pe_signal*)ev)->sring.next->self;
     }
+    st->hits[xx] = 0;
   }
+  Zero(st, 1, struct pe_sig_stat);
+}
+
+/* This implementation gives no race conditions! */
+static void pe_signal_asynccheck()
+{
+  pe_sig_stat *st;
+
+  st = &Sigstat[Sigslot];
+  Sigslot = 1;
+  if (st->Hits) _signal_asynccheck(st);
+
+  st = &Sigstat[Sigslot];
+  Sigslot = 0;
+  if (st->Hits) _signal_asynccheck(st);
 }
 
 
@@ -165,20 +185,22 @@ boot_signal()
     "signal"
   };
   static char *nohandle[] = {
-    "KILL", "STOP", "ZERO", "CHLD", "CLD", 0
+    "KILL", "STOP", "ZERO", 0
   };
   pe_event_vtbl *vt = &pe_signal_vtbl;
-  Zero(Siginfo, NSIG, struct pe_sig_stat);
-  Sighits = 0;
+  Zero(&Sigstat[0], 1, pe_sig_stat);
+  Zero(&Sigstat[1], 1, pe_sig_stat);
+  Sigslot = 0;
   for (xx=0; xx < NSIG; xx++) {
-    PE_RING_INIT(&Siginfo[xx].ring, 0);
-    Siginfo[xx].valid = 1;
+    PE_RING_INIT(&Sigring[xx], 0);
   }
-  Siginfo[0].valid = 0;
+  memset(Sigvalid, ~0, sizeof(Sigvalid));
+  
+  PE_SIGVALID_off(0);
   sigp = nohandle;
   while (*sigp) {
     sig = Perl_whichsig(*sigp);
-    if (sig) Siginfo[sig].valid = 0;
+    if (sig) PE_SIGVALID_off(sig);
     ++sigp;
   }
   memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
@@ -190,8 +212,6 @@ boot_signal()
   vt->STORE = pe_signal_STORE;
   vt->start = pe_signal_start;
   vt->stop = pe_signal_stop;
-  vt->invoke = pe_event_invoke_repeat;
   pe_register_vtbl(vt);
-  sv_setiv(vt->default_priority, PE_PRIO_HIGH);
 }
 

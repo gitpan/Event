@@ -2,6 +2,7 @@
 
 use Test; plan tests => 5;
 use Event;
+#$Event::DebugLevel = 3;
 $Event::Eval = 1;
 
 my $normal=0;

@@ -7,12 +7,29 @@
 
 #define PE_NEWID ('e'+'v')  /* for New() macro */
 
-static SV *DebugLevel, *Eval, *Stats;
+static int Stats=0;
+static SV *DebugLevel, *Eval;
 
 #include "Event.h"
 
-static void
-queueEvent(pe_event *ev, int count);
+#if defined(HAS_POLL)
+# include <poll.h>
+
+# ifndef POLLRDNORM
+# define POLLRDNORM POLLIN
+# endif
+
+# ifndef POLLRDBAND
+# define POLLRDBAND POLLIN
+# endif
+
+# ifndef POLLWRBAND
+# define POLLWRBAND POLLOUT
+# endif
+#endif
+
+static void queueEvent(pe_event *ev, int count);
+static void dequeEvent(pe_event *ev);
 
 #include "typemap.c"
 #include "gettimeofday.c"  /* hack XXX */
@@ -23,11 +40,9 @@ queueEvent(pe_event *ev, int count);
 #include "unix_io.c"
 #include "watchvar.c"
 #include "signal.c"
-
-/* TODO */
-#include "process.c"
-
+#include "tied.c"
 #include "queue.c"
+#include "stats.c"
 
 
 MODULE = Event		PACKAGE = Event
@@ -37,15 +52,15 @@ PROTOTYPES: DISABLE
 BOOT:
   DebugLevel = SvREFCNT_inc(perl_get_sv("Event::DebugLevel", 1));
   Eval = SvREFCNT_inc(perl_get_sv("Event::Eval", 1));
-  Stats = SvREFCNT_inc(perl_get_sv("Event::Stats", 1));
   boot_pe_event();
   boot_idle();
   boot_timer();
   boot_io();
   boot_watchvar();
-  boot_process();
+  boot_tied();
   boot_signal();
   boot_queue();
+  boot_stats();
 
 void
 DESTROY(ref)
@@ -55,32 +70,43 @@ DESTROY(ref)
 	if (!SvRV(ref))
 	  croak("Expected RV");
 	sv = SvRV(ref);
+	/* warn("DESTROY %x", ref);/**/
 	/* will be called twice for each Event; yuk! */
 	if (SvTYPE(sv) == SVt_PVMG) {
 	  pe_event *THIS = (pe_event*) SvIV(sv);
-	  /* warn("X sv(%s)=0x%x", SvPV(THIS->desc,na), THIS); /**/
 	  --THIS->refcnt;
+	  /*warn("id=%d --refcnt=%d flags=0x%x",
+		 THIS->id, THIS->refcnt,THIS->flags); /**/
 	  if (EvCANDESTROY(THIS) || (THIS->refcnt == 0 && PL_in_clean_objs)) {
 	    (*THIS->vtbl->dtor)(THIS);
 	  }
 	}
+	/* else {
+	  MAGIC *mg = mg_find(sv, 'P');
+	  if (mg && SvREFCNT(SvRV(mg->mg_obj)) > 1)
+	    warn("Event untie %d (debug)", SvREFCNT(SvRV(mg->mg_obj)) - 1);
+	  sv_unmagic(sv, 'P');
+	} */
 
 void
 pe_event::again()
 	CODE:
-	/* more natural if NO repeat */
-	(*THIS->vtbl->start)(THIS, 0);
+	(*THIS->vtbl->start)(THIS, 1);
 
 void
 pe_event::start()
 	CODE:
-	/* more natural if repeat */
 	(*THIS->vtbl->start)(THIS, 0);
 
 void
 pe_event::suspend()
 	CODE:
 	pe_event_suspend(THIS);
+
+void
+pe_event::resume()
+	CODE:
+	pe_event_resume(THIS);
 
 void
 pe_event::cancel()
@@ -140,6 +166,59 @@ pe_event::NEXTKEY(prevkey)
 	(*THIS->vtbl->NEXTKEY)(THIS);
 	SPAGAIN;
 
+void
+pe_event::stats(sec)
+	int sec
+	PREINIT:
+	int ran;
+	double elapse;
+	PPCODE:
+	pe_stat_query(&THIS->stats, sec, &ran, &elapse);
+	XPUSHs(sv_2mortal(newSViv(ran)));
+	XPUSHs(sv_2mortal(newSVnv(elapse)));
+
+pe_event *
+allocate(class)
+	SV *class
+	CODE:
+	RETVAL = pe_tied_allocate(class);
+	OUTPUT:
+	RETVAL
+
+MODULE = Event		PACKAGE = Event::Stats
+
+void
+idle(class, sec)
+	SV *class;
+	int sec
+	PREINIT:
+	int ran;
+	double elapse;
+	PPCODE:
+	pe_stat_query(&idleStats, sec, &ran, &elapse);
+	XPUSHs(sv_2mortal(newSViv(ran)));
+	XPUSHs(sv_2mortal(newSVnv(elapse)));
+
+void
+events(class)
+	SV *class;
+	PPCODE:
+	pe_event *ev = AllEvents.next->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  ev = ev->all.next->self;
+	}
+
+void
+restart(class)
+	SV *class
+	CODE:
+	pe_stat_restart();
+
+void
+DESTROY()
+	CODE:
+	pe_stat_stop();
 
 MODULE = Event		PACKAGE = Event::Loop
 
@@ -157,9 +236,11 @@ null_loops_per_second(sec)
 	  struct pollfd junk;
 	  poll(&junk, 0, 0);
 #else
-#ifdef HAS_SELECT
+# ifdef HAS_SELECT
 	  select(0,0,0,0,0);
-#endif
+# else
+#  error
+# endif
 #endif
 	  ++count;
 	  gettimeofday(&done_tm, 0);
@@ -188,32 +269,24 @@ listQ()
 	  ev = ev->que.prev->self;
 	}
 
-int
-runIdle()
-
-int
-wantIdle()
-
 void
-queueEvent(ev)
-	pe_event *ev;
+pe_event::queueEvent(...)
+	PREINIT:
+	int cnt = 1;
 	CODE:
-	queueEvent(ev, 1);
-
-int
-emptyQueue(...)
-	PROTOTYPE: ;$
-	CODE:
-	int max = QUEUES;
-	if (items == 1)
-	  max = SvIV(ST(0));
-	RETVAL = emptyQueue(max);
-	OUTPUT:
-	RETVAL
+	if (items == 2) cnt = SvIV(ST(1));
+	queueEvent(THIS, cnt);
 
 int
 doOneEvent()
 
+void
+doEvents()
+	CODE:
+	SV *exitL = perl_get_sv("Event::Loop::ExitLevel", 1);
+	SV *loopL = perl_get_sv("Event::Loop::LoopLevel", 1);
+	while (SvIVX(exitL) >= SvIVX(loopL))
+	  doOneEvent();
 
 MODULE = Event		PACKAGE = Event::idle
 
@@ -286,48 +359,4 @@ allocate()
 	RETVAL = pe_signal_allocate();
 	OUTPUT:
 	RETVAL
-
-
-MODULE = Event		PACKAGE = Event::process
-
-int
-_count(...)
-PROTOTYPE:
-CODE:
-    RETVAL = chld_next;
-OUTPUT:
-    RETVAL
-
-void
-_reap()
-PROTOTYPE:
-PPCODE:
-{
-    int count = 0;
-    if(chld_next) {
-	int pid, status, slot;
-	(void)rsignal(SIGCHLD, SIG_DFL);
-	slot = chld_next;
-	EXTEND(sp, (slot * 2));
-	while( slot-- ) {
-	    if(chld_buf[slot].pid > 0) {
-		count += 2;
-		XPUSHs(sv_2mortal(newSViv(chld_buf[slot].pid)));
-		XPUSHs(sv_2mortal(newSViv(chld_buf[slot].status)));
-	    }
-	}
-	chld_next = 0;
-#ifdef Wait4Any
-	while((pid = Wait4Any(&status)) > 0) {
-	    EXTEND(sp,2);
-	    count += 2;
-	    XPUSHs(sv_2mortal(newSViv(pid)));
-	    XPUSHs(sv_2mortal(newSViv(status)));
-	}
-#endif
-	(void)rsignal(SIGCHLD, chld_sighandler);
-    }
-    XSRETURN(count);
-}
-
 

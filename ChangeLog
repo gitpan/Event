@@ -1,5 +1,19 @@
-19980814 JPRIT Rewrote almost everything in C.
+1998-08-28  Joshua Pritikin  <joshua@eq1062.wks.na.deuba.com>
 
+	* Fixed serious bug in the event destructor.
+
+1998-08-22  Joshua Pritikin  <joshua@eq1062.wks.na.deuba.com>
+
+	* Accept file descriptor numbers in addition to filehandles, etc.
+  	Maybe non-portable, but nice for unixen.
+
+1998-08-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fixed repeating timer logic.  Tweaks for idle events.
+
+1998-08-14  Joshua Pritikin  <joshua.pritikin@db.com>
+ 	
+	* Rewrote almost everything in C.
 
 Change 144 on 1998/05/31 by <gbarr@pobox.com> (Graham Barr)
 

@@ -1,22 +1,60 @@
+=head1 NAME
 
-*********** EXPERIMENTAL EXPERIMENTAL EXPERIMENTAL ***********
-
-
-
-A Perl Event Loop
+Event - A Generic Perl Event Loop
 
 
-While embedding an Apache server is an extreme solution, such measures
-are not always necessary or desirable.  This module aims to provide an
-simple and fast Event loop for a broad subset of applications.
+=head1 SYNOPSIS
 
-The design and implementation of this extension is discussed on the
-perl-loop mailing list.  Please send email to majordomo@perl.org to
-subscribe!
+This extension aims to provide an simple and fast event loop for a
+broad subset of applications.
+
+Available at http://www.perl.com/CPAN/authors/id/JPRIT/
 
 
-Once you successfully build this extension, please run
-./util/bench.pl!!
+=head1 R!CENT CHANGES
 
-Thanks.
 
+** 1998-09-04 RELEASE 0.10
+
+- Event::TopServer implements a top-style control panel available via
+telnet ($$ % 7000).  See util/top.pl.
+
+- Proxy "tied" event type that allows completely perl-side
+implementation of new event handlers.
+
+- Event::process is working again (implementation is entirely in
+perl).
+
+- Eliminated race conditions in signal handling.
+
+- Zombie events are still not being collected due to mysterious refcnt
+problems.  It is possible that this cannot be resolved until perl
+implements tied hashes properly (through a VTBL!).
+
+- Removed $Event::*::Count since it is superceded by Event::TopServer.
+
+- Fixed a bunch of minor bugs.
+
+
+=head EVENT::TOPSERVER SCREENSHOT!
+
+pl/3bork  [6215 @ eq1062]                                      15:35:21 [  30s]
+21 events (2 zombies); load averages: 0.81, 0.83, 0.00                         
+                                                                               
+  EID PRI STATE  RAN  TIME  CPU  TYPE DESCRIPTION                            P1
+   21   4 sleep   86  0:08 32.9% idle QSGTable sweep                           
+   15   4 zomb   112  0:04 18.4% idle QSGTable sweep                           
+   18   4 zomb    85  0:04 17.5% idle QSGTable sweep                           
+    0   9 sleep  501  0:04 17.4%  sys idle                                     
+   19   4 sleep   29  0:00  3.5% time QSGTable                                 
+   13   4 sleep   29  0:00  3.3% time QSGTable                                 
+    3   4 sleep   29  0:00  2.8% time server status                            
+   16   4 sleep   29  0:00  1.7% time QSGTable                                 
+   12   4 cpu      8  0:00  1.3% time Event::TopServer::Client localhost       
+    1   4 sleep   30  0:00  0.7%   io Qt                                       
+    4   4 sleep    1  0:00  0.2% time shutdown                                 
+    2   4 sleep   29  0:00  0.1% time Qt                                       
+   17   4 sleep   29  0:00  0.0% time QSGTable Detail                          
+   20   4 sleep   29  0:00  0.0% time QSGTable Detail                          
+   14   4 sleep   29  0:00  0.0% time QSGTable Detail                          
+   10   4 sleep   15  0:00  0.0% time SSL items                                

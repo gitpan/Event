@@ -1,22 +1,23 @@
-solve signal race conditions
+allow queuing of more events before the queue is empty?
 
-process
-  use linear algorithm for now
-
-timing stats should be independent of debugging
-  select time
-  total time
-
-'top' style monitor
+nuke @Check, @AsyncCheck, @Prepare??
 
 library-ize
-  public API
+  delineate public API
   build to a shared library
   Xt event loop emulation?
 
-remove dependency on Time::HiRes?
+croak should route through Carp
 
+update io event-mask without invalidating cache
 
+Event::TopServer
+  make columns configurable
+  sys/usr/io?
+
+remove dependency on
+  Time::HiRes?
+  IO::* ?
 
 
  benchmark: 0.03

@@ -26,12 +26,10 @@ for (1..20) {
 #------------------------------ Signals
 use vars qw($SignalCount);
 $SignalCount = 0;
-if (0) {
 Event->signal(signal => 'USR1',
 	      callback => sub { ++$SignalCount; });
 Event->timer(callback => sub { kill 'USR1', $$; },
 	     interval => .5);
-}
 
 #------------------------------ IO
 use vars qw($IOCount @W);
