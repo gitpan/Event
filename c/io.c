@@ -15,13 +15,17 @@ static pe_watcher *pe_io_allocate(HV *stash, SV *temple) {
     ev->timeout = 0;
     ev->handle = &PL_sv_undef;
     ev->poll = 0;
-    EvINVOKE1_off(ev);
-    EvREPEAT_on(ev);
+    ev->tm_callback = 0;
+    ev->tm_ext_data = 0;
+    WaINVOKE1_off(ev);
+    WaREPEAT_on(ev);
     return (pe_watcher*) ev;
 }
 
 static void pe_io_dtor(pe_watcher *_ev) {
     pe_io *ev = (pe_io*) _ev;
+    if (WaTMPERLCB(ev))
+	SvREFCNT_dec(ev->tm_callback);
     PE_RING_DETACH(&ev->ioring);
     SvREFCNT_dec(ev->handle);
     pe_watcher_dtor(_ev);
@@ -44,12 +48,12 @@ static void pe_io_start(pe_watcher *_ev, int repeat) {
 	IOWatch_OK = 0;
     }
     if (ev->timeout) {
-	EvCBTIME_on(ev);
+	WaCBTIME_on(ev);
 	ev->poll |= PE_T;
-	ev->tm.at = EvNOW(0) + ev->timeout;  /* too early okay */
+	ev->tm.at = NVtime() + ev->timeout;  /* too early okay */
 	pe_timeable_start(&ev->tm);
     } else {
-	EvCBTIME_off(ev);
+	WaCBTIME_off(ev);
 	ev->poll &= ~PE_T;
     }
 }
@@ -66,11 +70,11 @@ static void pe_io_stop(pe_watcher *_ev) {
 
 static void pe_io_alarm(pe_watcher *_wa, pe_timeable *hit) {
     pe_io *wa = (pe_io*) _wa;
-    double now = EvNOW(1);
+    double now = NVtime();
     double left = (_wa->cbtime + wa->timeout) - now;
     if (left < IntervalEpsilon) {
 	pe_ioevent *ev;
-	if (EvREPEAT(wa)) {
+	if (WaREPEAT(wa)) {
 	    wa->tm.at = now + wa->timeout;
 	    pe_timeable_start(&wa->tm);
 	} else {
@@ -79,6 +83,13 @@ static void pe_io_alarm(pe_watcher *_wa, pe_timeable *hit) {
 	ev = (pe_ioevent*) (*_wa->vtbl->new_event)(_wa);
 	++ev->base.hits;
 	ev->got |= PE_T;
+	if (wa->tm_callback) {
+	    if (WaTMPERLCB(wa)) {
+		pe_anyevent_set_perl_cb(&ev->base, wa->tm_callback);
+	    } else {
+		pe_anyevent_set_cb(&ev->base, wa->tm_callback, wa->tm_ext_data);
+	    }
+	}
 	queueEvent((pe_event*) ev);
     }
     else {
@@ -91,7 +102,7 @@ static void pe_io_alarm(pe_watcher *_wa, pe_timeable *hit) {
 }
 
 static void _io_restart(pe_watcher *ev) {
-    if (!EvPOLLING(ev)) return;
+    if (!WaPOLLING(ev)) return;
     pe_watcher_off(ev);
     pe_watcher_on(ev, 0);
 }
@@ -145,6 +156,47 @@ WKEYMETH(_io_timeout) {
     } else {
 	io->timeout = SvOK(nval)? SvNV(nval) : 0;  /*undef is ok*/
 	_io_restart(ev);
+    }
+}
+
+WKEYMETH(_io_timeout_cb) {
+    pe_io *io = (pe_io*)ev;
+    if (!nval) {
+	SV *ret = (WaTMPERLCB(ev)?
+		   (SV*) io->tm_callback :
+		   (io->tm_callback?
+		    sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
+					io->tm_callback, io->tm_ext_data)) :
+		    &PL_sv_undef));
+	dSP;
+	XPUSHs(ret);
+	PUTBACK;
+    } else {
+	AV *av;
+	SV *sv;
+	SV *old=0;
+	if (WaTMPERLCB(ev))
+	    old = (SV*) io->tm_callback;
+	if (!SvOK(nval)) {
+	    WaTMPERLCB_off(ev);
+	    io->tm_callback = 0;
+	    io->tm_ext_data = 0;
+	} else if (SvROK(nval) && (SvTYPE(sv=SvRV(nval)) == SVt_PVCV)) {
+	    WaTMPERLCB_on(ev);
+	    io->tm_callback = SvREFCNT_inc(nval);
+	} else if (SvROK(nval) &&
+		   (SvTYPE(av=(AV*)SvRV(nval)) == SVt_PVAV) &&
+		   av_len(av) == 1 &&
+		   !SvROK(sv=*av_fetch(av, 1, 0))) {
+	    WaTMPERLCB_on(ev);
+	    io->tm_callback = SvREFCNT_inc(nval);
+	} else {
+	    if (SvIV(DebugLevel) >= 2)
+		sv_dump(sv);
+	    croak("Callback must be a code ref or [$object, $method_name]");
+	}
+	if (old)
+	    SvREFCNT_dec(old);
     }
 }
 

@@ -7,8 +7,8 @@ static pe_watcher *pe_var_allocate(HV *stash, SV *temple) {
     pe_watcher_init(&ev->base, stash, temple);
     ev->variable = &PL_sv_undef;
     ev->events = PE_W;
-    EvREPEAT_on(ev);
-    EvINVOKE1_off(ev);
+    WaREPEAT_on(ev);
+    WaINVOKE1_off(ev);
     return (pe_watcher*) ev;
 }
 
@@ -124,7 +124,7 @@ static void pe_var_stop(pe_watcher *_ev) {
 }
 
 static void _var_restart(pe_watcher *ev) {
-    if (!EvPOLLING(ev)) return;
+    if (!WaPOLLING(ev)) return;
     pe_watcher_off(ev);
     pe_watcher_on(ev, 0);
 }
@@ -149,7 +149,7 @@ WKEYMETH(_var_variable) {
 	PUTBACK;
     } else {
 	SV *old = vp->variable;
-	int active = EvPOLLING(ev);
+	int active = WaPOLLING(ev);
 	if (!SvROK(nval))
 	    croak("Expecting a reference");
 	if (active) pe_watcher_off(ev);

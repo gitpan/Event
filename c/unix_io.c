@@ -32,7 +32,7 @@ static void _queue_io(pe_io *wa, int got) {
     pe_ioevent *ev;
     got &= wa->poll;
     if (!got) {
-	if (EvDEBUGx(wa) >= 3) {
+	if (WaDEBUGx(wa) >= 3) {
 	    STRLEN n_a;
 	    warn("Event: io '%s' queued nothing", SvPV(wa->base.desc, n_a));
 	}
@@ -54,13 +54,13 @@ static int Nfds;
 
 static void pe_sys_sleep(double left) {
     int ret;
-    double t0 = EvNOW(1);
+    double t0 = NVtime();
     double t1 = t0 + left;
     while (1) {
 	ret = poll(0, 0, (int) (left * 1000)); /* hope zeroes okay */
 	if (ret < 0 && errno != EAGAIN && errno != EINTR)
 	    croak("poll(%.2f) got errno %d", left, errno);
-	left = t1 - EvNOW(1);
+	left = t1 - NVtime();
 	if (left > IntervalEpsilon) {
 	    if (ret==0) ++TimeoutTooEarly;
 	    continue;
@@ -160,7 +160,7 @@ static fd_set Rfds, Wfds, Efds;
 
 static void pe_sys_sleep(double left) {
     struct timeval tm;
-    double t0 = EvNOW(1);
+    double t0 = NVtime();
     double t1 = t0 + left;
     int ret;
     while (1) {
@@ -169,7 +169,7 @@ static void pe_sys_sleep(double left) {
 	ret = select(0, 0, 0, 0, &tm);
 	if (ret < 0 && errno != EINTR && errno != EAGAIN)
 	    croak("select(%.2f) got errno %d", left, errno);
-	left = t1 - EvNOW(1);
+	left = t1 - NVtime();
 	if (left > IntervalEpsilon) {
 	    if (ret==0) ++TimeoutTooEarly;
 	    continue;

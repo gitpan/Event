@@ -32,7 +32,7 @@ static SV *wrap_watcher(void *ptr, HV *stash, SV *temple) {
 }
 
 static SV *watcher_2sv(pe_watcher *wa) { /**SLOW IS OKAY**/
-    assert(!EvDESTROYED(wa));
+    assert(!WaDESTROYED(wa));
     if (!wa->mysv)
 	wa->mysv = wrap_watcher(wa, wa->vtbl->stash, 0);
     return SvREFCNT_inc(sv_2mortal(wa->mysv));
@@ -67,7 +67,7 @@ static SV *event_2sv(pe_event *ev) { /**MAKE FAST**/
 	sv_setiv(sv, (IV)ev);
 	ev->mysv = rv;
 
-	if (EvDEBUGx(ev) >= 4) {
+	if (WaDEBUGx(ev) >= 4) {
 	    STRLEN n_a;
 	    warn("Event=0x%x '%s' wrapped with SV=0x%x",
 		 ev, SvPV(ev->up->desc, n_a), SvRV(ev->mysv));

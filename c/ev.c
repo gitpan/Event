@@ -8,7 +8,7 @@ static int CurCBFrame = -1;
 
 pe_event_vtbl event_vtbl, ioevent_vtbl;
 
-static void pe_event_init(pe_event *ev, pe_watcher *wa) {
+static void pe_anyevent_init(pe_event *ev, pe_watcher *wa) {
     assert(wa);
     ev->up = wa;
     ++wa->event_counter;
@@ -17,12 +17,13 @@ static void pe_event_init(pe_event *ev, pe_watcher *wa) {
     PE_RING_UNSHIFT(&ev->peer, &wa->events);
     ev->hits = 0;
     ev->prio = wa->prio;
+    ev->callback = 0;
 }
 
 static void pe_anyevent_dtor(pe_event *ev) {
     STRLEN n_a;
     pe_watcher *wa = ev->up;
-    if (EvDEBUGx(wa) >= 3)
+    if (WaDEBUGx(wa) >= 3)
 	warn("Event=0x%x '%s' destroyed (SV=0x%x)",
 	     ev,
 	     SvPV(wa->desc, n_a),
@@ -30,16 +31,31 @@ static void pe_anyevent_dtor(pe_event *ev) {
     ev->up = 0;
     ev->mysv = 0;
     ev->hits = 0;
+    if (EvPERLCB(ev))
+	SvREFCNT_dec(ev->callback);
+    ev->callback = 0;
     PE_RING_DETACH(&ev->peer);
     PE_RING_DETACH(&ev->que);
     --wa->event_counter;
-    if (EvCANDESTROY(wa)) /* running */
+    if (WaCANDESTROY(wa)) /* running */
 	(*wa->vtbl->dtor)(wa);
 }
 
-static void pe_event_dtor(pe_event *ev) {
-    pe_anyevent_dtor(ev);
-    PE_RING_UNSHIFT(&ev->que, &event_vtbl.freelist);
+static void pe_anyevent_set_cb(pe_event *ev, void *fptr, void *ext) {
+    if (EvPERLCB(ev))
+	SvREFCNT_dec(ev->callback);
+    EvPERLCB_off(ev);
+    ev->callback = fptr;
+    ev->ext_data = ext;
+}
+
+static void pe_anyevent_set_perl_cb(pe_event *ev, SV *sv) {
+    SV *old = 0;
+    if (EvPERLCB(ev))
+	old = ev->callback;
+    ev->callback = SvREFCNT_inc(sv);
+    SvREFCNT_dec(old);
+    EvPERLCB_on(ev);
 }
 
 /*****************************************************************/
@@ -47,8 +63,6 @@ static void pe_event_dtor(pe_event *ev) {
 static pe_event *pe_event_allocate(pe_watcher *wa) {
     pe_event *ev;
     assert(wa);
-    if (EvCLUMPx(wa))
-	return (pe_event*) wa->events.next->self;
     if (PE_RING_EMPTY(&event_vtbl.freelist)) {
 	EvNew(0, ev, 1, pe_event);
 	ev->vtbl = &event_vtbl;
@@ -58,8 +72,13 @@ static pe_event *pe_event_allocate(pe_watcher *wa) {
 	PE_RING_DETACH(lk);
 	ev = (pe_event*) lk->self;
     }	
-    pe_event_init(ev, wa);
+    pe_anyevent_init(ev, wa);
     return ev;
+}
+
+static void pe_event_dtor(pe_event *ev) {
+    pe_anyevent_dtor(ev);
+    PE_RING_UNSHIFT(&ev->que, &event_vtbl.freelist);
 }
 
 static void pe_event_release(pe_event *ev) {
@@ -94,8 +113,6 @@ EKEYMETH(_event_prio) {
 static pe_event *pe_ioevent_allocate(pe_watcher *wa) {
     pe_ioevent *ev;
     assert(wa);
-    if (EvCLUMPx(wa))
-	return (pe_event*) wa->events.next->self;
     if (PE_RING_EMPTY(&ioevent_vtbl.freelist)) {
 	EvNew(1, ev, 1, pe_ioevent);
 	ev->base.vtbl = &ioevent_vtbl;
@@ -105,7 +122,7 @@ static pe_event *pe_ioevent_allocate(pe_watcher *wa) {
 	PE_RING_DETACH(lk);
 	ev = (pe_ioevent*) lk->self;
     }
-    pe_event_init(&ev->base, wa);
+    pe_anyevent_init(&ev->base, wa);
     ev->got = 0;
     return &ev->base;
 }
@@ -131,7 +148,7 @@ static void pe_event_postCB(pe_cbframe *fp) {
     pe_event *ev = fp->ev;
     pe_watcher *wa = ev->up;
     --CurCBFrame;
-    if (EvACTIVE(wa) && EvINVOKE1(wa) && EvREPEAT(wa))
+    if (WaACTIVE(wa) && WaINVOKE1(wa) && WaREPEAT(wa))
 	pe_watcher_on(wa, 1);
     if (Estat.on) {
 	if (fp->stats) {
@@ -154,7 +171,7 @@ static void pe_callback_died(pe_cbframe *fp) {
     SV *err = (sv_true(ERRSV)?
 	       sv_mortalcopy(ERRSV):
 	       sv_2mortal(newSVpv("?",0)));
-    if (EvDEBUGx(wa) >= 4)
+    if (WaDEBUGx(wa) >= 4)
 	warn("Event: '%s' died with: %s\n", SvPV(wa->desc,n_a),
 	     SvPV(ERRSV,n_a));
     PUSHMARK(SP);
@@ -213,7 +230,7 @@ static void pe_event_invoke(pe_event *ev) {
 	assert(pwa->running == frp->run_id);
 	if (Estat.on)
 	    Estat.suspend(frp->stats);
-	if (!EvREENTRANT(pwa) && EvREPEAT(pwa) && !EvSUSPEND(pwa)) {
+	if (!WaREENTRANT(pwa) && WaREPEAT(pwa) && !WaSUSPEND(pwa)) {
 	    /* temporarily suspend non-reentrant watcher until callback is
 	       finished! */
 	    pe_watcher_suspend(pwa);
@@ -221,14 +238,14 @@ static void pe_event_invoke(pe_event *ev) {
 	}
     }
     SAVEINT(wa->running);
-    PE_RING_DETACH(&ev->peer);  /* disallow clumping after this point! */
+    PE_RING_DETACH(&ev->peer);
     frp = &CBFrame[++CurCBFrame];
     frp->ev = ev;
     frp->run_id = ++wa->running;
     if (Estat.on)
 	frp->stats = Estat.enter(CurCBFrame, wa->max_cb_tm);
     assert(ev->prio >= 0 && ev->prio < PE_QUEUES);
-    QueueTime[ev->prio] = wa->cbtime = EvNOW(EvCBTIME(wa));
+    QueueTime[ev->prio] = wa->cbtime = NVtime();
     /* SETUP */
 
     if (CurCBFrame+1 >= MAX_CB_NEST) {
@@ -237,7 +254,7 @@ static void pe_event_invoke(pe_event *ev) {
 	croak("Deep recursion detected; invoking unloop_all()\n");
     }
 
-    Dbg = EvDEBUGx(wa);
+    Dbg = WaDEBUGx(wa);
     if (Dbg) {
 	/*
 	SV *cvb = perl_get_sv("Carp::Verbose", 1);
@@ -254,8 +271,8 @@ static void pe_event_invoke(pe_event *ev) {
 
     if (!PE_RING_EMPTY(&Callback)) pe_map_check(&Callback);
 
-    if (EvPERLCB(wa)) {
-	SV *cb = SvRV((SV*)wa->callback);
+    if (EvPERLCB(ev)) {
+	SV *cb = SvRV((SV*)ev->callback);
 	int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
 	dSP;
 	dTHX;
@@ -264,7 +281,7 @@ static void pe_event_invoke(pe_event *ev) {
 	    PUSHMARK(SP);
 	    XPUSHs(evsv);
 	    PUTBACK;
-	    perl_call_sv((SV*) wa->callback, pcflags);
+	    perl_call_sv((SV*) ev->callback, pcflags);
 	} else {
 	    AV *av = (AV*)cb;
 	    assert(SvTYPE(cb) == SVt_PVAV);
@@ -280,10 +297,9 @@ static void pe_event_invoke(pe_event *ev) {
 	    else
 		sv_setsv(ERRSV, &PL_sv_no);
 	}
-    } else if (wa->callback) {
-	(* (void(*)(void*,pe_event*)) wa->callback)(wa->ext_data, ev);
     } else {
-	croak("No callback for event '%s'", SvPV(wa->desc,n_a));
+	assert(ev->callback);
+	(* (void(*)(void*,pe_event*)) ev->callback)(ev->ext_data, ev);
     }
 
     LEAVE;

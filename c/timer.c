@@ -30,7 +30,7 @@ static void pe_timer_start(pe_watcher *ev, int repeat) {
 	if (interval <= 0)
 	    croak("Timer has non-positive interval");
 
-	tm->tm.at = interval + (EvHARD(ev)? tm->tm.at : EvNOW(1));
+	tm->tm.at = interval + (WaHARD(ev)? tm->tm.at : NVtime());
     }
     if (!tm->tm.at)
 	croak("Timer unset");
@@ -54,7 +54,7 @@ WKEYMETH(_timer_at) {
 	XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
 	PUTBACK;
     } else {
-	int active = EvPOLLING(ev);
+	int active = WaPOLLING(ev);
 	if (active) pe_watcher_off(ev);
 	tp->tm.at = SvNV(nval);
 	if (active) pe_watcher_on(ev, 0);

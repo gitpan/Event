@@ -29,10 +29,9 @@ static void pe_watcher_init(pe_watcher *ev, HV *stash, SV *temple) {
     /* no exceptions after this point */
 
     PE_RING_UNSHIFT(&ev->all, &AllWatchers);
-    EvFLAGS(ev) = 0;
-    EvINVOKE1_on(ev);
-    EvREENTRANT_on(ev);
-    EvCLUMP_on(ev);
+    WaFLAGS(ev) = 0;
+    WaINVOKE1_on(ev);
+    WaREENTRANT_on(ev);
     ev->FALLBACK = 0;
     NextID = (NextID+1) & 0x7fff; /* make it look like the kernel :-, */
     ev->event_counter = 0;
@@ -58,16 +57,16 @@ static void pe_watcher_cancel_events(pe_watcher *wa) {
 
 static void pe_watcher_dtor(pe_watcher *wa) {
     STRLEN n_a;
-    assert(EvCANDESTROY(wa));
-    if (EvDESTROYED(wa)) {
+    assert(WaCANDESTROY(wa));
+    if (WaDESTROYED(wa)) {
 	warn("Attempt to destroy watcher 0x%x again (ignored)", wa);
 	return;
     }
-    EvDESTROYED_on(wa);
-    if (EvDEBUGx(wa) >= 3)
+    WaDESTROYED_on(wa);
+    if (WaDEBUGx(wa) >= 3)
 	warn("Watcher '%s' destroyed", SvPV(wa->desc, n_a));
     assert(PE_RING_EMPTY(&wa->events));
-    if (EvPERLCB(wa))
+    if (WaPERLCB(wa))
 	SvREFCNT_dec(wa->callback);
     if (wa->FALLBACK)
 	SvREFCNT_dec(wa->FALLBACK);
@@ -82,7 +81,7 @@ static void pe_watcher_dtor(pe_watcher *wa) {
 
 WKEYMETH(_watcher_callback) {
     if (!nval) {
-	SV *ret = (EvPERLCB(ev)?
+	SV *ret = (WaPERLCB(ev)?
 		   (SV*) ev->callback :
 		   (ev->callback?
 		    sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
@@ -95,20 +94,20 @@ WKEYMETH(_watcher_callback) {
 	AV *av;
 	SV *sv;
 	SV *old=0;
-	if (EvPERLCB(ev))
+	if (WaPERLCB(ev))
 	    old = (SV*) ev->callback;
 	if (!SvOK(nval)) {
-	    EvPERLCB_off(ev);
+	    WaPERLCB_off(ev);
 	    ev->callback = 0;
 	    ev->ext_data = 0;
 	} else if (SvROK(nval) && (SvTYPE(sv=SvRV(nval)) == SVt_PVCV)) {
-	    EvPERLCB_on(ev);
+	    WaPERLCB_on(ev);
 	    ev->callback = SvREFCNT_inc(nval);
 	} else if (SvROK(nval) &&
 		   (SvTYPE(av=(AV*)SvRV(nval)) == SVt_PVAV) &&
 		   av_len(av) == 1 &&
 		   !SvROK(sv=*av_fetch(av, 1, 0))) {
-	    EvPERLCB_on(ev);
+	    WaPERLCB_on(ev);
 	    ev->callback = SvREFCNT_inc(nval);
 	} else {
 	    if (SvIV(DebugLevel) >= 2)
@@ -129,16 +128,6 @@ WKEYMETH(_watcher_cbtime) {
 	croak("'e_cbtime' is read-only");
 }
 
-WKEYMETH(_watcher_clump) {
-    if (!nval) {
-	dSP;
-	XPUSHs(boolSV(EvCLUMP(ev)));
-	PUTBACK;
-    } else {
-	if (sv_true(nval)) EvCLUMP_on(ev); else EvCLUMP_off(ev);
-    }
-}
-
 WKEYMETH(_watcher_desc) {
     if (!nval) {
 	dSP;
@@ -152,10 +141,10 @@ WKEYMETH(_watcher_desc) {
 WKEYMETH(_watcher_debug) {
     if (!nval) {
 	dSP;
-	XPUSHs(boolSV(EvDEBUG(ev)));
+	XPUSHs(boolSV(WaDEBUG(ev)));
 	PUTBACK;
     } else {
-	if (sv_true(nval)) EvDEBUG_on(ev); else EvDEBUG_off(ev);
+	if (sv_true(nval)) WaDEBUG_on(ev); else WaDEBUG_off(ev);
     }
 }
 
@@ -171,16 +160,16 @@ WKEYMETH(_watcher_priority) {
 WKEYMETH(_watcher_reentrant) {
     if (!nval) {
 	dSP;
-	XPUSHs(boolSV(EvREENTRANT(ev)));
+	XPUSHs(boolSV(WaREENTRANT(ev)));
 	PUTBACK;
     } else {
 	if (sv_true(nval))
-	    EvREENTRANT_on(ev);
+	    WaREENTRANT_on(ev);
 	else {
 	    if (ev->running > 1)
 		croak("'reentrant' cannot be turned off while nested %d times",
 		      ev->running);
-	    EvREENTRANT_off(ev);
+	    WaREENTRANT_off(ev);
 	}
     }
 }
@@ -188,10 +177,10 @@ WKEYMETH(_watcher_reentrant) {
 WKEYMETH(_watcher_repeat) {
     if (!nval) {
 	dSP;
-	XPUSHs(boolSV(EvREPEAT(ev)));
+	XPUSHs(boolSV(WaREPEAT(ev)));
 	PUTBACK;
     } else {
-	if (sv_true(nval)) EvREPEAT_on(ev); else EvREPEAT_off(ev);
+	if (sv_true(nval)) WaREPEAT_on(ev); else WaREPEAT_off(ev);
     }
 }
 
@@ -207,7 +196,7 @@ WKEYMETH(_watcher_running) {
 WKEYMETH(_watcher_suspend) {
     if (!nval) {
 	dSP;
-	XPUSHs(boolSV(EvSUSPEND(ev)));
+	XPUSHs(boolSV(WaSUSPEND(ev)));
 	PUTBACK;
     } else {
 	if (sv_true(nval))
@@ -277,8 +266,8 @@ static void pe_register_vtbl(pe_watcher_vtbl *vt, HV *stash,
 
 static void pe_watcher_now(pe_watcher *wa) {
     pe_event *ev;
-    if (EvSUSPEND(wa)) return;
-    EvRUNNOW_on(wa); /* race condition XXX */
+    if (WaSUSPEND(wa)) return;
+    WaRUNNOW_on(wa); /* race condition XXX */
     ev = (*wa->vtbl->new_event)(wa);
     ++ev->hits;
     queueEvent(ev);
@@ -290,70 +279,70 @@ static void pe_watcher_now(pe_watcher *wa) {
 */
 
 static void pe_watcher_cancel(pe_watcher *wa) {
-    EvSUSPEND_off(wa);
+    WaSUSPEND_off(wa);
     pe_watcher_stop(wa, 1); /* peer */
-    EvCANCELLED_on(wa);
+    WaCANCELLED_on(wa);
     PE_RING_DETACH(&wa->all);
     if (wa->mysv)
 	SvREFCNT_dec(wa->mysv);  /* might destroy */
-    else if (EvCANDESTROY(wa))
+    else if (WaCANDESTROY(wa))
 	(*wa->vtbl->dtor)(wa);
 }
 
 static void pe_watcher_suspend(pe_watcher *ev) {
     STRLEN n_a;
-    if (EvSUSPEND(ev))
+    if (WaSUSPEND(ev))
 	return;
-    if (EvDEBUGx(ev) >= 4)
+    if (WaDEBUGx(ev) >= 4)
 	warn("Event: suspend '%s'\n", SvPV(ev->desc,n_a));
     pe_watcher_off(ev);
     pe_watcher_cancel_events(ev);
-    EvSUSPEND_on(ev); /* must happen nowhere else!! */
+    WaSUSPEND_on(ev); /* must happen nowhere else!! */
 }
 
 static void pe_watcher_resume(pe_watcher *ev) {
     STRLEN n_a;
-    if (!EvSUSPEND(ev))
+    if (!WaSUSPEND(ev))
 	return;
-    EvSUSPEND_off(ev);
-    if (EvDEBUGx(ev) >= 4)
+    WaSUSPEND_off(ev);
+    if (WaDEBUGx(ev) >= 4)
 	warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,n_a),
-	     EvACTIVE(ev)?" ACTIVE":"");
-    if (EvACTIVE(ev))
+	     WaACTIVE(ev)?" ACTIVE":"");
+    if (WaACTIVE(ev))
 	pe_watcher_on(ev, 0);
 }
 
 static void pe_watcher_on(pe_watcher *wa, int repeat) {
-    if (EvPOLLING(wa) || EvSUSPEND(wa)) return;
+    if (WaPOLLING(wa) || WaSUSPEND(wa)) return;
     (*wa->vtbl->start)(wa, repeat);
-    EvPOLLING_on(wa); /* must happen nowhere else!! */
+    WaPOLLING_on(wa); /* must happen nowhere else!! */
 }
 
 static void pe_watcher_off(pe_watcher *wa) {
-    if (!EvPOLLING(wa) || EvSUSPEND(wa)) return;
+    if (!WaPOLLING(wa) || WaSUSPEND(wa)) return;
     (*wa->vtbl->stop)(wa);
-    EvPOLLING_off(wa);
+    WaPOLLING_off(wa);
 }
 
 static void pe_watcher_start(pe_watcher *ev, int repeat) {
     STRLEN n_a;
-    if (EvACTIVE(ev))
+    if (WaACTIVE(ev))
 	return;
-    if (EvDEBUGx(ev) >= 4)
+    if (WaDEBUGx(ev) >= 4)
 	warn("Event: active ON '%s'\n", SvPV(ev->desc,n_a));
     pe_watcher_on(ev, repeat);
-    EvACTIVE_on(ev); /* must happen nowhere else!! */
+    WaACTIVE_on(ev); /* must happen nowhere else!! */
     ++ActiveWatchers;
 }
 
 static void pe_watcher_stop(pe_watcher *ev, int cancel_events) {
     STRLEN n_a;
-    if (!EvACTIVE(ev))
+    if (!WaACTIVE(ev))
 	return;
-    if (EvDEBUGx(ev) >= 4)
+    if (WaDEBUGx(ev) >= 4)
 	warn("Event: active OFF '%s'\n", SvPV(ev->desc,n_a));
     pe_watcher_off(ev);
-    EvACTIVE_off(ev); /* must happen nowhere else!! */
+    WaACTIVE_off(ev); /* must happen nowhere else!! */
     if (cancel_events) pe_watcher_cancel_events(ev);
     --ActiveWatchers;
 }

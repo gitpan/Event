@@ -1,5 +1,4 @@
 rethink
-  EvNOW
   pe_check_recovery & ENTER/LEAVE points
 
 find owner for Win32 port
@@ -11,9 +10,9 @@ documentation
 optimization
   update io event-mask without invalidating cache
   determine IntervalEpsilon dynamically & make available from perl
-  queue events from both sides
   use fancy profiler tricks to figure out how to boost performance
-  to try hoist system calls from the inner loop
+    queue events from both sides?
+  try to hoist system calls from the inner loop
 
 loop
   StarvePrio?

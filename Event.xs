@@ -100,7 +100,7 @@ static void dbg_count_memory(int id, int cnt) {
 #  define EvNew(x, ptr, size, type) New(0,ptr,size,type)
 #endif
 
-static int ActiveWatchers=0; /* includes EvACTIVE + queued events */
+static int ActiveWatchers=0; /* includes WaACTIVE + queued events */
 static int WarnCounter=16; /*XXX nuke */
 static SV *DebugLevel;
 static SV *Eval;
@@ -114,8 +114,6 @@ static int TimeoutTooEarly=0;
 
 static double (*myNVtime)();
 #define NVtime() (*myNVtime)()
-
-#define EvNOW(exact) NVtime() /*XXX*/
 
 static int pe_sys_fileno(SV *sv, char *context);
 
@@ -486,7 +484,7 @@ DESTROY(ref)
 {
 	pe_event *THIS = (pe_event*) sv_2event(ref);
 	/*
-	if (EvDEBUGx(THIS) >= 4) {
+	if (WaDEBUGx(THIS) >= 4) {
 	    STRLEN n_a;
 	    warn("Event=0x%x '%s' DESTROY SV=0x%x",
 		 THIS, SvPV(THIS->up->desc, n_a), SvRV(THIS->mysv));
@@ -527,7 +525,7 @@ DESTROY(ref)
 	assert(THIS);
 	if (THIS->mysv) {
 	    THIS->mysv=0;
-	    if (EvCANDESTROY(THIS)) /*mysv*/
+	    if (WaCANDESTROY(THIS)) /*mysv*/
 		(*THIS->vtbl->dtor)(THIS);
 	}
 }
@@ -602,19 +600,19 @@ void
 pe_watcher::is_active(...)
 	PPCODE:
 	PUTBACK;
-	XPUSHs(boolSV(EvACTIVE(THIS)));
+	XPUSHs(boolSV(WaACTIVE(THIS)));
 
 void
 pe_watcher::is_suspended(...)
 	PPCODE:
 	PUTBACK;
-	XPUSHs(boolSV(EvSUSPEND(THIS)));
+	XPUSHs(boolSV(WaSUSPEND(THIS)));
 
 void
 pe_watcher::is_queued(...)
 	PPCODE:
 	PUTBACK;
-	XPUSHs(boolSV(EvFLAGS(THIS) & PE_QUEUED));
+	XPUSHs(boolSV(WaFLAGS(THIS) & PE_QUEUED));
 
 void
 pe_watcher::cb(...)
@@ -628,13 +626,6 @@ pe_watcher::cbtime(...)
 	PPCODE:
 	PUTBACK;
 	_watcher_cbtime(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
-	SPAGAIN;
-
-void
-pe_watcher::clump(...)
-	PPCODE:
-	PUTBACK;
-	_watcher_clump(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
 	SPAGAIN;
 
 void
@@ -804,6 +795,13 @@ pe_watcher::timeout(...)
 	PPCODE:
 	PUTBACK;
 	_io_timeout(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
+	SPAGAIN;
+
+void
+pe_watcher::timeout_cb(...)
+	PPCODE:
+	PUTBACK;
+	_io_timeout_cb(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
 	SPAGAIN;
 
 MODULE = Event		PACKAGE = Event::var

@@ -27,29 +27,40 @@ static void db_show_queue() {
 
 static int prepare_event(pe_event *ev, char *forwhat) {
     /* AVOID DIEING IN HERE!! */
-    STRLEN na;
+    STRLEN n_a;
     pe_watcher *wa = ev->up;
-    assert(!EvSUSPEND(wa));
-    assert(EvREENTRANT(wa) || !wa->running);
-    if (!EvACTIVE(wa)) {
-	if (!EvRUNNOW(wa))
-	    warn("Event: event for !ACTIVE watcher '%s'", SvPV(wa->desc,na));
+    if (!ev->callback) {
+	if (WaPERLCB(wa)) {
+	    ev->callback = SvREFCNT_inc(wa->callback);
+	    EvPERLCB_on(ev);
+	} else {
+	    ev->callback = wa->callback;
+	    ev->ext_data = wa->ext_data;
+	    EvPERLCB_off(ev);
+	}
+	assert(ev->callback);
+    }
+    assert(!WaSUSPEND(wa));
+    assert(WaREENTRANT(wa) || !wa->running);
+    if (!WaACTIVE(wa)) {
+	if (!WaRUNNOW(wa))
+	    warn("Event: event for !ACTIVE watcher '%s'", SvPV(wa->desc,n_a));
     }
     else {
-	if (!EvREPEAT(wa))
+	if (!WaREPEAT(wa))
 	    pe_watcher_stop(wa, 0);
-	else if (EvINVOKE1(wa))
+	else if (WaINVOKE1(wa))
 	    pe_watcher_off(wa);
     }
-    EvRUNNOW_off(wa); /* race condition? XXX */
-    if (EvDEBUGx(wa) >= 3)
-	warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,na), ev->prio);
+    WaRUNNOW_off(wa); /* race condition? XXX */
+    if (WaDEBUGx(wa) >= 3)
+	warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,n_a), ev->prio);
     return 1;
 }
 
 static void queueEvent(pe_event *ev) {  /**INVOKE**/
     assert(ev->hits);
-    if (!PE_RING_EMPTY(&ev->que)) return; /* already queued */
+    if (!PE_RING_EMPTY(&ev->que)) return; /* clump'd event already queued */
     if (!prepare_event(ev, "queue")) return;
 
     if (ev->prio < 0) {  /* invoke the event immediately! */

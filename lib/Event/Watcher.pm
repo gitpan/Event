@@ -4,7 +4,7 @@ use base 'Exporter';
 use Carp;
 use vars qw(@EXPORT_OK @ATTRIBUTE);
 @EXPORT_OK = qw(ACTIVE SUSPEND QUEUED RUNNING R W E T);
-@ATTRIBUTE = qw(cb cbtime clump desc debug prio reentrant repeat max_cb_tm);
+@ATTRIBUTE = qw(cb cbtime desc debug prio reentrant repeat max_cb_tm);
 
 sub register {
     no strict 'refs';
@@ -92,6 +92,11 @@ sub configure {
 	while (my ($k,$v)= splice @_, -2) { $o->$k($v)}
 	1 # whatever
     }
+}
+
+sub clump {
+    require Carp;
+    Carp::cluck "clump is deprecated";
 }
 
 package Event::Watcher::Tied;

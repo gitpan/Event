@@ -36,8 +36,8 @@ static pe_watcher *pe_signal_allocate(HV *stash, SV *temple) {
     PE_RING_INIT(&ev->sring, ev);
     ev->signal = 0;
     pe_watcher_init(&ev->base, stash, temple);
-    EvREPEAT_on(ev);
-    EvINVOKE1_off(ev);
+    WaREPEAT_on(ev);
+    WaINVOKE1_off(ev);
     return (pe_watcher*) ev;
 }
 
@@ -68,7 +68,7 @@ WKEYMETH(_signal_signal) {
 	PUTBACK;
     } else {
 	STRLEN n_a;
-	int active = EvPOLLING(ev);
+	int active = WaPOLLING(ev);
 	int sig = whichsig(SvPV(nval, n_a));
 	/*warn("whichsig(%s) = %d", SvPV(nval,na), sig); /**/
 	if (sig == 0)

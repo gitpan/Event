@@ -37,6 +37,9 @@ struct pe_event {
     pe_event_vtbl *vtbl;
     SV *mysv;
     pe_watcher *up;
+    U32 flags;
+    void *callback;
+    void *ext_data;
     pe_ring peer; /* homogeneous */
     pe_ring que;  /* heterogeneous */
     I16 hits;
@@ -65,23 +68,23 @@ struct pe_qcallback {
 #define PE_INVOKE1	0x4000
 #define PE_CBTIME	0x8000
 
-#define EvFLAGS(ev)		((pe_watcher*)ev)->flags
+#define WaFLAGS(ev)		((pe_watcher*)ev)->flags
 
-#define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 2:0) /*arthimetical*/
-#define EvDEBUG_on(ev)		(EvFLAGS(ev) |= PE_DEBUG)
-#define EvDEBUG_off(ev)		(EvFLAGS(ev) &= ~PE_DEBUG)
+#define WaDEBUG(ev)		((WaFLAGS(ev) & PE_DEBUG)? 2:0) /*arthimetical*/
+#define WaDEBUG_on(ev)		(WaFLAGS(ev) |= PE_DEBUG)
+#define WaDEBUG_off(ev)		(WaFLAGS(ev) &= ~PE_DEBUG)
 
-#define EvREPEAT(ev)		(EvFLAGS(ev) & PE_REPEAT)
-#define EvREPEAT_on(ev)		(EvFLAGS(ev) |= PE_REPEAT)
-#define EvREPEAT_off(ev)	(EvFLAGS(ev) &= ~PE_REPEAT)
+#define WaREPEAT(ev)		(WaFLAGS(ev) & PE_REPEAT)
+#define WaREPEAT_on(ev)		(WaFLAGS(ev) |= PE_REPEAT)
+#define WaREPEAT_off(ev)	(WaFLAGS(ev) &= ~PE_REPEAT)
 
-#define EvINVOKE1(ev)		(EvFLAGS(ev) & PE_INVOKE1)
-#define EvINVOKE1_on(ev)	(EvFLAGS(ev) |= PE_INVOKE1)
-#define EvINVOKE1_off(ev)	(EvFLAGS(ev) &= ~PE_INVOKE1)
+#define WaINVOKE1(ev)		(WaFLAGS(ev) & PE_INVOKE1)
+#define WaINVOKE1_on(ev)	(WaFLAGS(ev) |= PE_INVOKE1)
+#define WaINVOKE1_off(ev)	(WaFLAGS(ev) &= ~PE_INVOKE1)
 
-#define EvCBTIME(ev)		(EvFLAGS(ev) & PE_CBTIME)
-#define EvCBTIME_on(ev)		(EvFLAGS(ev) |= PE_CBTIME)
-#define EvCBTIME_off(ev)	(EvFLAGS(ev) &= ~PE_CBTIME)
+#define WaCBTIME(ev)		(WaFLAGS(ev) & PE_CBTIME)
+#define WaCBTIME_on(ev)		(WaFLAGS(ev) |= PE_CBTIME)
+#define WaCBTIME_off(ev)	(WaFLAGS(ev) &= ~PE_CBTIME)
 
 /* QUEUE INFO */
 #define PE_QUEUES 7	/* Hard to imagine a need for more than 7 queues... */
@@ -114,6 +117,8 @@ struct pe_io {
     pe_timeable tm; /*timeout*/
     pe_ring ioring;
     SV *handle;
+    void *tm_callback;
+    void *tm_ext_data;
     float timeout;
     U16 poll;
     /* ifdef UNIX */

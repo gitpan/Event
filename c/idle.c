@@ -28,11 +28,11 @@ static void pe_idle_start(pe_watcher *ev, int repeating) {
     double min,max;
     pe_idle *ip = (pe_idle*) ev;
     if (SvOK(ip->min_interval) || SvOK(ip->max_interval))
-	EvCBTIME_on(ev);
+	WaCBTIME_on(ev);
     else
-	EvCBTIME_off(ev);
-    if (!repeating) ev->cbtime = EvNOW(1);
-    now = EvHARD(ev)? ev->cbtime : EvNOW(1);
+	WaCBTIME_off(ev);
+    if (!repeating) ev->cbtime = NVtime();
+    now = WaHARD(ev)? ev->cbtime : NVtime();
     if (sv_2interval(ip->min_interval, &min)) {
 	ip->tm.at = min + now;
 	pe_timeable_start(&ip->tm);
@@ -50,7 +50,7 @@ static void pe_idle_start(pe_watcher *ev, int repeating) {
 }
 
 static void pe_idle_alarm(pe_watcher *wa, pe_timeable *_ignore) {
-    double now = EvNOW(1);
+    double now = NVtime();
     double min,max,left;
     pe_idle *ip = (pe_idle*) wa;
     pe_timeable_stop(&ip->tm);

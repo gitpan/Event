@@ -63,6 +63,8 @@ struct pe_tied {
 #define WKEYMETH(M) static void M(pe_watcher *ev, SV *nval)
 #define EKEYMETH(M) static void M(pe_event *ev, SV *nval)
 
+/* When this becomes a public API then we should also publish C interfaces
+   to set up perl & C callbacks.  For now we can be lazy. */
 struct pe_event_vtbl {
     HV *stash;
     pe_event *(*new_event)(pe_watcher *);
@@ -89,7 +91,7 @@ struct pe_watcher_vtbl {
 #define PE_HARD		0x010
 #define PE_PERLCB	0x020
 #define PE_RUNNOW	0x040
-#define PE_CLUMP	0x080
+#define PE_TMPERLCB	0x080
 #define PE_QUEUED	0x100  /* virtual flag */
 #define PE_RUNNING	0x200  /* virtual flag */
 #define PE_CANCELLED	0x400
@@ -99,55 +101,60 @@ struct pe_watcher_vtbl {
 (PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
 
 #ifdef DEBUGGING
-#  define EvDEBUGx(ev) (SvIV(DebugLevel) + EvDEBUG(ev))
+#  define WaDEBUGx(ev) (SvIV(DebugLevel) + WaDEBUG(ev))
 #else
-#  define EvDEBUGx(ev) 0
+#  define WaDEBUGx(ev) 0
 #endif
 
 /* logically waiting for something to happen */
-#define EvACTIVE(ev)		(EvFLAGS(ev) & PE_ACTIVE)
-#define EvACTIVE_on(ev)		(EvFLAGS(ev) |= PE_ACTIVE)
-#define EvACTIVE_off(ev)	(EvFLAGS(ev) &= ~PE_ACTIVE)
+#define WaACTIVE(ev)		(WaFLAGS(ev) & PE_ACTIVE)
+#define WaACTIVE_on(ev)		(WaFLAGS(ev) |= PE_ACTIVE)
+#define WaACTIVE_off(ev)	(WaFLAGS(ev) &= ~PE_ACTIVE)
 
 /* physically registered for poll/select */
-#define EvPOLLING(ev)		(EvFLAGS(ev) & PE_POLLING)
-#define EvPOLLING_on(ev)	(EvFLAGS(ev) |= PE_POLLING)
-#define EvPOLLING_off(ev)	(EvFLAGS(ev) &= ~PE_POLLING)
+#define WaPOLLING(ev)		(WaFLAGS(ev) & PE_POLLING)
+#define WaPOLLING_on(ev)	(WaFLAGS(ev) |= PE_POLLING)
+#define WaPOLLING_off(ev)	(WaFLAGS(ev) &= ~PE_POLLING)
 
-#define EvSUSPEND(ev)		(EvFLAGS(ev) & PE_SUSPEND)
-#define EvSUSPEND_on(ev)	(EvFLAGS(ev) |= PE_SUSPEND)
-#define EvSUSPEND_off(ev)	(EvFLAGS(ev) &= ~PE_SUSPEND)
+#define WaSUSPEND(ev)		(WaFLAGS(ev) & PE_SUSPEND)
+#define WaSUSPEND_on(ev)	(WaFLAGS(ev) |= PE_SUSPEND)
+#define WaSUSPEND_off(ev)	(WaFLAGS(ev) &= ~PE_SUSPEND)
 
-#define EvREENTRANT(ev)		(EvFLAGS(ev) & PE_REENTRANT)
-#define EvREENTRANT_on(ev)	(EvFLAGS(ev) |= PE_REENTRANT)
-#define EvREENTRANT_off(ev)	(EvFLAGS(ev) &= ~PE_REENTRANT)
+#define WaREENTRANT(ev)		(WaFLAGS(ev) & PE_REENTRANT)
+#define WaREENTRANT_on(ev)	(WaFLAGS(ev) |= PE_REENTRANT)
+#define WaREENTRANT_off(ev)	(WaFLAGS(ev) &= ~PE_REENTRANT)
 
-#define EvHARD(ev)		(EvFLAGS(ev) & PE_HARD)
-#define EvHARD_on(ev)		(EvFLAGS(ev) |= PE_HARD)   /* :-) */
-#define EvHARD_off(ev)		(EvFLAGS(ev) &= ~PE_HARD)
+#define WaHARD(ev)		(WaFLAGS(ev) & PE_HARD)
+#define WaHARD_on(ev)		(WaFLAGS(ev) |= PE_HARD)   /* :-) */
+#define WaHARD_off(ev)		(WaFLAGS(ev) &= ~PE_HARD)
+
+#define WaPERLCB(ev)		(WaFLAGS(ev) & PE_PERLCB)
+#define WaPERLCB_on(ev)		(WaFLAGS(ev) |= PE_PERLCB)
+#define WaPERLCB_off(ev)	(WaFLAGS(ev) &= ~PE_PERLCB)
+
+#define WaTMPERLCB(ev)		(WaFLAGS(ev) & PE_TMPERLCB)
+#define WaTMPERLCB_on(ev)	(WaFLAGS(ev) |= PE_TMPERLCB)
+#define WaTMPERLCB_off(ev)	(WaFLAGS(ev) &= ~PE_TMPERLCB)
+
+/* RUNNOW should be event specific XXX */
+#define WaRUNNOW(ev)		(WaFLAGS(ev) & PE_RUNNOW)
+#define WaRUNNOW_on(ev)		(WaFLAGS(ev) |= PE_RUNNOW)
+#define WaRUNNOW_off(ev)	(WaFLAGS(ev) &= ~PE_RUNNOW)
+
+#define WaCANCELLED(ev)		(WaFLAGS(ev) & PE_CANCELLED)
+#define WaCANCELLED_on(ev)	(WaFLAGS(ev) |= PE_CANCELLED)
+#define WaCANCELLED_off(ev)	(WaFLAGS(ev) &= ~PE_CANCELLED)
+
+#define WaDESTROYED(ev)		(WaFLAGS(ev) & PE_DESTROYED)
+#define WaDESTROYED_on(ev)	(WaFLAGS(ev) |= PE_DESTROYED)
+#define WaDESTROYED_off(ev)	(WaFLAGS(ev) &= ~PE_DESTROYED)
+
+#define WaCANDESTROY(ev)					\
+ (WaCANCELLED(ev) && ev->event_counter == 0 && !ev->mysv)
+
+
+#define EvFLAGS(ev)		((pe_event*)ev)->flags
 
 #define EvPERLCB(ev)		(EvFLAGS(ev) & PE_PERLCB)
 #define EvPERLCB_on(ev)		(EvFLAGS(ev) |= PE_PERLCB)
 #define EvPERLCB_off(ev)	(EvFLAGS(ev) &= ~PE_PERLCB)
-
-/* RUNNOW should be event specific XXX */
-#define EvRUNNOW(ev)		(EvFLAGS(ev) & PE_RUNNOW)
-#define EvRUNNOW_on(ev)		(EvFLAGS(ev) |= PE_RUNNOW)
-#define EvRUNNOW_off(ev)	(EvFLAGS(ev) &= ~PE_RUNNOW)
-
-#define EvCLUMP(ev)		(EvFLAGS(ev) & PE_CLUMP)
-#define EvCLUMPx(ev) \
-	(!PE_RING_EMPTY(&ev->events) && (EvFLAGS(ev) & PE_CLUMP))
-#define EvCLUMP_on(ev)		(EvFLAGS(ev) |= PE_CLUMP)
-#define EvCLUMP_off(ev)		(EvFLAGS(ev) &= ~PE_CLUMP)
-
-#define EvCANCELLED(ev)		(EvFLAGS(ev) & PE_CANCELLED)
-#define EvCANCELLED_on(ev)	(EvFLAGS(ev) |= PE_CANCELLED)
-#define EvCANCELLED_off(ev)	(EvFLAGS(ev) &= ~PE_CANCELLED)
-
-#define EvDESTROYED(ev)		(EvFLAGS(ev) & PE_DESTROYED)
-#define EvDESTROYED_on(ev)	(EvFLAGS(ev) |= PE_DESTROYED)
-#define EvDESTROYED_off(ev)	(EvFLAGS(ev) &= ~PE_DESTROYED)
-
-#define EvCANDESTROY(ev)					\
- (EvCANCELLED(ev) && ev->event_counter == 0 && !ev->mysv)

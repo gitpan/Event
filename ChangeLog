@@ -1,3 +1,27 @@
+1999-11-22  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.58.
+
+	* timeout_cb for io watchers.  Added test.  (suggested by Uri
+ 	Guttman <uri@sysarch.com>)
+
+	* Copy the callback specification from watcher to event for
+ 	flexibility.
+
+	* Removed support for clump.  The performance trade-off for this
+ 	feature was probably unmeasurable.  Now it's definitely
+ 	unmeasurable.  :-)
+
+	* Rename Ev* macros to Wa* to make room for new Ev macros.
+
+1999-10-22  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Remove EvNOW macro.
+
+1999-10-11  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Added demo/readline.t. (perl@jochen-stenzel.de)
+
 1999-10-06  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.57.

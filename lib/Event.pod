@@ -106,10 +106,10 @@ For example:
 
    warn $watcher->desc.": ".$watcher->hits." events happened; Wow!";
 
-All watchers support at least the following attributes: cb, clump,
-hits, prio, desc, repeat, debug, and reentrant.  Most watchers also
-offer additional attributes according to their specialty.  Moreover,
-some attributes are only meaningful when passed via the constructor.
+All watchers support at least the following attributes: cb, hits,
+prio, desc, repeat, debug, and reentrant.  Most watchers also offer
+additional attributes according to their specialty.  Moreover, some
+attributes are only meaningful when passed via the constructor.
 
 =head2 Shared Watcher Methods
 
@@ -256,15 +256,6 @@ for this purpose.  See the full description of C<DIED> below.
 
 When the callback was invoked most recently.
 
-=item clump => $bool
-
-A watcher must somehow record if an event occurs many times before any
-processing can take place.  Currently there are two choice.  If clump
-is false then a new event will be generated for each occurance.  On
-the other hand, if clump is true then each event occurance will
-increment C<hits>.  Clumping is slightly more efficient than not
-clumping.
-
 =item debug => $bool
 
 Debugging can be activated globally or per watcher.  When debugging is
@@ -302,8 +293,8 @@ make a significant difference.
 
 =item hits => $int
 
-A watcher increments C<hits> every time it registers an event.  This
-is usually only relevant if C<clump> is enabled.
+A watcher increments C<hits> every time it registers an event.
+Signals in quick succession can be clumped into a single event.
 
 =item interval => $seconds
 
