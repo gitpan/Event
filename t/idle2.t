@@ -15,8 +15,8 @@ my $prev;
 $min = 100;
 my $Min = .01;
 my $Max = .2;
-Event->idle(min_interval => $Min, max_interval => $Max, desc => "*IDLE*TEST*",
-	    callback => sub {
+Event->idle(e_min => $Min, e_max => $Max, e_desc => "*IDLE*TEST*",
+	    e_cb => sub {
 		my $now = time;
 		if (!$prev) { $prev = time; return }
 		my $d = $now - $prev;
@@ -27,7 +27,7 @@ Event->idle(min_interval => $Min, max_interval => $Max, desc => "*IDLE*TEST*",
 		unloop('done') if ++$cnt > 10;
 	    });
 my $sleeps=0;
-Event->idle(repeat => 1, callback => sub { Event::sleep $Min; ++$sleeps });
+Event->idle(e_repeat => 1, e_cb => sub { Event::sleep $Min; ++$sleeps });
 
 Event::sleep .1; # try to let CPU settle
 loop();

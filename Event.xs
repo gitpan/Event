@@ -12,6 +12,17 @@ all_queued()
 	  ev = ev->que.next->self;
 	}
 
+void
+_examine(obj)
+	SV *obj;
+	PREINIT:
+	SV *iobj = unwrap_self_tied_hash(obj);
+	PPCODE:
+	if (!iobj)
+	  warn("SV=0");
+	else
+	  warn("SV=0x%x OBJ=0x%x", iobj, SvIVX(iobj));
+
 
 */
 
@@ -55,18 +66,34 @@ all_queued()
 # endif
 #endif
 
+/* Is time() portable everywhere?  Hope so!  XXX */
+
+static double fallback_NVtime()
+{ return time(0); }
+
+static void fallback_U2time(U32 *ret)
+{
+  ret[0]=time(0);
+  ret[1]=0;
+}
+
 #include "Event.h"
 
 static int ActiveWatchers=0; /* includes EvACTIVE + queued events */
-static int WarnCounter=10;
-static int Stats=0;
+static int WarnCounter=10; /*XXX nuke */
 static SV *DebugLevel;
 static SV *Eval;
+static pe_event_stats_vtbl Estat;
 
 /* close enough to zero -- this needs to be bigger if you turn
    on lots of debugging?  Can determine clock resolution dynamically? XXX */
 static double IntervalEpsilon = 0.0001;
 static int TimeoutTooEarly=0;
+
+static double (*myNVtime)();
+#define NVtime() (*myNVtime)()
+
+#define EvNOW(exact) NVtime() /*XXX*/
 
 static void queueEvent(pe_event *ev);
 static void dequeEvent(pe_event *ev);
@@ -77,12 +104,83 @@ static void pe_watcher_suspend(pe_watcher *ev);
 static void pe_watcher_resume(pe_watcher *ev);
 static void pe_watcher_now(pe_watcher *ev);
 static void pe_watcher_start(pe_watcher *ev, int repeat);
-static void pe_watcher_stop(pe_watcher *ev);
+static void pe_watcher_stop(pe_watcher *ev, int cancel_events);
 static void pe_watcher_on(pe_watcher *wa, int repeat);
 static void pe_watcher_off(pe_watcher *wa);
 
+/****************** KEY_REMAP */
+static HV *KREMAP;
+static int remap_noise=10;
+static SV *kremap(SV *key)
+{
+  STRLEN n_a;
+  HE *he;
+  SV *nk;
+  assert(KREMAP);
+  he = hv_fetch_ent(KREMAP, key, 0, 0);
+  if (!he) return key;
+  nk = HeVAL(he);
+  if (--remap_noise >= 0)
+	warn("'%s' is renamed to '%s'", SvPV(key, n_a), SvPV(nk, n_a));
+  return nk;
+}
+
+static void pe_watcher_STORE_FALLBACK(pe_watcher *wa, SV *svkey, SV *nval)
+{
+  static int prefix_noise = 10;
+  HE *he;
+  U32 hash;
+  STRLEN len;
+  char *key = SvPV(svkey, len);
+  PERL_HASH(hash, key, len);
+  SvREFCNT_inc(nval);
+  if (!wa->FALLBACK)
+    wa->FALLBACK = newHV();
+  he = hv_fetch_ent(wa->FALLBACK, svkey, 0, hash);
+  if (!he) {
+    if (len >= 2 && key[0] == 'e' && key[1] == '_' && --prefix_noise >= 0)
+      warn("Keys beginning with 'e_' (%s) are reserved for Event", key);
+    hv_store_ent(wa->FALLBACK, svkey, nval, hash);
+  } else {
+    SvREFCNT_dec(HeVAL(he));
+    HeVAL(he) = nval;
+  }
+}
+
+/* The newHVhv in perl seems to mysteriously break in some cases.  Here
+   is a simple and safe (but maybe slow) implementation. */
+
+#ifdef newHVhv
+# undef newHVhv
+#endif
+#define newHVhv event_newHVhv
+
+static HV *event_newHVhv(HV *ohv)
+{
+    register HV *hv = newHV();
+    register HE *entry;
+    hv_iterinit(ohv);		/* NOTE: this resets the iterator */
+    while (entry = hv_iternext(ohv)) {
+	hv_store(hv, HeKEY(entry), HeKLEN(entry), 
+		SvREFCNT_inc(HeVAL(entry)), HeHASH(entry));
+    }
+    return hv;
+}
+
+static int StatsInstalled=0;
+static void pe_install_stats(pe_event_stats_vtbl *esvtbl)
+{
+  ++StatsInstalled;
+  Copy(esvtbl, &Estat, 1, pe_event_stats_vtbl);
+  Estat.on=0;
+}
+static void pe_collect_stats(int yes)
+{
+  if (!StatsInstalled) croak("collect_stats: no event statistics are available");
+  Estat.on = yes;
+}
+
 #include "typemap.c"
-#include "gettimeofday.c"  /* hack? XXX */
 #include "timeable.c"
 #include "event.c"
 #include "watcher.c"
@@ -94,7 +192,6 @@ static void pe_watcher_off(pe_watcher *wa);
 #include "signal.c"
 #include "tied.c"
 #include "queue.c"
-#include "stats.c"
 
 MODULE = Event		PACKAGE = Event
 
@@ -103,8 +200,9 @@ PROTOTYPES: DISABLE
 BOOT:
   DebugLevel = SvREFCNT_inc(perl_get_sv("Event::DebugLevel", 1));
   Eval = SvREFCNT_inc(perl_get_sv("Event::Eval", 1));
+  Estat.on=0;
+  KREMAP = (HV*) SvREFCNT_inc(perl_get_hv("Event::KEY_REMAP", 1));
   boot_typemap();
-  boot_gettimeofday();
   boot_timeable();
   boot_pe_event();
   boot_pe_watcher();
@@ -115,7 +213,6 @@ BOOT:
   boot_tied();
   boot_signal();
   boot_queue();
-  boot_stats();
   {
     struct EventAPI *api;
     SV *apisv;
@@ -126,19 +223,26 @@ BOOT:
     api->now = pe_watcher_now;
     api->suspend = pe_watcher_suspend;
     api->resume = pe_watcher_resume;
+    api->stop = pe_watcher_stop;
     api->cancel = pe_watcher_cancel;
-    api->tstart = pe_timeable_start;
-    api->tstop  = pe_timeable_stop;
-    api->new_idle =     (pe_idle*(*)())         pe_idle_allocate;
-    api->new_timer =    (pe_timer*(*)())       pe_timer_allocate;
-    api->new_io =       (pe_io*(*)())             pe_io_allocate;
-    api->new_var =      (pe_var*(*)())           pe_var_allocate;
-    api->new_signal =   (pe_signal*(*)())     pe_signal_allocate;
-    api->add_hook = capi_add_hook;
-    api->cancel_hook = pe_cancel_hook;
-    apisv = perl_get_sv("Event::API", 1);
-    sv_setiv(apisv, (IV)api);
-    SvREADONLY_on(apisv);
+	api->tstart = pe_timeable_start;
+	api->tstop  = pe_timeable_stop;
+	api->new_idle =     (pe_idle*(*)())         pe_idle_allocate;
+	api->new_timer =    (pe_timer*(*)())       pe_timer_allocate;
+	api->new_io =       (pe_io*(*)())             pe_io_allocate;
+	api->new_var =      (pe_var*(*)())           pe_var_allocate;
+	api->new_signal =   (pe_signal*(*)())     pe_signal_allocate;
+	api->add_hook = capi_add_hook;
+	api->cancel_hook = pe_cancel_hook;
+	api->install_stats = pe_install_stats;
+	api->collect_stats = pe_collect_stats;
+	api->AllWatchers = &AllWatchers;
+	api->watcher_2sv = watcher_2sv;
+	api->event_2sv = event_2sv;
+	api->decode_sv = decode_sv;
+	apisv = perl_get_sv("Event::API", 1);
+	sv_setiv(apisv, (IV)api);
+	SvREADONLY_on(apisv);
   }
 
 void
@@ -149,18 +253,33 @@ _add_hook(type, code)
 	pe_add_hook(type, 1, code, 0);
 	/* would be nice to return new pe_qcallback* XXX */
 
-void
-time()
-	PROTOTYPE:
-	PPCODE:
-	pe_cache_now();
-	XPUSHs(NowSV);
-
 int
 _timeout_too_early()
 	CODE:
 	RETVAL = TimeoutTooEarly;
 	TimeoutTooEarly=0;
+	OUTPUT:
+	RETVAL
+
+void
+install_time_api()
+	CODE:
+	SV **svp = hv_fetch(PL_modglobal, "Time::NVtime", 12, 0);
+	if (!svp) {
+	  warn("Event: Time::HiRes is not loaded --\n\tat best 1s time accuracy is available");
+	  svp = hv_store(PL_modglobal, "Time::NVtime", 12,
+			 newSViv((IV) fallback_NVtime), 0);
+	  hv_store(PL_modglobal, "Time::U2time", 12,
+			 newSViv((IV) fallback_U2time), 0);
+	}
+	if (!SvIOK(*svp)) croak("Time::NVtime isn't a function pointer");
+	myNVtime = (double(*)()) SvIV(*svp);
+
+double
+time()
+	PROTOTYPE:
+	CODE:
+	RETVAL = NVtime();
 	OUTPUT:
 	RETVAL
 
@@ -352,15 +471,38 @@ DESTROY(ref)
 	CODE:
 	SV *sv;
 	pe_watcher *THIS;
-	assert(SvRV(ref));
+	assert(SvROK(ref));
 	sv = SvRV(ref);
 	assert(SvTYPE(sv) == SVt_PVMG);
-	THIS = (pe_watcher*) SvIV(sv);
-	--THIS->refcnt;
-	/*  warn("id=%d --refcnt=%d flags=0x%x",
-		THIS->id, THIS->refcnt,THIS->flags); /**/
-	if (EvCANDESTROY(THIS)) {
-	  (*THIS->vtbl->dtor)(THIS);
+	assert(SvIOK(sv));
+	THIS = (pe_watcher*) SvIVX(sv);
+	if (THIS) {
+	  STRLEN n_a;
+	  if (EvDEBUGx(THIS) >= 3)
+		warn("Watcher '%s' leaving scope (SV=0x%x)",
+		   SvPV(THIS->desc, n_a), sv);
+	  THIS->mysv = 0;
+	}
+
+MODULE = Event		PACKAGE = Event::Event
+
+void
+DESTROY(ref)
+	SV *ref
+	CODE:
+	SV *sv;
+	pe_event *THIS;
+	assert(SvROK(ref));
+	sv = SvRV(ref);
+	assert(SvTYPE(sv) == SVt_PVMG);
+	assert(SvIOK(sv));
+	THIS = (pe_event*) SvIVX(sv);
+	if (THIS) {
+	  STRLEN n_a;
+	  if (EvDEBUGx(THIS->up) >= 3)
+		warn("Event '%s' leaving scope (SV=0x%x)",
+		  SvPV(THIS->up->desc, n_a), sv);
+	  THIS->mysv = 0;
 	}
 
 MODULE = Event		PACKAGE = Event::Watcher
@@ -386,6 +528,11 @@ pe_watcher::resume()
 	pe_watcher_resume(THIS);
 
 void
+pe_watcher::stop()
+	CODE:
+	pe_watcher_stop(THIS, 1);
+
+void
 pe_watcher::cancel()
 	CODE:
 	pe_watcher_cancel(THIS);
@@ -394,6 +541,19 @@ void
 pe_watcher::now()
 	CODE:
 	pe_watcher_now(THIS);
+
+void
+pe_watcher::use_keys(...)
+	PREINIT:
+	int xx;
+	HV *fb;
+	PPCODE:
+	if (!THIS->FALLBACK)
+	  THIS->FALLBACK = newHV();
+	fb = THIS->FALLBACK;
+	for (xx=1; xx < items; xx++) {
+	  hv_store_ent(fb, ST(xx), &PL_sv_undef, 0);
+	}
 
 void
 FETCH(obj, key)
@@ -405,7 +565,7 @@ FETCH(obj, key)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Fetch(vp, key);
+	vt->Fetch(vp, kremap(key));
 	SPAGAIN;
 
 void
@@ -419,7 +579,7 @@ STORE(obj, key, nval)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Store(vp, key, nval);
+	vt->Store(vp, kremap(key), nval);
 	SPAGAIN;
 
 void
@@ -448,34 +608,30 @@ NEXTKEY(obj, prevkey)
 	SPAGAIN;
 
 void
-pe_watcher::DELETE(key)
+DELETE(obj, key)
+	SV *obj
 	SV *key
-	PPCODE:
-	PUTBACK;
-	pe_watcher_DELETE(THIS, key);
-	SPAGAIN;
-
-void
-pe_watcher::EXISTS(key)
-	SV *key
-	PPCODE:
-	PUTBACK;
-	pe_watcher_EXISTS(THIS, key);
-	SPAGAIN;
-
-void
-pe_watcher::stats(sec)
-	int sec
 	PREINIT:
-	int ran;
-	double elapse;
+	void *vp;
+	pe_base_vtbl *vt;
 	PPCODE:
-	if (THIS->stats)
-	  pe_stat_query(THIS->stats, sec, &ran, &elapse);
-	else
-	  ran = elapse = 0;
-	XPUSHs(sv_2mortal(newSViv(ran)));
-	XPUSHs(sv_2mortal(newSVnv(elapse)));
+	PUTBACK;
+	get_base_vtbl(obj, &vp, &vt);
+	vt->Delete(vp, kremap(key));
+	SPAGAIN;
+
+void
+EXISTS(obj, key)
+	SV *obj;
+	SV *key
+	PREINIT:
+	void *vp;
+	pe_base_vtbl *vt;
+	PPCODE:
+	PUTBACK;
+	get_base_vtbl(obj, &vp, &vt);
+	ST(0) = boolSV(vt->Exists(vp, kremap(key)));
+	XSRETURN(1);
 
 pe_watcher *
 allocate(class)
@@ -484,60 +640,6 @@ allocate(class)
 	RETVAL = pe_tied_allocate(class);
 	OUTPUT:
 	RETVAL
-
-MODULE = Event		PACKAGE = Event::Stats
-
-int
-round_seconds(sec)
-	int sec;
-	CODE:
-	if (sec <= 0)
-	  RETVAL = PE_STAT_SECONDS;
-	else if (sec < PE_STAT_SECONDS * PE_STAT_I1)
-	  RETVAL = ((int)(sec + PE_STAT_SECONDS-1)/ PE_STAT_SECONDS) *
-			PE_STAT_SECONDS;
-	else if (sec < PE_STAT_SECONDS * PE_STAT_I1 * PE_STAT_I2)
-	  RETVAL = ((int)(sec + PE_STAT_SECONDS * PE_STAT_I1 - 1) /
-			       (PE_STAT_SECONDS * PE_STAT_I1)) *
-			PE_STAT_SECONDS * PE_STAT_I1;
-	else
-	  RETVAL = PE_STAT_SECONDS * PE_STAT_I1 * PE_STAT_I2;
-	OUTPUT:
-	RETVAL
-
-void
-idle(class, sec)
-	SV *class;
-	int sec
-	PREINIT:
-	int ran;
-	double elapse;
-	PPCODE:
-	pe_stat_query(&idleStats, sec, &ran, &elapse);
-	XPUSHs(sv_2mortal(newSViv(ran)));
-	XPUSHs(sv_2mortal(newSVnv(elapse)));
-
-void
-total(class, sec)
-	SV *class;
-	int sec
-	PREINIT:
-	int ran;
-	double elapse;
-	PPCODE:
-	pe_stat_query(&totalStats, sec, &ran, &elapse);
-	XPUSHs(sv_2mortal(newSVnv(elapse)));
-
-void
-restart(class)
-	SV *class
-	CODE:
-	pe_stat_restart();
-
-void
-DESTROY()
-	CODE:
-	pe_stat_stop();
 
 MODULE = Event		PACKAGE = Event::idle
 

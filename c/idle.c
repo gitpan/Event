@@ -99,17 +99,6 @@ static void pe_idle_stop(pe_watcher *ev)
   pe_timeable_stop(&ip->tm);
 }
 
-WKEYMETH(_idle_hard) /* move to timeable XXX */
-{
-  if (!nval) {
-    dSP;
-    XPUSHs(boolSV(EvHARD(ev)));
-    PUTBACK;
-  } else {
-    if (sv_true(nval)) EvHARD_on(ev); else EvHARD_off(ev);
-  }
-}
-
 WKEYMETH(_idle_max_interval)
 {
   pe_idle *ip = (pe_idle*) ev;
@@ -144,11 +133,9 @@ static void boot_idle()
   PE_RING_INIT(&Idle, 0);
   memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
   vt->keymethod = newHVhv(vt->keymethod);
-  hv_store(vt->keymethod, "hard", 4, newSViv((IV)_idle_hard), 0);
-  hv_store(vt->keymethod, "max_interval", 12,
-	   newSViv((IV)_idle_max_interval), 0);
-  hv_store(vt->keymethod, "min_interval", 12,
-	   newSViv((IV)_idle_min_interval), 0);
+  hv_store(vt->keymethod, "e_hard", 6, newSViv((IV)_timeable_hard), 0);
+  hv_store(vt->keymethod, "e_max", 5, newSViv((IV)_idle_max_interval), 0);
+  hv_store(vt->keymethod, "e_min", 5, newSViv((IV)_idle_min_interval), 0);
   vt->dtor = pe_idle_dtor;
   vt->start = pe_idle_start;
   vt->stop = pe_idle_stop;

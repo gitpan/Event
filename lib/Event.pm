@@ -1,6 +1,6 @@
 use strict;
 
-BEGIN {
+BEGIN {  # do the right thing for threads?
     eval { require attrs; } or do {
 	$INC{'attrs.pm'} = "";
 	*attrs::import = sub {};
@@ -12,29 +12,31 @@ use base 'Exporter';
 use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.25';
-BOOT_XS: {
-    # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
-    require DynaLoader;
+use vars qw(%KEY_REMAP);
+$VERSION = '0.30';
 
-    # DynaLoader calls dl_load_flags as a static method.
-    *dl_load_flags = DynaLoader->can('dl_load_flags');
+# If we inherit DynaLoader then we inherit AutoLoader; Bletch!
+require DynaLoader;
 
-    do {
-	defined(&bootstrap)
-		? \&bootstrap
-		: \&DynaLoader::bootstrap
-    }->(__PACKAGE__);
-}
+# DynaLoader calls dl_load_flags as a static method.
+*dl_load_flags = DynaLoader->can('dl_load_flags');
+(defined(&bootstrap)? \&bootstrap : \&DynaLoader::bootstrap)->
+    (__PACKAGE__, $VERSION);
+
+# Try to load Time::HiRes
+eval { require Time::HiRes; };
+die if $@ && $@ !~ /^Can\'t locate .*? at \(eval /;
+
+install_time_api();  # broadcast_adjust XXX
 
 $DebugLevel = 0;
 $Eval = 0;		# should avoid because c_callback is exempt
 $DIED = \&default_exception_handler;
 
-@EXPORT_OK = qw(time $Now
-		all_events all_watchers all_running all_queued all_idle
+@EXPORT_OK = qw(time all_events all_watchers all_running all_queued all_idle
 		one_event sweep loop unloop unloop_all sleep queue
-		QUEUES PRIO_NORMAL PRIO_HIGH);
+		QUEUES PRIO_NORMAL PRIO_HIGH
+		%KEY_REMAP);
 
 sub _load_watcher {
     my $sub = shift;
@@ -55,14 +57,14 @@ sub AUTOLOAD {
 
 sub default_exception_handler {
     my ($run,$err) = @_;
-    my $desc = $run? $run->{desc} : '?';
+    my $desc = $run? $run->{e_desc} : '?';
     my $m = "Event: trapped error in '$desc': $err";
     $m .= "\n" if $m !~ m/\n$/;
     warn $m;
     #Carp::cluck "Event: fatal error trapped in '$desc'";
 }
 
-sub verbose_exception_handler {
+sub verbose_exception_handler { #AUTOLOAD XXX
     my ($run,$err) = @_;
 
     my $m = "Event: trapped error: $err";
@@ -115,12 +117,12 @@ sub loop {
     if (@_ == 1) {
 	my $how_long = shift;
 	if (!$loop_timer) {
-	    $loop_timer = Event->timer(desc => "Event::loop timeout",
-				       after => $how_long,
-				       callback => sub { unloop($how_long) });
-	    $loop_timer->{priority} = PRIO_HIGH();
+	    $loop_timer = Event->timer(e_desc => "Event::loop timeout",
+				       e_after => $how_long,
+				       e_cb => sub { unloop($how_long) });
+	    $loop_timer->{e_prio} = PRIO_HIGH();
 	} else {
-	    $loop_timer->{at} = Event::time() + $how_long,
+	    $loop_timer->{e_at} = Event::time() + $how_long,
 	}
 	$loop_timer->start;
     }
@@ -141,7 +143,7 @@ sub loop {
 	}
 	last;
     }
-    $loop_timer->cancel if $loop_timer;
+    $loop_timer->stop if $loop_timer;
     warn "Event: [$LoopLevel]unloop(".(defined $Result?$Result:'<undef>').")\n"
 	if $Event::DebugLevel >= 3;
     $Result;
@@ -152,33 +154,63 @@ sub unloop {
     --$ExitLevel;
 }
 
-sub unloop_all { $ExitLevel = 0 }
+sub unloop_all {
+    $Result = shift; #propagate result somehow? XXX
+    $ExitLevel = 0;
+}
 
 sub add_hooks {
     shift if @_ & 1; #?
     while (@_) {
 	my $k = shift;
 	my $v = shift;
-	if ($k =~ s/^\-//) {
-	    carp "please remove leading dash on $k"; #XXX
-	}
 	croak "$v must be CODE" if ref $v ne 'CODE';
 	_add_hook($k, $v);
     }
 }
 
-END {
-    my @all = all_watchers();
-    for (@all) { $_->cancel() }
-}
+END { $_->cancel for all_watchers() }
+
+require Event::Watcher;
 
 #----------------------------------- backward compatibility
+#----------------------------------- backward forward backward
 
 my $backward_noise = 20;
 
 if (1) {
     # Do you feel like you need entwash?  Have some of this!
     no strict 'refs';
+
+    # 0.25
+    %KEY_REMAP = (after		 => 'e_after',
+		  async		 => 'e_async',
+		  at             => 'e_at',
+		  callback       => 'e_cb',
+		  cbtime         => 'e_cbtime',
+		  clump          => 'e_clump',
+		  count          => 'e_hits',
+		  debug          => 'e_debug',
+		  desc           => 'e_desc',
+		  events         => 'e_poll',
+		  flags          => 'e_flags',
+		  got            => 'e_got',
+		  handle         => 'e_fd',
+		  hard           => 'e_hard',
+		  id             => 'e_id',
+		  interval       => 'e_interval',
+		  level		 => 'e_level',
+		  max_interval   => 'e_max',
+		  min_interval   => 'e_min',
+		  nice		 => 'e_nice',
+		  priority       => 'e_prio',
+		  reeentrant     => 'e_reentrant',
+		  refcnt         => 'e_refcnt',
+		  repeat         => 'e_repeat',
+		  running        => 'e_running',
+		  signal         => 'e_signal',
+		  timeout        => 'e_timeout',
+		  variable       => 'e_var');
 
     # 0.24
     *Event::all_events = sub {
@@ -219,90 +251,6 @@ if (1) {
 	    &$n;
 	};
     }
-
-    # 0.02
-    *Loop = sub {
-	carp "please use Event::loop" if --$backward_noise > 0;
-	&loop
-    };
-    *exit = sub {
-	carp "please use Event::unloop" if --$backward_noise > 0;
-	&unloop
-    };
 }
-
-package Event::Watcher;
-use base 'Exporter';
-use Carp;
-use vars qw(@EXPORT_OK);
-@EXPORT_OK = qw(ACTIVE SUSPEND QUEUED RUNNING R W E T);
-
-sub register {
-    no strict 'refs';
-    my $package = caller;
-
-    my $name = $package;
-    $name =~ s/^.*:://;
-
-    my $sub = \&{"$package\::new"};
-    die "can't find $package\::new"
-	if !$sub;
-    *{"Event::".$name} = $sub;
-
-    &Event::add_hooks if @_;
-}
-
-my $annoy = 10;
-sub init {
-    croak "Event::Watcher::init wants 3 args" if @_ != 3;
-    local $Carp::CarpLevel = $Carp::CarpLevel + 2;
-    my ($o, $keys, $arg) = @_;
-
-    for my $up (1..4) {
-	my @fr = caller $up;  # try to cope with optimized-away frames?
-	next if !@fr;
-	my ($file,$line) = @fr[1,2];
-	$file =~ s,^.*/,,;
-	$o->{desc} = "?? $file:$line";
-	last;
-    }
-
-    for (@$keys, qw(repeat reentrant desc callback debug)) {
-	if (exists $arg->{"-$_"}) {
-	    carp "Please remove leading dashes" if --$annoy > 0;
-	    $o->{$_} = $arg->{"-$_"} 
-	} elsif (exists $arg->{$_}) {
-	    $o->{$_} = $arg->{$_};
-	}
-    }
-    do {
-	no strict 'refs';
-	$o->{priority} = $ { ref($o)."::DefaultPriority" } ||
-	    Event::PRIO_NORMAL();
-    };
-    if (exists $arg->{'-priority'} || exists $arg->{priority}) {
-	carp "'priority' has been renamed to 'nice'";
-	$o->{priority} += $arg->{"-priority"} || $arg->{priority} || 0;
-    }
-    $o->{priority} += $arg->{"-nice"} || $arg->{nice} || 0;
-
-    if ($arg->{async} || $arg->{'-async'}) {
-	# I like async!
-	#carp "async is depreciated";
-	$o->{priority} = -1;
-    }
-
-    Carp::cluck "creating ".ref($o)." desc='$o->{desc}'\n"
-	if $Event::DebugLevel >= 3;
-    
-    $o;
-}
-
-package Event::Stats;
-use base 'Exporter';
-use vars qw(@EXPORT_OK);
-@EXPORT_OK = qw(MAXTIME);
-
-# restart & DESTROY methods are implemented in XS
 
 1;

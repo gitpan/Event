@@ -1,10 +1,10 @@
 use strict;
 package Event::inactivity;
 use Carp;
-use Event qw(PRIO_HIGH PRIO_NORMAL time $Now queue);
+use Event qw(PRIO_NORMAL time queue);
 use base 'Event::Watcher';
 use vars qw($DefaultPriority);
-$DefaultPriority = PRIO_NORMAL() + 1;
+$DefaultPriority = PRIO_NORMAL + 1;
 
 'Event::Watcher'->register();
 
@@ -12,33 +12,34 @@ sub new {
     my $class = 'Event::inactivity';
     if (@_ & 1) {
 	my $pk = shift;
-	$class = $pk if $pk ne 'Event';
+	$class = $pk if $pk ne 'Event'; #XXX dubious
     }
     my %arg = @_;
     my $o = $class->allocate();
-    $o->{repeat} = 1;
-    $o->init([qw(interval level)], \%arg);
-    $o->{interval} = 10 if !exists $o->{interval};
-    $o->{level} = PRIO_NORMAL() if !exists $o->{level};
+    $o->use_keys('e_interval', 'e_level', 'e_prev_test');
+    $o->{e_repeat} = 1;
+    $o->init(\%arg);
+    $o->{e_interval} = 10 if !defined $o->{e_interval};
+    $o->{e_level} = PRIO_NORMAL if !defined $o->{e_level};
     $o->start();
     $o;
 }
 
 sub _start {
     my ($o, $repeating) = @_;
-    $o->{_qt} = $Now;
-    $o->{at} = $Now + $o->{interval};
+    $o->{e_prev_test} = time;
+    $o->{e_at} = time + $o->{e_interval};
 }
 
 sub _alarm {
     my ($o) = @_;
-    my $qt = Event::queue_time($o->{level});
-    if ($qt and $qt > $o->{_qt}) {
-	$o->{_qt} = $qt;
+    my $qt = Event::queue_time($o->{e_level});
+    if ($qt and $qt > $o->{e_prev_test}) {
+	$o->{e_prev_test} = $qt;
     }
-    my $left = $o->{_qt} + $o->{interval} - $Now;
+    my $left = $o->{e_prev_test} + $o->{e_interval} - time;
     if ($left > 0) {  #EPSILON XXX
-	$o->{at} = $Now + $left;
+	$o->{e_at} = time + $left;
     } else {
 	queue($o);
     }

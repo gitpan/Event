@@ -16,13 +16,13 @@ use Event qw(loop unloop);
 my $count = 3;
 
 Event->signal(
-    signal => 'USR1',
-    callback =>
+    e_signal => 'USR1',
+    e_cb =>
 	sub {
 	    my $e = shift;
 
-	    ok $e->{signal}, 'USR1';
-	    ok $e->{count}, 2;
+	    ok $e->{e_signal}, 'USR1';
+	    ok $e->{e_hits}, 2;
 
 	    unloop;
 	}
@@ -30,7 +30,7 @@ Event->signal(
 
 my $idle;
 $idle = Event->idle(
-    callback => sub {
+    e_cb => sub {
 	kill 'USR1',$$;
 	kill 'USR1',$$;
 	ok 1;

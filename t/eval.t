@@ -1,17 +1,17 @@
 # stop -*-perl-*- ?
 
-use Test; plan tests => 10;
+use Test; plan tests => 12;
 use Event qw(all_running loop unloop sweep);
 # $Event::DebugLevel = 3;
 
 my $status = 'ok';
 
-my $die = Event->idle(callback => sub { die "died\n" }, desc => 'killer');
+my $die = Event->idle(e_cb => sub { die "died\n" }, e_desc => 'killer');
 
 $Event::DIED = sub {
     my ($e,$why) = @_;
 
-    ok $e->{desc}, 'killer';
+    ok $e->{e_desc}, 'killer';
     chop $why;
     ok $why, 'died';
 
@@ -26,10 +26,21 @@ $Event::DIED = sub {
 
 # simple stuff
 delete $die->{bogus};
-eval { delete $die->{callback} };
+eval { delete $die->{e_cb} };
 ok $@, '/delete/';
-ok exists $die->{callback};
+ok exists $die->{e_cb};
 ok !exists $die->{bogus};
+
+# test 'e_' prefix detection
+{
+    my $warn='';
+    $SIG{__WARN__} = sub { $warn .= $_[0] };
+    $die->{e_reserved_key} = 1;
+    ok $warn, '/reserved/';
+    $warn='';
+    ++$die->{e_reserved_key};
+    ok $warn, '';
+}
 
 ok loop(), $status;
 

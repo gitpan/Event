@@ -74,7 +74,7 @@ WKEYMETH(_tied_cbtime)
     XPUSHs(sv_2mortal(newSVnv(ev->cbtime)));
     PUTBACK;
   } else
-    croak("'cbtime' is read-only");
+    croak("'e_cbtime' is read-only");
 }
 
 WKEYMETH(_tied_flags)
@@ -102,9 +102,10 @@ static void boot_tied()
   memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
   vt->did_require = 1; /* otherwise tries to autoload Event::Event! */
   vt->keymethod = newHVhv(vt->keymethod);
-  hv_store(vt->keymethod, "at", 2, newSViv((IV)_tied_at), 0);
-  hv_store(vt->keymethod, "cbtime", 6, newSViv((IV)_tied_cbtime), 0);
-  hv_store(vt->keymethod, "flags", 5, newSViv((IV)_tied_flags), 0);
+  hv_store(vt->keymethod, "e_at", 4, newSViv((IV)_tied_at), 0);
+  hv_store(vt->keymethod, "e_cbtime", 8, newSViv((IV)_tied_cbtime), 0);
+  hv_store(vt->keymethod, "e_flags", 7, newSViv((IV)_tied_flags), 0);
+  hv_store(vt->keymethod, "e_hard", 6, newSViv((IV)_timeable_hard), 0);
   vt->start = pe_tied_start;
   vt->stop = pe_tied_stop;
   vt->alarm = pe_tied_alarm;

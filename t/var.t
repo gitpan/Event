@@ -10,34 +10,34 @@ my $var1 = 1;
 my $var2 = 3;
 my $var3 = 0;
 
-Event->var(variable => \$var1, callback =>
+Event->var(e_var => \$var1, e_cb =>
 	   sub {
-	       my $var = shift->{'variable'};
+	       my $var = shift->{'e_var'};
 	       ok $$var, 2;
 	       $var2++;
 	   },
-	   desc => "var1"
+	   e_desc => "var1"
 );
 
-Event->var(variable => \$var2, callback =>
+Event->var(e_var => \$var2, e_cb =>
 	   sub {
 	       $var3 = 3;
 	       ok $var2, 4;
 	       unloop;
 	   },
-	   desc => "var2");
+	   e_desc => "var2");
 
-Event->var(variable => \$var3, async => 1, callback => sub { ok $var3, 3; });
+Event->var(e_var => \$var3, e_async => 1, e_cb => sub { ok $var3, 3; });
 
-Event->idle(callback => sub {
+Event->idle(e_cb => sub {
 		ok $var1, 1;
 		$var1++;
 	    });
 
 my $var4 = 0;
-my $e = Event->var(events => 'r', variable => \$var4, callback => sub {
+my $e = Event->var(e_poll => 'r', e_var => \$var4, e_cb => sub {
 		       my $e = shift;
-		       ok $e->{count}, 1;
+		       ok $e->{e_hits}, 1;
 		   });
 my $str = "$var4";  #read
 $var4 = 5;          #write

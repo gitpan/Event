@@ -1,3 +1,90 @@
+1999-02-03  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.30.
+
+	* Constructors now populate the watcher hash with any extra
+	unrecognized key-value pairs.
+
+1999-02-01  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Better typemap diagnostics.  There seem to be bugs lurking but I
+ 	can't construct a short test case...
+
+1999-01-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Arrange for events to have the same careful typemap treatment as
+ 	do watchers.  Added test.
+
+1999-01-12  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.29.
+
+	* Unplugged Time::Virtual (suggested mainly by Sarathy, Nick and
+ 	Graham).  See patches/time-hires.
+
+1998-12-30  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Added AllWatchers & typemap functions to the public API.
+
+	* Moved Event::Stats to a separate tarball.  I wonder if the stats
+ 	API is too restrictive?
+
+1998-12-28  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Split Event::Watcher code into a separate file for intuitive
+ 	importing via 'use' (suggested by artur@vogon-solutions.com).
+
+	* Fix SEGV in keys %$event (ophir@internap.com &
+ 	artur@vogon-solutions.com).  Added test.
+
+	* Tweaks to diagnostics.
+
+1998-12-27  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.28.
+
+	* Event destruction now must be managed explicitly.  Use the
+ 	'stop' method to disable a watcher and use 'cancel' to destroy a
+ 	watcher.  This change is an unfortunate necessity because of
+ 	optimizations in perl's reference counting.
+
+	* Suspend & cancel now abort any pending events.  In previous
+ 	releases, the callback could be called after cancel in some cases.
+
+1998-12-25  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.27.
+
+	* Replaced newHVhv.  Some versions of perl have a buggy
+ 	implementation.
+
+	* Fixed a few minor problems detected by Insure++.
+
+1998-12-24  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fixed typos in croak messages.
+
+	* Generous updates to Event.pod.
+
+	* Bumped version to 0.26.  Merry Christmas!!
+	
+	* Renamed (lots of) keys.
+
+	* Added 'use_keys' method.  Comments?
+	
+	* (Try to) remove support for leading dashes (any left?).
+
+	* Factor out code to Time::Virtual (& Time::HiRes).
+
+1998-12-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Moved process.pm to demo directory.
+
+1998-12-08  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Added discussion of event loops vs. threads
+ 	(kudos to Mark.Mielke.markm@nt.com & fellow loop'ers).
+
 1998-11-20  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.25.

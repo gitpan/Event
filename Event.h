@@ -49,6 +49,7 @@ typedef struct pe_cbframe pe_cbframe;
 struct pe_cbframe {
   pe_event *ev;
   IV run_id;
+  void *stats;
 };
 
 typedef struct pe_tied pe_tied;
@@ -66,6 +67,8 @@ struct pe_base_vtbl {
   void (*Store)(void *, SV *key, SV *nval);
   void (*Firstkey)(void *);
   void (*Nextkey)(void *);
+  void (*Delete)(void *, SV *key);
+  int (*Exists)(void *, SV *key);
 };
 
 struct pe_event_vtbl {  /* should be pure virtual XXX */
@@ -91,25 +94,6 @@ struct pe_watcher_vtbl {
   pe_event *(*new_event)(pe_watcher *);
 };
 
-typedef struct pe_run pe_run;
-struct pe_run {
-  double elapse;
-  int ran;
-};
-
-#define PE_STAT_SECONDS 3  /* 3 sec per interval */
-#define PE_STAT_I1  20
-#define PE_STAT_I2  20
-
-struct pe_stat {
-  int xsec, xmin;     /* first index of circular buffers */
-  pe_run sec[PE_STAT_I1];
-  pe_run min[PE_STAT_I2];
-};
-static void pe_stat_init(pe_stat *st);
-static void pe_stat_record(pe_stat *st, double elapse);
-
-#define EvFLAGS(ev)		((pe_watcher*)ev)->flags
 #define PE_ACTIVE	0x001
 #define PE_POLLING	0x002
 #define PE_SUSPEND	0x004
@@ -120,6 +104,8 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define PE_CLUMP	0x080
 #define PE_QUEUED	0x100  /* virtual flag */
 #define PE_RUNNING	0x200  /* virtual flag */
+#define PE_CANCELLED	0x400
+#define PE_DESTROYED	0x800
 
 #define PE_VISIBLE_FLAGS \
 (PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
@@ -161,10 +147,19 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define EvRUNNOW_on(ev)		(EvFLAGS(ev) |= PE_RUNNOW)
 #define EvRUNNOW_off(ev)	(EvFLAGS(ev) &= ~PE_RUNNOW)
 
-#define EvCLUMP(ev)		(ev->ev1 && (EvFLAGS(ev) & PE_CLUMP))
+#define EvCLUMP(ev)		(EvFLAGS(ev) & PE_CLUMP)
+#define EvCLUMPx(ev) \
+	(!PE_RING_EMPTY(&ev->events) && (EvFLAGS(ev) & PE_CLUMP))
 #define EvCLUMP_on(ev)		(EvFLAGS(ev) |= PE_CLUMP)
 #define EvCLUMP_off(ev)		(EvFLAGS(ev) &= ~PE_CLUMP)
 
+#define EvCANCELLED(ev)		(EvFLAGS(ev) & PE_CANCELLED)
+#define EvCANCELLED_on(ev)	(EvFLAGS(ev) |= PE_CANCELLED)
+#define EvCANCELLED_off(ev)	(EvFLAGS(ev) &= ~PE_CANCELLED)
+
+#define EvDESTROYED(ev)		(EvFLAGS(ev) & PE_DESTROYED)
+#define EvDESTROYED_on(ev)	(EvFLAGS(ev) |= PE_DESTROYED)
+#define EvDESTROYED_off(ev)	(EvFLAGS(ev) &= ~PE_DESTROYED)
+
 #define EvCANDESTROY(ev)					\
- (ev->refcnt == 0 && ev->running == 0 &&			\
-  !(EvFLAGS(ev)&(PE_ACTIVE|PE_SUSPEND|PE_QUEUED)))
+ (PE_RING_EMPTY(&ev->events) && ev->running == 0 && EvCANCELLED(ev))

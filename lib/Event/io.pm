@@ -13,12 +13,13 @@ sub new {
     my %arg = @_;
 
     my $o = allocate();
-    $o->init([qw(timeout handle events timeout tailpoll)], \%arg);
+    $o->init(\%arg);
     $o->start;
     $o;
 }
 
 {
+    # deprecated
     no strict 'refs';
     my $warn = 5;
     for my $f (qw(R W E T)) {

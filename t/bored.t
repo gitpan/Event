@@ -6,7 +6,7 @@ use Event;
 
 my $really_bored;
 my $e;
-$e = Event->timer(after => .5, callback => sub {
+$e = Event->timer(e_after => .5, e_cb => sub {
 		      if (!$really_bored) {
 			  $e->again;
 			  $really_bored='yes';

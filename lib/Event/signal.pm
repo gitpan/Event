@@ -14,7 +14,7 @@ sub new {
     my %arg = @_;
 
     my $o = allocate();
-    $o->init([qw(signal)], \%arg);
+    $o->init(\%arg);
 #    confess "huh?" if ! $o->{signal}; XXX
     $o->start;
     $o;

@@ -16,17 +16,17 @@ sub idle {
 	# see if method callbacks work
 	ok $o, 'myobj';
 	ok $e->isa('Event::Watcher');
-	ok $e->{desc}, __PACKAGE__;
+	ok $e->{e_desc}, __PACKAGE__;
     }
     ++$myobj;
 }
-Event->idle(callback => [__PACKAGE__,'idle'],
-	    desc => __PACKAGE__);
+Event->idle(e_cb => [__PACKAGE__,'idle'],
+	    e_desc => __PACKAGE__);
 
 package main;
 
 my $count=0;
-my $idle = Event->idle(desc => "exit", callback =>
+my $idle = Event->idle(e_desc => "exit", e_cb =>
 		       sub {
 			   my $e = shift;
 			   ++$count;
@@ -35,7 +35,7 @@ my $idle = Event->idle(desc => "exit", callback =>
 
 ok ref($idle), 'Event::idle';
 
-Event->idle(callback => sub { ok 0; Event->exit })->cancel;
-Event->idle(callback => sub { $idle->again }, repeat => 1, desc => "again");
+Event->idle(e_cb => sub { ok 0; Event->exit })->cancel;
+Event->idle(e_cb => sub { $idle->again }, e_repeat => 1, e_desc => "again");
 
 ok !defined loop();

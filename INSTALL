@@ -1,9 +1,5 @@
-If you get compile errors like this:
-
-  "c/io.c", line 133: error(1020): identifier "POLLIN" is undefined
-        if (mask & (POLLIN | POLLRDNORM))
-
-Try adding '#undef HAS_POLL' to the beginning of Event.xs.
+To get high-precision time you'll need to install Time::HiRes 01.19
+with the patch 'patches/time-hires'.
 
 ---
 

@@ -4,17 +4,17 @@ use strict;
 use Config;
 use Event qw(time loop unloop);
 use vars qw($VERSION $TestTime);
-$VERSION = '0.07';
+$VERSION = '0.08';
 $TestTime = 11;
 
-eval q[ use NetServer::ProcessTop; warn '[Top @ '.(7000+$$%1000)."]\n"; ];
+#eval q[ use NetServer::ProcessTop; warn '[Top @ '.(7000+$$%1000)."]\n"; ];
 #warn if $@;
 
 # $Event::DebugLevel = 2;
 
-Event->timer(callback => \&unloop,
-	     after => $TestTime,
-	     nice => -1, desc => "End of benchmark");
+Event->timer(e_cb => \&unloop,
+	     e_after => $TestTime,
+	     e_nice => -1, e_desc => "End of benchmark");
 
 #------------------------------ Timer
 use vars qw($TimerCount $TimerExpect);
@@ -22,18 +22,18 @@ $TimerCount = 0;
 $TimerExpect = 0;
 for (1..20) {
     my $interval = .2 + .1 * int rand 3;
-    Event->timer(callback => sub { ++$TimerCount },
-		 interval => $interval);
+    Event->timer(e_cb => sub { ++$TimerCount },
+		 e_interval => $interval);
     $TimerExpect += $TestTime/$interval;
 }
 
 #------------------------------ Signals
 use vars qw($SignalCount);
 $SignalCount = 0;
-Event->signal(signal => 'USR1',
-	      callback => sub { ++$SignalCount; });
-Event->timer(callback => sub { kill 'USR1', $$; },
-	     interval => .5);
+Event->signal(e_signal => 'USR1',
+	      e_cb => sub { ++$SignalCount; });
+Event->timer(e_cb => sub { kill 'USR1', $$; },
+	     e_interval => .5);
 
 #------------------------------ IO
 use vars qw($IOCount @W);
@@ -45,13 +45,13 @@ for (1..15) {
     pipe($r,$w);
     select $w;
     $|=1; 
-    Event->io(handle => $r,
-	      callback => sub {
+    Event->io(e_fd => $r,
+	      e_cb => sub {
 		  my $buf;
 		  ++$IOCount;
 		  sysread $r, $buf, 1;
 	      },
-	      events => 'r', desc => "fd ".fileno($r));
+	      e_poll => 'r', e_desc => "fd ".fileno($r));
     push @W, $w;
 }
 select STDOUT;
@@ -61,14 +61,14 @@ use vars qw($IdleCount);
 $IdleCount = 0;
 
 my $idle;
-$idle = Event->idle(min_interval => undef, callback => sub {
+$idle = Event->idle(e_min => undef, e_cb => sub {
     ++$IdleCount;
     for (0..@W) {
 	my $w = $W[int rand @W];
 	syswrite $w, '.', 1;
     }
     $idle->again;
-}, desc => "idle");
+}, e_desc => "idle");
 
 #------------------------------ Loop
 
@@ -112,6 +112,26 @@ Event/Null       ".sprintf("%.2f", 100* $e_per_sec / $null)."\%
 ";
 
 __END__
+
+-------------------------------------
+
+ benchmark: 0.08
+ Event: 0.26
+ 
+ perl 5.00554
+ uname=SunOS eq1062.wks.na.deuba.com 5.5.1 Generic_103640-19 sun4u sparc SUNW,Ultra-1
+ cc='cc', optimize='-xO3 -g'
+ ccflags='-DDEBUGGING'
+ 
+ Please mail benchmark results to perl-loop@perl.org.  Thanks!
+ 
+Elapse Time:     99.14% of 11 seconds
+Timer/sec:       98.18% (810 total)
+Io/sec:          4957.076 (54057 total)
+Signals/sec      1.93
+Events/sec       5343.137
+Null/sec         111410
+Event/Null       4.80%
 
 -------------------------------------
 

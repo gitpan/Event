@@ -21,17 +21,17 @@ sub new_pipe {
     pipe($p1,$p2);
 
     for my $p ($p1,$p2) {
-	Event->io(handle => $p, events => 'rw', callback => sub {
+	Event->io(e_fd => $p, e_poll => 'rw', e_cb => sub {
 		      my $e = shift;
-		      if ($e->{got} & R) {
+		      if ($e->{e_got} & R) {
 			  my $buf;
 			  sysread $p, $buf, 1;
 			  ++$$cnt;
 		      }
-		      if ($e->{got} & W) {
+		      if ($e->{e_got} & W) {
 			  syswrite $p, ".", 1;
 		      }
-	      }, desc => "pair $p");
+	      }, e_desc => "pair $p");
     }
 }
 
@@ -39,7 +39,7 @@ my $count = 0;
 new_pipe(\$count);
 ok 1;
 
-Event->timer(interval => .5, callback => sub {
+Event->timer(e_interval => .5, e_cb => sub {
 		 unloop if $count > 50;
 	     });
 

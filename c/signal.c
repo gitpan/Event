@@ -147,7 +147,7 @@ static void boot_signal()
   }
   memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
   vt->keymethod = newHVhv(vt->keymethod);
-  hv_store(vt->keymethod, "signal", 6, newSViv((IV)_signal_signal), 0);
+  hv_store(vt->keymethod, "e_signal", 8, newSViv((IV)_signal_signal), 0);
   vt->start = pe_signal_start;
   vt->stop = pe_signal_stop;
   pe_register_vtbl(vt, gv_stashpv("Event::signal",1), &event_vtbl);

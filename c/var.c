@@ -69,7 +69,7 @@ static void pe_var_start(pe_watcher *_ev, int repeat)
       croak("No events specified");
     sv = SvRV(sv);
     if (SvREADONLY(sv))
-      croak("Cannot trace readonly variable");
+      croak("Cannot trace read-only variable");
     if (!SvUPGRADE(sv, SVt_PVMG))
       croak("Trace SvUPGRADE failed");
     if (mg_find(sv, 'U'))
@@ -172,8 +172,8 @@ static void boot_var()
   pe_watcher_vtbl *vt = &pe_var_vtbl;
   memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
   vt->keymethod = newHVhv(vt->keymethod);
-  hv_store(vt->keymethod, "events", 6, newSViv((IV)_var_events), 0);
-  hv_store(vt->keymethod, "variable", 8, newSViv((IV)_var_variable), 0);
+  hv_store(vt->keymethod, "e_poll", 6, newSViv((IV)_var_events), 0);
+  hv_store(vt->keymethod, "e_var", 5, newSViv((IV)_var_variable), 0);
   vt->dtor = pe_var_dtor;
   vt->start = pe_var_start;
   vt->stop = pe_var_stop;

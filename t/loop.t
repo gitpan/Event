@@ -9,13 +9,13 @@ use Event qw(loop unloop);
 my %got;
 my $sleep = .1;
 my $sleeping;
-my $early = Event->idle(repeat => 1, callback => sub {
+my $early = Event->idle(e_repeat => 1, e_cb => sub {
 			    return if !$sleeping;
 			    unloop 'early';
 			});
-Event->idle(repeat => 1, callback => sub {
+Event->idle(e_repeat => 1, e_cb => sub {
 		my $e = shift;
-		$e->{reentrant} = 0;
+		$e->{e_reentrant} = 0;
 		$sleeping = 1;
 		my $ret = loop($sleep);
 		if (!exists $got{$ret}) {
@@ -27,7 +27,7 @@ Event->idle(repeat => 1, callback => sub {
 			ok 1;
 		    }
 		}
-		$e->{reentrant} = 1;
+		$e->{e_reentrant} = 1;
 		$sleeping = 0;
 		unloop if keys %got == 2;
 	    });

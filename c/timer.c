@@ -66,17 +66,6 @@ WKEYMETH(_timer_at)
   }
 }
 
-WKEYMETH(_timer_hard) /* XXX */
-{
-  if (!nval) {
-    dSP;
-    XPUSHs(boolSV(EvHARD(ev)));
-    PUTBACK;
-  } else {
-    if (sv_true(nval)) EvHARD_on(ev); else EvHARD_off(ev);
-  }
-}
-
 WKEYMETH(_timer_interval)
 {
   pe_timer *tp = (pe_timer*)ev;
@@ -94,19 +83,11 @@ WKEYMETH(_timer_interval)
 static void boot_timer()
 {
   pe_watcher_vtbl *vt = &pe_timer_vtbl;
-/*
-  SV *bt = perl_get_sv("^T", 0);
-  if (SvNOK(bt)) {
-    BaseTime = SvNV(bt);
-  } else if (SvIOK(bt)) {
-    BaseTime = SvIV(bt);
-  }
-*/
   memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
   vt->keymethod = newHVhv(vt->keymethod);
-  hv_store(vt->keymethod, "at", 2, newSViv((IV)_timer_at), 0);
-  hv_store(vt->keymethod, "hard", 4, newSViv((IV)_timer_hard), 0);
-  hv_store(vt->keymethod, "interval", 8, newSViv((IV)_timer_interval), 0);
+  hv_store(vt->keymethod, "e_at", 4, newSViv((IV)_timer_at), 0);
+  hv_store(vt->keymethod, "e_hard", 6, newSViv((IV)_timeable_hard), 0);
+  hv_store(vt->keymethod, "e_interval", 10, newSViv((IV)_timer_interval), 0);
   vt->dtor = pe_timer_dtor;
   vt->start = pe_timer_start;
   vt->stop = pe_timer_stop;

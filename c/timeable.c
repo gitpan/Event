@@ -30,7 +30,7 @@ static void pe_timeables_check()
     assert(!EvSUSPEND(ev));
     assert(EvACTIVE(ev));
     PE_RING_DETACH(&tm->ring);
-    (*ev->vtbl->alarm)((pe_watcher*)ev, tm);
+    (*ev->vtbl->alarm)(ev, tm);
     tm = next;
   }
 }
@@ -79,7 +79,27 @@ static void pe_timeable_stop(pe_timeable *tm)
   PE_RING_DETACH(&tm->ring);
 }
 
-void static boot_timeable()
+static void pe_timeable_adjust(double delta)
+{
+  pe_timeable *rg = (pe_timeable*) Timeables.ring.next;
+  while (rg != &Timeables) {
+    rg->at += delta;
+    rg = (pe_timeable*) rg->ring.next;
+  }
+}
+
+WKEYMETH(_timeable_hard) /* applies to all timers in a watcher; is ok? */
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(boolSV(EvHARD(ev)));
+    PUTBACK;
+  } else {
+    if (sv_true(nval)) EvHARD_on(ev); else EvHARD_off(ev);
+  }
+}
+
+static void boot_timeable()
 {
   PE_RING_INIT(&Timeables.ring, 0);
 }

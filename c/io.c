@@ -136,9 +136,9 @@ static void boot_io()
   pe_watcher_vtbl *vt = &pe_io_vtbl;
   memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
   vt->keymethod = newHVhv(vt->keymethod);
-  hv_store(vt->keymethod, "events", 6, newSViv((IV)_io_events), 0);
-  hv_store(vt->keymethod, "handle", 6, newSViv((IV)_io_handle), 0);
-  hv_store(vt->keymethod, "timeout", 7, newSViv((IV)_io_timeout), 0);
+  hv_store(vt->keymethod, "e_poll", 6, newSViv((IV)_io_events), 0);
+  hv_store(vt->keymethod, "e_fd", 4, newSViv((IV)_io_handle), 0);
+  hv_store(vt->keymethod, "e_timeout", 9, newSViv((IV)_io_timeout), 0);
   vt->dtor = pe_io_dtor;
   vt->start = pe_io_start;
   vt->stop = pe_io_stop;

@@ -11,29 +11,29 @@ sub new {
     shift if @_ & 1;
     my %arg = @_;
     my $o = allocate();
-    $o->init([qw(hard)], \%arg);
 
-    for (qw(after at interval)) {
-	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
+    my $has_at = exists $arg{e_at};
+    my $has_after = exists $arg{e_after};
+
+    croak "'e_after' and 'e_at' are mutually exclusive"
+	if $has_at && $has_after;
+
+    if ($has_after) {
+	my $after = delete $arg{e_after};
+	$o->{e_at} = Event::time() + $after;
+	$has_at=1;
+	$o->{e_interval} = $after if !exists $arg{e_interval};
+    } elsif ($has_at) {
+	$o->{e_at} = delete $arg{e_at};
+    }
+    if (exists $arg{e_interval}) {
+	my $i = delete $arg{e_interval};
+	$o->{e_at} = Event::time() + (ref $i? $$i : $i) unless $has_at;
+	$o->{e_interval} = $i;
+	$o->{e_repeat} = 1;
     }
 
-    if (exists $arg{after}) {
-	croak "'after' and 'at' are mutually exclusive"
-	    if exists $arg{at};
-	$o->{at} = Event::time() + $arg{after};
-	$o->{interval} = $arg{after} if !exists $arg{interval};
-    }
-    elsif (exists $arg{at}) {
-	$o->{at} = 0 + $arg{at};
-    }
-
-    if (exists $arg{interval}) {
-	my $i = $arg{interval};
-	$o->{at} = Event::time() + (ref $i? $$i : $i) unless $arg{at};
-	$o->{interval} = $i;
-	$o->{repeat} = 1;
-    }
-
+    $o->init(\%arg);
     $o->start();
     $o;
 }

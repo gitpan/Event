@@ -1,8 +1,6 @@
 static pe_ring NQueue;
 static pe_ring Prepare, Check, AsyncCheck;
-static pe_stat idleStats;
 static int StarvePrio = PE_QUEUES - 2;
-static double QueueTime[PE_QUEUES];
 
 static void boot_queue()
 {
@@ -12,7 +10,6 @@ static void boot_queue()
   PE_RING_INIT(&Prepare, 0);
   PE_RING_INIT(&Check, 0);
   PE_RING_INIT(&AsyncCheck, 0);
-  memset(QueueTime, 0, sizeof(QueueTime));
   newCONSTSUB(stash, "QUEUES", newSViv(PE_QUEUES));
   newCONSTSUB(stash, "PRIO_NORMAL", newSViv(PE_PRIO_NORMAL));
   newCONSTSUB(stash, "PRIO_HIGH", newSViv(PE_PRIO_HIGH));
@@ -38,26 +35,23 @@ static void db_show_queue()
 static int prepare_event(pe_event *ev, char *forwhat)
 {
   /* AVOID DIEING IN HERE!! */
+  STRLEN na;
   pe_watcher *wa = ev->up;
-  if (EvSUSPEND(wa)) {
-    EvRUNNOW_off(wa);
-    (*ev->vtbl->dtor)(ev);
-    return 0;
-  }
+  assert(!EvSUSPEND(wa));
   assert(EvREENTRANT(wa) || !wa->running);
   if (!EvACTIVE(wa)) {
     if (!EvRUNNOW(wa))
-      warn("Event: event for !ACTIVE watcher '%s'", SvPV(wa->desc,PL_na));
+      warn("Event: event for !ACTIVE watcher '%s'", SvPV(wa->desc,na));
   }
   else {
     if (!EvREPEAT(wa))
-      pe_watcher_stop(wa);
+      pe_watcher_stop(wa, 0);
     else if (EvINVOKE1(wa))
       pe_watcher_off(wa);
   }
-  EvRUNNOW_off(wa); /* race condition XXX */
+  EvRUNNOW_off(wa); /* race condition? XXX */
   if (EvDEBUGx(wa) >= 3)
-    warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,PL_na), ev->priority);
+    warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,na), ev->priority);
   return 1;
 }
 
@@ -68,19 +62,12 @@ static void queueEvent(pe_event *ev)
   if (!prepare_event(ev, "queue")) return;
 
   if (ev->priority < 0) {  /* invoke the event immediately! */
-    if (EvSUSPEND(ev->up)) {
-      (*ev->vtbl->dtor)(ev);
-    }
-    else {
-      ev->priority = -1;
-      QueueTime[0] = EvNOW(0);
-      pe_event_invoke(ev);
-    }
+    ev->priority = 0;
+    pe_event_invoke(ev);
     return;
   }
   if (ev->priority >= PE_QUEUES)
     ev->priority = PE_QUEUES-1;
-  QueueTime[ev->priority] = EvNOW(0);
   {
     /* queue in reverse direction? XXX */ 
     /*  warn("-- adding 0x%x/%d\n", ev, prio); db_show_queue();/**/
@@ -178,14 +165,9 @@ static void pe_map_check(pe_ring *List)
 static int pe_empty_queue(maxprio)
 {
   pe_event *ev;
- RETRY:
   ev = NQueue.next->self;
   if (ev && ev->priority < maxprio) {
     dequeEvent(ev);
-    if (EvSUSPEND(ev->up)) {
-      (*ev->vtbl->dtor)(ev);
-      goto RETRY;
-    }
     pe_event_invoke(ev);
     return 1;
   }
@@ -199,16 +181,12 @@ static int pe_empty_queue(maxprio)
 	 PE_RING_EMPTY(&NQueue)?"":"QUEUE",
 	 PE_RING_EMPTY(&Idle)?"":"IDLE");
   }
-  if (!Stats)
+  if (!Estat.on)
     pe_sys_multiplex(tm);
   else {
-    struct timeval start_tm, done_tm;
-    gettimeofday(&start_tm, 0);
+    void *st = Estat.enter(-1);
     pe_sys_multiplex(tm);
-    gettimeofday(&done_tm, 0);
-    pe_stat_record(&idleStats,
-		   (done_tm.tv_sec-start_tm.tv_sec +
-		    (done_tm.tv_usec-start_tm.tv_usec)/1000000.0));
+    Estat.commit(st, 0);
   }
 }
 
@@ -260,8 +238,8 @@ static int one_event(double tm)
     pe_event *ev;
     if (PE_RING_EMPTY(&Idle)) return 0;
     PE_RING_POP(&Idle, wa);
-    if (EvSUSPEND(wa)) continue;
-    /* nothing is queued so CLUMP will never be an option */
+    /* idle is not an event so CLUMP is never an option but we still need
+       to create an event to pass info to the callback */
     ev = pe_event_allocate(wa);
     if (!prepare_event(ev, "idle")) continue;
     /* can't queueEvent because we are already missed that */

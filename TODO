@@ -1,27 +1,14 @@
-debugging tools
-  mmap'd circular log to track down callbacks that refuse to return?
-  use SIGALRM?
-
-add attr() method for configuration?
-
-e_ prefix ; rename 'events' -> 'e_poll'
-
-replace pe_watcher::ev1 with a ring of active events?
-
-scope of pe_event should include life of SV?  Currently, can cause problems.
+t/inactivity.t still fails on occation!
 
 pe_event_base_vtbl
 
-#define macros for inheritance?
-
 comp.lang.perl.announce prerequisites
   portability?  wait for Win32?
-&
-  finish -priority => -nice migration (in a few weeks)
-  finish leading dashes phase-out
 
-Some way to assert that a watcher is deleted?  Why still seeing lots
-of zombies?
+rethink EvNOW
+
+debugging: SIGALRM hook to capture perl stack trace of unresponsive
+callbacks?
 
 croak should route through Carp!
 
@@ -33,19 +20,14 @@ optimization
   update io event-mask without invalidating cache
   use fancy profiler tricks to figure out how to improve performance!
 
-time
-  figure out caching policy
-  CORE::time?
-  alternate time encodings
-    make relative to $^T
-  change speed of time for regression testing
-
 loop
   StarvePrio?
 
 make subclassing work as well as possible
 
-Fix process.pm or process.t?  Maybe should be external module?
+nested 'each' on two events interfere -- hash cursors needed!
+
+Move process.pm to external module!
 
 export_fail hook to autoload?
 
