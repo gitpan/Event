@@ -73,6 +73,7 @@ SV *sv;
 	PUTBACK;
 	perl_call_sv(*cvptr,0);
     }
+    return 0; /*ignored*/
 }
 
 static void

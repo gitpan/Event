@@ -23,15 +23,15 @@ B<BEFORE IT IS RELEASED FOR GENERAL USE.>
 
 =head1 EVENTS
 
-The following properties are common to all events.
+The following properties are common to all events.  Each property can
+be prepended with a dash (-) or not depending on your preferance.
 
 =over 4
 
-=item queuing
+=item callback
 
-An event can only be queued once.
-
-=item cancel
+Use either a code ref or an array containing an object and the method
+to call.
 
 =item priority
 
@@ -50,6 +50,14 @@ additional arguments passed to now are forwarded to the event
 callback.  You must provide whatever arguments your event handler is
 expecting since the C<now> method bypasses the usual dispatch
 apparatus.
+
+=item queuing
+
+An event can only be queued once.
+
+=item cancel
+
+Cancelled events are not invoked.
 
 =back
 
@@ -187,7 +195,7 @@ Time::HiRes::time() cache for low-accuracy clients.
 While object-oriented design has gained popularity in recent times,
 Event does not follow these ideas as strictly as it might.
 Performance cannot be sacrificed for theoretical beauty.  Real beauty
-is to balance the solution to the requirements, without elaboration.
+is to balance a solution to the requirements, without elaboration.
 
 =head1 DIRECTION
 
@@ -204,6 +212,10 @@ is to balance the solution to the requirements, without elaboration.
 	callback => \&doit
     );
     
+=head1 SUPPORT
+
+This extension is discussed on the perl-loop@perl.org mailing list.
+
 =head1 AUTHORS
 
 Graham Barr E<lt>F<gbarr@pobox.com>E<gt>,
@@ -211,8 +223,8 @@ Joshua Pritikin E<lt>F<bitset@mindspring.com>E<gt>
 
 =head1 COPYRIGHT
 
-Copyright © 1997-1998 Graham Barr.  All rights reserved.
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+Copyright © 1997-1998 Graham Barr & Joshua Nathaniel Pritikin.  All
+rights reserved.  This program is free software; you can redistribute
+it and/or modify it under the same terms as Perl itself.
 
 =cut

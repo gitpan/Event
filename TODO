@@ -2,6 +2,8 @@ freeze the design and re-implement in C!
   see util/event.h
   envisioned is an meshing not unlike what has been done with PerlQt
 
+keep dash optional on parameter names
+
 The %Event::Set stuff forces people to manually delete stuff or leak
 events.  The conversion to C should address this annoyance.  We can
 keep back-pointers instead of increasing the refcnt.

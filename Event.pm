@@ -8,10 +8,12 @@ BEGIN {
 }
 
 package Event;
+require Exporter;
+*require_version = \&Exporter::require_version;
 use Carp qw(carp cluck croak confess);
 use Time::HiRes qw(time);  #can be optional? XXX
 use vars qw($VERSION $DebugLevel %Set);
-$VERSION = '0.06';
+$VERSION = '0.07';
 
 # 0    FAST, FAST, FAST!
 # 1    COLLECT SOME NICE STATISTICS
@@ -60,9 +62,9 @@ sub init {
 	$o->{initialized} = 1;
 
 	# pick a style and stick with it!
-	my @old = grep /^-/, keys %$o;
-	carp "noticed old style keys (".join(',',@old).")"
-	    if @old && ++$warn_old_style < 3;
+#	my @old = grep /^-/, keys %$o;
+#	carp "noticed old style keys (".join(',',@old).")"
+#	    if @old && ++$warn_old_style < 3;
 
 	cluck "Event::init ".ref($o)." $o->{desc}\n"
 	    if ($DebugLevel >= 2 or ($DebugLevel and !$o->{desc}));
@@ -223,6 +225,25 @@ $queueCount = 0;
 
 #--------------------------------------- Queue
 
+sub _invoke_event {
+    my $arg = shift;
+    my $e = $arg->[0];
+    my $cb = $e->{callback};
+
+    Event::invoking($e)
+	if $Event::DebugLevel;
+
+    if (ref $cb eq 'CODE') {
+	$cb->(@$arg);
+    } else {
+	my ($obj,$m) = @$cb; #ignore rest of array? XXX
+	$obj->$m(@$arg);
+    }
+
+    Event::completed($e)
+	if $Event::DebugLevel;
+}
+
 sub queueEvent {
     # OPTIMIZE (1)
 
@@ -231,32 +252,21 @@ sub queueEvent {
     # to be queued at most once.
 
     use integer;
+    my @arg = @_;
     my $e = $_[0];
-    my $cb = $e->{callback};
     my $prio = $e->{priority};
 
     if ($prio < 0) {
 	warn "Event: calling $e->{desc} asyncronously (priority $prio)\n"
 	    if $Event::DebugLevel >= 3;
-	return $cb->(@_);
+	_invoke_event(\@arg);
+	return;
     }
 
-    my @arg = @_;
-    my $sub;
-    if (!$Event::DebugLevel) {
-	$sub = sub { $cb->(@arg) };
-    } else {
-	$sub = sub {
-	    Event::invoking($e);
-	    $cb->(@arg);
-	    Event::completed($e);
-	};
-	warn "Event: queuing $e->{desc} at priority $prio\n"
-	    if $Event::DebugLevel >= 3;
-    }
-    
     $prio = QUEUES-1 if $prio >= QUEUES;
-    push @{$Queue[$prio]}, $sub;
+    warn "Event: queuing $e->{desc} at priority $prio\n"
+	if $Event::DebugLevel >= 3;
+    push @{$Queue[$prio]}, \@arg;
     ++$queueCount;
 }
 
@@ -276,7 +286,7 @@ sub emptyQueue {
 	    # This might queue more events, so we must restart the
 	    # search from the beginning.
 
-	    (shift @$q)->();
+	    _invoke_event(shift @$q);
 	    $queueCount--;
 	    return 1
 	}
@@ -320,14 +330,7 @@ sub doOneEvent {
     while (my $idle = shift @Idle) {
 	$idle->{active} = 0;
 	next if $idle->{'cancelled'};
-
-	if (!$Event::DebugLevel) {
-	    $idle->{'callback'}->($idle);
-	} else {
-	    Event::invoking($idle);
-	    $idle->{'callback'}->($idle);
-	    Event::completed($idle);
-	}
+	_invoke_event([$idle]);
 	$idle->again if $idle->{repeat};
 	return 1;
     }
