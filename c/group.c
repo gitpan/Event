@@ -95,6 +95,7 @@ static void pe_group_add(pe_group *gp, pe_watcher *wa) {
     if (!ok) {  /* expand array */
 	pe_watcher **ary;
 	EvNew(13, ary, gp->members*2, pe_watcher*);
+	Zero(ary, gp->members*2, pe_watcher*);
 	Copy(gp->member, ary, gp->members, sizeof(pe_watcher*));
 	EvFree(13, gp->member);
 	gp->member = ary;

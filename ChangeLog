@@ -1,3 +1,15 @@
+2000-02-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.67.  Hopefully this release will prove stable.
+
+	* Fix bomb in group watchers. (Jochen.Stenzel.gp@icn.siemens.de)
+
+	* Fixed another bug introduced in 0.61.  (Insure++)
+
+	* Tighten typemap.
+
+	* Warn about non-existant methods.
+
 2000-02-08  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.66.

@@ -51,6 +51,7 @@ t/callback.t
 t/delete.t
 t/eval.t
 t/fifo.t
+t/group.t
 t/hook.t
 t/hup.t
 t/idle.t

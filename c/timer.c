@@ -57,18 +57,10 @@ WKEYMETH(_timer_at) {
 	XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
 	PUTBACK;
     } else {
-	/* factor XXX */
 	int active = WaPOLLING(ev);
 	if (active) pe_watcher_off(ev);
 	tp->tm.at = SvNV(nval);
-	if (active) {
-	    char *excuse = pe_watcher_on(ev, 0);
-	    if (SvIV(DebugLevel) && excuse) {
-		STRLEN n_a;
-		warn("Event: can't restart '%s' %s",
-		     SvPV(ev->desc,n_a), excuse);
-	    }
-	}
+	if (active) pe_watcher_on(ev, 0);
     }
 }
 

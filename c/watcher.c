@@ -105,8 +105,31 @@ WKEYMETH(_watcher_callback) {
 	    ev->callback = SvREFCNT_inc(nval);
 	} else if (SvROK(nval) &&
 		   (SvTYPE(av=(AV*)SvRV(nval)) == SVt_PVAV) &&
-		   av_len(av) == 1 &&
-		   !SvROK(sv=*av_fetch(av, 1, 0))) {
+		   av_len(av) == 1) {
+	    /* method lookup code adapted from universal.c */
+	    STRLEN n_a;
+	    SV *pkgsv = *av_fetch(av, 0, 0);
+	    HV *pkg = NULL;
+	    SV *namesv = *av_fetch(av, 1, 0);
+	    char *name = SvPV(namesv, n_a);
+	    int ok=0;
+	    if(SvROK(pkgsv)) {
+		pkgsv = (SV*)SvRV(pkgsv);
+		if(SvOBJECT(pkgsv))
+		    pkg = SvSTASH(pkgsv);
+	    }
+	    else {
+		pkg = gv_stashsv(pkgsv, FALSE);
+	    }
+	    if (pkg) {
+		GV *gv = gv_fetchmethod_autoload(pkg, name, FALSE);
+		if (gv && isGV(gv))
+		    ok=1;
+	    }
+	    if (!ok) {
+		warn("Event: callback method %s->%s doesn't exist",
+		     HvNAME(pkg), name);
+	    }
 	    WaPERLCB_on(ev);
 	    ev->callback = SvREFCNT_inc(nval);
 	} else {
@@ -310,25 +333,24 @@ static void pe_watcher_resume(pe_watcher *ev) {
     if (WaDEBUGx(ev) >= 4)
 	warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,n_a),
 	     WaACTIVE(ev)?" ACTIVE":"");
-    if (WaACTIVE(ev)) {
-	char *excuse = pe_watcher_on(ev, 0);
-	if (excuse)
-	    warn("Event: can't resume '%s' %s", SvPV(ev->desc,n_a), excuse);
-    }
+    if (WaACTIVE(ev))
+        pe_watcher_on(ev, 0);
 }
 
 static char *pe_watcher_on(pe_watcher *wa, int repeat) {
+    STRLEN n_a;
     char *excuse;
-    if (WaPOLLING(wa) || WaSUSPEND(wa)) return;
-    if (WaCANCELLED(wa)) {
-	STRLEN n_a;
+    if (WaPOLLING(wa) || WaSUSPEND(wa))
+	return 0;
+    if (WaCANCELLED(wa))
 	croak("Event: attempt to start cancelled watcher '%s'",
 	      SvPV(wa->desc,n_a));
-    }
     excuse = (*wa->vtbl->start)(wa, repeat);
-    if (excuse)
+    if (excuse) {
+	if (SvIV(DebugLevel))
+	    warn("Event: can't restart '%s' %s", SvPV(wa->desc, n_a), excuse);
 	pe_watcher_stop(wa, 1); /* update flags! */
-    else
+    } else
 	WaPOLLING_on(wa); /* must happen nowhere else!! */
     return excuse;
 }

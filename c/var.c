@@ -127,14 +127,9 @@ static void pe_var_stop(pe_watcher *_ev) {
 }
 
 static void _var_restart(pe_watcher *ev) {
-    char *excuse;
     if (!WaPOLLING(ev)) return;
     pe_watcher_off(ev);
-    excuse = pe_watcher_on(ev, 0);
-    if (SvIV(DebugLevel) && excuse) {
-	STRLEN n_a;
-	warn("Event: can't restart '%s' %s", SvPV(ev->desc, n_a), excuse);
-    }
+    pe_watcher_on(ev, 0);
 }
 
 WKEYMETH(_var_events) {
@@ -162,17 +157,9 @@ WKEYMETH(_var_variable) {
 	    croak("Expecting a reference");
 	if (SvTYPE(SvRV(nval)) > SVt_PVMG)
 	    croak("Var watchers can only watch plain vanilla scalars");
-	/* factor XXX */
 	if (active) pe_watcher_off(ev);
 	vp->variable = SvREFCNT_inc(nval);
-	if (active) {
-	    char *excuse = pe_watcher_on(ev, 0);
-	    if (SvIV(DebugLevel) && excuse) {
-		STRLEN n_a;
-		warn("Event: can't restart '%s' %s",
-		     SvPV(ev->desc,n_a), excuse);
-	    }
-	}
+	if (active) pe_watcher_on(ev, 0);
 	SvREFCNT_dec(old);
     }
 }

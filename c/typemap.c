@@ -1,3 +1,5 @@
+#define MG_PRIVATE_CODE ((((unsigned)'e')<<8) + (unsigned)'v')
+
 static SV *wrap_watcher(void *ptr, HV *stash, SV *temple) {
     SV *ref;
     MAGIC **mgp;
@@ -26,6 +28,7 @@ static SV *wrap_watcher(void *ptr, HV *stash, SV *temple) {
     Zero(mg, 1, MAGIC);
     mg->mg_type = '~';
     mg->mg_obj = (SV*) ptr;  /* NOT refcnt'd */
+    mg->mg_private = MG_PRIVATE_CODE;
     *mgp = mg;
 
     return ref;
@@ -50,8 +53,13 @@ static void* sv_2watcher(SV *sv) {
     if (!sv || !SvROK(sv))
 	croak("sv_2watcher: not a reference?");
     sv = SvRV(sv);
+    if (SvTYPE(sv) < SVt_PVMG)
+	croak("sv_2watcher: not a watcher");
     mg = mg_find(sv, '~');
     if (mg) {
+	if (mg->mg_private != MG_PRIVATE_CODE) {
+	    croak("Can't find event magic (SV=0x%x)", sv);
+	}
 	return (void*) mg->mg_obj;
     }
     croak("Attempt to use destroyed object (RV=0x%x %s=0x%x)",
