@@ -29,7 +29,7 @@
 
 #include "Event.h"
 
-static int ActiveWatchers=0;
+static int ActiveWatchers=0; /* includes EvACTIVE & EvQUEUED */
 static int Stats=0;
 static SV *DebugLevel;
 static SV *Eval;
@@ -42,16 +42,17 @@ static void pe_event_suspend(pe_event *ev);
 static void pe_event_resume(pe_event *ev);
 static void pe_event_now(pe_event *ev);
 static void pe_event_start(pe_event *ev, int repeat);
+static void pe_event_stop(pe_event *ev);
 
 #include "typemap.c"
-#include "gettimeofday.c"  /* hack XXX */
+#include "gettimeofday.c"  /* hack? XXX */
 #include "timeable.c"
 #include "event_vtbl.c"
 #include "idle.c"
 #include "timer.c"
 #include "io.c"
 #include "unix_io.c"
-#include "watchvar.c"
+#include "var.c"
 #include "signal.c"
 #include "tied.c"
 #include "queue.c"
@@ -70,7 +71,7 @@ BOOT:
   boot_idle();
   boot_timer();
   boot_io();
-  boot_watchvar();
+  boot_var();
   boot_tied();
   boot_signal();
   boot_queue();
@@ -82,6 +83,7 @@ BOOT:
     api->Ver = EventAPI_VERSION;
     api->one_event = safe_one_event;
     api->unloop = pe_unloop;
+    api->sleep = pe_sleep;
     api->start = pe_event_start;
     api->queue = queueEvent;
     api->now = pe_event_now;
@@ -91,7 +93,7 @@ BOOT:
     api->new_idle =     (pe_idle*(*)())         pe_idle_allocate;
     api->new_timer =    (pe_timer*(*)())       pe_timer_allocate;
     api->new_io =       (pe_io*(*)())             pe_io_allocate;
-    api->new_watchvar = (pe_watchvar*(*)()) pe_watchvar_allocate;
+    api->new_var =      (pe_var*(*)())           pe_var_allocate;
     api->new_signal =   (pe_signal*(*)())     pe_signal_allocate;
     apisv = perl_get_sv("Event::API", 1);
     sv_setiv(apisv, (IV)api);
@@ -224,6 +226,7 @@ sleep(tm)
 	SV *ret;
 	PUTBACK;
 	ret = pe_sleep(tm);
+	/* ret REFCNT ok? */
 	SPAGAIN;
 	XPUSHs(ret);
 
@@ -264,12 +267,12 @@ DESTROY(ref)
 void
 pe_event::again()
 	CODE:
-	(*THIS->vtbl->start)(THIS, 1);
+	pe_event_start(THIS, 1);
 
 void
 pe_event::start()
 	CODE:
-	(*THIS->vtbl->start)(THIS, 0);
+	pe_event_start(THIS, 0);
 
 void
 pe_event::suspend()
@@ -445,12 +448,12 @@ allocate()
 	RETVAL
 
 
-MODULE = Event		PACKAGE = Event::watchvar
+MODULE = Event		PACKAGE = Event::var
 
 pe_event *
 allocate()
 	CODE:
-	RETVAL = pe_watchvar_allocate();
+	RETVAL = pe_var_allocate();
 	OUTPUT:
 	RETVAL
 

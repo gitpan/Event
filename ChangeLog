@@ -1,4 +1,25 @@
+1998-10-02  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.18.
+
+	* Added non-working export_fail prototype.  Suggestions welcome.
+
+	* Re-factored start & stop better (the preCB method is gone).
+
+	* Finished up sleep().  Added tests.
+
+	* Tied watchers are now based on pe_tmevent.
+
 1998-10-01  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Applied patch from Gisle for pe_sys_sleep/select.
+
+	* Renamed 'watchvar' to 'var'.
+
+	* Added tests for 'now' (it was completely broken!).
+
+	* Tweaked debug levels.  Someone needs to inventory debug warnings
+ 	are decide what is reasonable.
 
 	* Release 0.17
 

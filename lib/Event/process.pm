@@ -4,7 +4,7 @@ use base 'Event::Watcher';
 use vars qw($DefaultPriority);
 $DefaultPriority = Event::PRIO_HIGH();
 
-BEGIN { 'Event::Watcher'->import(qw(ACTIVE)); }
+# BEGIN { 'Event::Watcher'->import(qw()); }
 'Event::Watcher'->register();
 
 sub new {
@@ -42,16 +42,14 @@ Event->signal(signal => 'CHLD',  #CLD? XXX
 	      },
 	      desc => "Event::process SIGCHLD handler");
 
-sub start {
+sub _start {
     my ($o, $repeat) = @_;
-    $o->{flags} |= ACTIVE;
     my $key = exists $o->{any}? 'any' : $o->{pid};
     push @{$cb{ $key } ||= []}, $o;
 }
 
-sub stop {
+sub _stop {
     my $o = shift;
-    $o->{flags} &= ~ACTIVE;
     my $key = exists $o->{any}? 'any' : $o->{pid};
     $cb{ $key } = [grep { $_ != $o } @{$cb{ $key }} ];
     delete $cb{ $key } if

@@ -3,12 +3,6 @@ static pe_ring Timeables;
 /*#define D_TIMEABLE(x) x /**/
 #define D_TIMEABLE(x) /**/
 
-typedef struct pe_tmevent pe_tmevent;
-struct pe_tmevent {
-  pe_event base;
-  pe_timeable tm;
-};
-
 static void db_show_timeables()
 {
   pe_tmevent *ev;

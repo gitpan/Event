@@ -46,36 +46,27 @@ pe_signal_allocate()
   return (pe_event*) ev;
 }
 
-static void
-pe_signal_start(pe_event *_ev, int repeat)
+static void pe_signal_start(pe_event *_ev, int repeat)
 {
   pe_signal *ev = (pe_signal*) _ev;
   int sig = ev->sig;
-  if (EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
   if (sig == 0)
     croak("No signal");
   if (PE_RING_EMPTY(&Sigring[sig]))
     rsignal(sig, process_sighandler);
   PE_RING_UNSHIFT(&ev->sring, &Sigring[sig]);
-  EvACTIVE_on(_ev);
 }
 
-static void
-pe_signal_stop(pe_event *_ev)
+static void pe_signal_stop(pe_event *_ev)
 {
   pe_signal *ev = (pe_signal*) _ev;
   int sig = ev->sig;
-  if (!EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
   PE_RING_DETACH(&ev->sring);
   if (PE_RING_EMPTY(&Sigring[sig]))
     rsignal(sig, SIG_DFL);
-  EvACTIVE_off(_ev);
 }
 
-static void
-pe_signal_FETCH(pe_event *_ev, SV *svkey)
+static void pe_signal_FETCH(pe_event *_ev, SV *svkey)
 {
   pe_signal *ev = (pe_signal*) _ev;
   SV *ret=0;
@@ -101,8 +92,7 @@ pe_signal_FETCH(pe_event *_ev, SV *svkey)
   }
 }
 
-static void
-pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
+static void pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
 {
   pe_signal *ev = (pe_signal*) _ev;
   STRLEN len;
@@ -122,10 +112,10 @@ pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
       if (!PE_SIGVALID(sig))
 	croak("Signal '%s' cannot be caught", SvPV(nval,na));
       if (active)
-	pe_signal_stop(_ev);
+	pe_event_stop(_ev);
       ev->sig = sig;
       if (active)
-	pe_signal_start(_ev, 0);
+	pe_event_start(_ev, 0);
       break;
     }    
     break;
@@ -168,8 +158,7 @@ static void pe_signal_asynccheck()
 }
 
 
-static void
-boot_signal()
+static void boot_signal()
 {
   int xx;
   int sig;

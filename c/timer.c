@@ -24,8 +24,6 @@ static void pe_timer_dtor(pe_event *ev)
 static void pe_timer_start(pe_event *ev, int repeat)
 {
   pe_timer *tm = (pe_timer*) ev;
-  if (EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
   if (repeat) {
     /* We just finished the callback and need to re-insert at
        the appropriate time increment. */
@@ -41,23 +39,14 @@ static void pe_timer_start(pe_event *ev, int repeat)
   if (!tm->tm.at)
     croak("Timer unset");
 
-  EvACTIVE_on(ev);
   pe_timeable_start(ev);
 }
 
 static void pe_timer_stop(pe_event *ev)
-{
-  pe_timer *tm = (pe_timer *) ev;
-  if (!EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
-  pe_timeable_stop(ev);
-  EvACTIVE_off(ev);
-}
+{ pe_timeable_stop(ev); }
 
 static void pe_timer_alarm(pe_event *ev)
-{
-  queueEvent(ev, 1);
-}
+{ queueEvent(ev, 1); }
 
 static void pe_timer_FETCH(pe_event *_ev, SV *svkey)
 {

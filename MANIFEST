@@ -20,7 +20,7 @@ c/timeable.c
 c/timer.c
 c/typemap.c
 c/unix_io.c
-c/watchvar.c
+c/var.c
 demo/in.pl
 lib/Event.pm
 lib/Event.pod
@@ -32,7 +32,7 @@ lib/Event/process.pm
 lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
-lib/Event/watchvar.pm
+lib/Event/var.pm
 t/0load.t
 t/bored.t
 t/eval.t
@@ -40,9 +40,11 @@ t/idle.t
 t/idle2.t
 t/io.t
 t/leak.t
+t/now.t
 t/process.t
 t/reenter.t
 t/signal.t
+t/sleep.t
 t/stats.t
 t/timer.t
 t/var.t

@@ -147,14 +147,13 @@ static fd_set Rfds, Wfds, Efds;
 
 static void pe_sys_sleep(double left)
 {
-  /* UNTESTED XXX */
   struct timeval tm;
   double t0 = EvNOW(1);
   double t1 = t0 + left;
   int ret;
   do {
-    tm.tv_sec = timeout;
-    tm.tv_usec = (timeout - tm.tv_sec) * 1000000;
+    tm.tv_sec = left;
+    tm.tv_usec = (left - tm.tv_sec) * 1000000;
     ret = select(0, 0, 0, 0, &tm);
     if (ret < 0 && errno != EINTR && errno != EAGAIN)
       croak("select(%.2f) got errno %d", left, errno);

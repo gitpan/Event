@@ -53,6 +53,12 @@ struct pe_cbframe {
   int resume;
 };
 
+typedef struct pe_tmevent pe_tmevent;
+struct pe_tmevent {
+  pe_event base;
+  pe_timeable tm;
+};
+
 struct pe_event_vtbl {
   /* how does it work for more than 1 level? XXX */
   /* only used for DELETE, EXISTS, FIRSTKEY, & NEXTKEY */
@@ -70,9 +76,8 @@ struct pe_event_vtbl {
   void (*NEXTKEY)(pe_event *); /* never overridden? XXX */
   void (*start)(pe_event *, int);
   void (*stop)(pe_event *);
-  void (*cbdone)(pe_cbframe *);
   void (*alarm)(pe_event *);
-  void (*preidle)(pe_event *);
+  void (*postCB)(pe_cbframe *);
 };
 
 typedef struct pe_run pe_run;
@@ -99,7 +104,7 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define PE_QUEUED	0x04
 #define PE_RUNNING	0x08  /* virtual flag */
 #define PE_REENTRANT	0x10
-#define PE_HARD		0x20 /**/
+#define PE_HARD		0x20
 
 #define PE_VISIBLE_FLAGS \
 (PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
@@ -109,24 +114,12 @@ static void pe_stat_record(pe_stat *st, double elapse);
 /* ACTIVE: waiting for something to happen that might cause queueEvent */
 /* controlled by start/stop methods */
 #define EvACTIVE(ev)		(EvFLAGS(ev) & PE_ACTIVE)
-#define EvACTIVE_on(ev)						\
-STMT_START {							\
-  assert(!EvACTIVE(ev));					\
-  if (EvDEBUGx(ev) >= 4)					\
-    warn("Event: active ON '%s'\n", SvPV(ev->desc,na));		\
-  EvFLAGS(ev) |= PE_ACTIVE;					\
-  ++ActiveWatchers;						\
-} STMT_END
-#define EvACTIVE_off(ev)					\
-STMT_START {							\
-  assert(EvACTIVE(ev));						\
-  if (EvDEBUGx(ev) >= 4)					\
-    warn("Event: active OFF '%s'\n", SvPV(ev->desc,na));	\
-  EvFLAGS(ev) &= ~PE_ACTIVE;					\
-  --ActiveWatchers;						\
-} STMT_END
+#define EvACTIVE_on(ev)		(EvFLAGS(ev) |= PE_ACTIVE)
+#define EvACTIVE_off(ev)	(EvFLAGS(ev) &= ~PE_ACTIVE)
 
 #define EvSUSPEND(ev)		(EvFLAGS(ev) & PE_SUSPEND)
+#define EvSUSPEND_on(ev)	(EvFLAGS(ev) |= PE_SUSPEND)
+#define EvSUSPEND_off(ev)	(EvFLAGS(ev) &= ~PE_SUSPEND)
 
 #define EvQUEUED(ev)		(EvFLAGS(ev) & PE_QUEUED)
 #define EvQUEUED_on(ev)		(EvFLAGS(ev) |= PE_QUEUED)

@@ -7,8 +7,7 @@ static struct pe_event_vtbl pe_event_base_vtbl;
 static pe_cbframe CBFrame[MAX_CB_NEST];
 static int CurCBFrame = -1;
 
-static void
-pe_event_init(pe_event *ev)
+static void pe_event_init(pe_event *ev)
 {
   SV *sv;
   SV *tmp = newSV(40);
@@ -33,15 +32,14 @@ pe_event_init(pe_event *ev)
   ev->cbtime = 0;
   ev->count = 0;
   ev->priority = PE_QUEUES;
-  ev->perl_callback[0] = 0;
+  ev->perl_callback[0] = 0;  /* store ARRAY? XXX */
   ev->perl_callback[1] = 0;
   ev->c_callback = 0;
   ev->ext_data = 0;
   ev->stats = 0;
 }
 
-static void
-pe_event_dtor(pe_event *ev)
+static void pe_event_dtor(pe_event *ev)
 {
   int xx;
   if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
@@ -59,8 +57,7 @@ pe_event_dtor(pe_event *ev)
   safefree(ev);
 }
 
-static void
-pe_event_FETCH(pe_event *ev, SV *svkey)
+static void pe_event_FETCH(pe_event *ev, SV *svkey)
 {
   SV *ret=0;
   STRLEN len;
@@ -116,6 +113,10 @@ pe_event_FETCH(pe_event *ev, SV *svkey)
     }
     break;
   case 'r':
+    if (len == 9 && memEQ(key, "reentrant", 9)) {
+      ret = boolSV(EvREENTRANT(ev));
+      break;
+    }
     if (len == 6 && memEQ(key, "repeat", 6)) {
       ret = boolSV(EvREPEAT(ev));
       break;
@@ -138,8 +139,7 @@ pe_event_FETCH(pe_event *ev, SV *svkey)
   }
 }
 
-static void
-pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
+static void pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
 {
   int xx;
   STRLEN len;
@@ -211,6 +211,13 @@ pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
     }
     break;
   case 'r':
+    if (len == 9 && memEQ(key, "reentrant", 9)) {
+      ok=1;
+      if (ev->running)
+	croak("'reentrant' cannot be changed if the event is running");
+      if (sv_true(nval)) EvREENTRANT_on(ev); else EvREENTRANT_off(ev);
+      break;
+    }
     if (len == 6 && memEQ(key, "repeat",6)) {
       ok=1;
       if (SvTRUEx(nval)) EvREPEAT_on(ev); else EvREPEAT_off(ev);
@@ -228,8 +235,7 @@ pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
   }
 }
 
-static void
-pe_event_DELETE(pe_event *ev, SV *svkey)
+static void pe_event_DELETE(pe_event *ev, SV *svkey)
 {
   char *key = SvPV(svkey, na);
   SV *ret;
@@ -255,8 +261,7 @@ pe_event_DELETE(pe_event *ev, SV *svkey)
   }
 }
 
-static int
-pe_event_EXISTS(pe_event *ev, SV *svkey)
+static int pe_event_EXISTS(pe_event *ev, SV *svkey)
 {
   char *key = SvPV(svkey, na);
   pe_event_vtbl *vt = ev->vtbl;
@@ -276,8 +281,7 @@ pe_event_EXISTS(pe_event *ev, SV *svkey)
   return hv_exists_ent(ev->FALLBACK, svkey, 0);
 }
 
-static void
-pe_event_FIRSTKEY(pe_event *ev)
+static void pe_event_FIRSTKEY(pe_event *ev)
 {
   ev->iter = 0;
   if (ev->FALLBACK)
@@ -285,8 +289,7 @@ pe_event_FIRSTKEY(pe_event *ev)
   (*ev->vtbl->NEXTKEY)(ev);
 }
 
-static void
-pe_event_NEXTKEY(pe_event *ev)
+static void pe_event_NEXTKEY(pe_event *ev)
 {
   pe_event_vtbl *vt = ev->vtbl;
   int at = ev->iter++;
@@ -344,7 +347,7 @@ static void pe_check_recovery()
   if (ev->running == fp->run_id) {
     if (EvREENTRANT(ev)) {
       if (!fp->cbdone)
-	(*fp->ev->vtbl->cbdone)(fp);
+	(*fp->ev->vtbl->postCB)(fp);
     }
     else {
       if (EvREPEAT(ev) && !EvSUSPEND(ev)) {
@@ -373,7 +376,7 @@ static void pe_check_recovery()
       pe_event_died(fp->ev);
     }
     if (!fp->cbdone)
-      (*fp->ev->vtbl->cbdone)(fp);
+      (*fp->ev->vtbl->postCB)(fp);
     --CurCBFrame;
   }
   if (!alert)
@@ -384,23 +387,12 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
 {
   struct pe_cbframe *frp;
   struct timeval start_tm;
-  int flags = G_VOID;
-  int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
-  assert(!EvSUSPEND(ev)); /* how'd we here, otherwise?? */
-  assert(EvACTIVE(ev));
-  assert(!(ev->running && !EvREENTRANT(ev))); /* should have been avoided */
 
   pe_check_recovery();
   if (Stats)
     gettimeofday(&start_tm, 0);
 
   /* SETUP */
-  /* this cannot be done any later because the callback might want to
-     call again or whatever */
-  if (EvINVOKE1(ev))
-    EvACTIVE_off(ev);
-  else if (!EvREPEAT(ev))
-    (*ev->vtbl->stop)(ev);
   ENTER;
   SAVEINT(ev->running);
   frp = &CBFrame[++CurCBFrame];
@@ -417,25 +409,24 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
     croak("deep recursion detected; invoking unloop_all()\n");
   }
 
-  if (SvIVX(Eval) || EvDEBUG(ev))
-    flags |= G_EVAL;
   if (ev->perl_callback[0]) {
+    int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
     dSP;
     SAVETMPS;
     if (!ev->perl_callback[1]) {
       PUSHMARK(SP);
       XPUSHs(sv_2mortal(event_2sv(ev)));
       PUTBACK;
-      perl_call_sv(ev->perl_callback[0], flags);
+      perl_call_sv(ev->perl_callback[0], pcflags);
     } else {
       dSP;
       PUSHMARK(SP);
       XPUSHs(ev->perl_callback[0]);
       XPUSHs(sv_2mortal(event_2sv(ev)));
       PUTBACK;
-      perl_call_method(SvPV(ev->perl_callback[1],na), flags);
+      perl_call_method(SvPV(ev->perl_callback[1],na), pcflags);
     }
-    if ((flags & G_EVAL) && SvTRUE(ERRSV))
+    if ((pcflags & G_EVAL) && SvTRUE(ERRSV))
       pe_event_died(ev);
     FREETMPS;
   } else if (ev->c_callback) {
@@ -446,7 +437,7 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
 
   /* clean up */
   if (!frp->cbdone)
-    (*ev->vtbl->cbdone)(frp);
+    (*ev->vtbl->postCB)(frp);
   LEAVE;
   --CurCBFrame;
   /* clean up */
@@ -462,13 +453,13 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
 			       (done_tm.tv_usec - start_tm.tv_usec)/1000000.0));
   }
 
-  if (debug >= 3)
+  if (EvDEBUGx(ev) >= 3)
     warn("Event: completed '%s'\n", SvPV(ev->desc, na));
   if (EvCANDESTROY(ev))
     (*ev->vtbl->dtor)(ev);
 }
 
-static void pe_event_cbdone(pe_cbframe *fp)
+static void pe_event_postCB(pe_cbframe *fp)
 {
   pe_event *ev = fp->ev;
   assert(!fp->cbdone);
@@ -482,10 +473,8 @@ static void pe_event_cbdone(pe_cbframe *fp)
 
   if (fp->resume)
     pe_event_resume(ev);
-  if (EvINVOKE1(ev)) {
-    if (EvREPEAT(ev))
-      (*ev->vtbl->start)(ev, 1);
-  }
+  else if (EvINVOKE1(ev) && EvREPEAT(ev))
+    pe_event_start(ev, 1);
 }
 
 static void pe_event_nomethod(pe_event *ev, char *meth)
@@ -497,12 +486,10 @@ static void pe_event_nomethod(pe_event *ev, char *meth)
 
 static void pe_event_nostart(pe_event *ev, int repeat)
 { pe_event_nomethod(ev,"start"); }
-static void pe_event_stop(pe_event *ev)
+static void pe_event_nostop(pe_event *ev)
 { pe_event_nomethod(ev,"stop"); }
 static void pe_event_alarm(pe_event *ev)
 { pe_event_nomethod(ev,"alarm"); }
-static void pe_event_preidle(pe_event *ev)
-{ pe_event_nomethod(ev,"preidle"); }
 
 static void boot_pe_event()
 {
@@ -515,7 +502,8 @@ static void boot_pe_event()
     "callback",
     "debug",
     "flags",
-    "running"
+    "running",
+    "reentrant"
   };
   HV *stash = gv_stashpv("Event::Watcher", 1);
   struct pe_event_vtbl *vt;
@@ -533,33 +521,39 @@ static void boot_pe_event()
   vt->FIRSTKEY = pe_event_FIRSTKEY;
   vt->NEXTKEY = pe_event_NEXTKEY;
   vt->start = pe_event_nostart;
-  vt->stop = pe_event_stop;
-  vt->cbdone = pe_event_cbdone;
+  vt->stop = pe_event_nostop;
   vt->alarm = pe_event_alarm;
-  vt->preidle = pe_event_preidle;
+  vt->postCB = pe_event_postCB;
   newCONSTSUB(stash, "ACTIVE", newSViv(PE_ACTIVE));
   newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
   newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));
   newCONSTSUB(stash, "RUNNING", newSViv(PE_RUNNING));
 }
 
-static void
-pe_register_vtbl(pe_event_vtbl *vt)
+static void pe_register_vtbl(pe_event_vtbl *vt)
 {
   /* maybe check more stuff? */
   assert(vt->up);
   assert(vt->stash);
 }
 
+static void pe_event_now(pe_event *ev)
+{
+  if (EvSUSPEND(ev)) return;
+  queueEvent(ev, 1);
+}
+
+/******************************************
+  The following methods change the status flags.  These are the only
+  methods that should venture to change these flags!
+ */
+
 static void pe_event_cancel(pe_event *ev)
 {
-  if (EvSUSPEND(ev)) {
-    EvFLAGS(ev) &= ~PE_SUSPEND; /* must happen nowhere else!! */
-    EvACTIVE_off(ev);
-    EvQUEUED_off(ev);
-  }
+  if (EvSUSPEND(ev))
+    EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE|PE_QUEUED);
   else {
-    (*ev->vtbl->stop)(ev);
+    pe_event_stop(ev);
     if (EvQUEUED(ev))
       dequeEvent(ev);
   }
@@ -578,15 +572,15 @@ static void pe_event_suspend(pe_event *ev)
   if (EvDEBUGx(ev) >= 4)
     warn("Event: suspend '%s'%s%s\n", SvPV(ev->desc,na),
 	 active?" ACTIVE":"", queued?" QUEUED":"");
-  if (active) {
-    (*ev->vtbl->stop)(ev);
-    EvACTIVE_on(ev);
-  }
+  if (active)
+    pe_event_stop(ev);
+  if (active || (EvINVOKE1(ev) && EvREPEAT(ev)))
+    EvACTIVE_on(ev); /* must happen nowhere else!! */
   if (queued) {
     dequeEvent(ev);
     EvQUEUED_on(ev);
   }
-  EvFLAGS(ev) |= PE_SUSPEND; /* must happen nowhere else!! */
+  EvSUSPEND_on(ev); /* must happen nowhere else!! */
 }
 
 static void pe_event_resume(pe_event *ev)
@@ -599,26 +593,32 @@ static void pe_event_resume(pe_event *ev)
   if (EvDEBUGx(ev) >= 4)
     warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,na),
 	 active?" ACTIVE":"", queued?" QUEUED":"");
-  EvFLAGS(ev) &= ~PE_SUSPEND; /* must happen nowhere else!! */
-  if (active) {
-    EvACTIVE_off(ev);
-    (*ev->vtbl->start)(ev, 0);
-  }
-  if (queued) {
-    EvQUEUED_off(ev);
+  EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE|PE_QUEUED);
+  if (active)
+    pe_event_start(ev, 0);
+  if (queued)
     queueEvent(ev, 0);
-  }
-}
-
-static void pe_event_now(pe_event *ev)
-{
-  if (EvSUSPEND(ev))
-    return;
-  if (EvACTIVE(ev))
-    (*ev->vtbl->stop)(ev);
-  queueEvent(ev, 1);
 }
 
 static void pe_event_start(pe_event *ev, int repeat)
-{ (*ev->vtbl->start)(ev, repeat); }
+{
+  if (EvACTIVE(ev) || EvSUSPEND(ev))
+    return;
+  if (EvDEBUGx(ev) >= 4)
+    warn("Event: active ON '%s'\n", SvPV(ev->desc,na));
+  EvACTIVE_on(ev); /* must happen nowhere else!! */
+  (*ev->vtbl->start)(ev, repeat);
+  ++ActiveWatchers;
+}
+
+static void pe_event_stop(pe_event *ev)
+{
+  if (!EvACTIVE(ev) || EvSUSPEND(ev))
+    return;
+  if (EvDEBUGx(ev) >= 4)
+    warn("Event: active OFF '%s'\n", SvPV(ev->desc,na));
+  EvACTIVE_off(ev); /* must happen nowhere else!! */
+  (*ev->vtbl->stop)(ev);
+  --ActiveWatchers;
+}
 

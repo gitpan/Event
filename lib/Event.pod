@@ -2,13 +2,6 @@
 
 Event - Event loop processing
 
-=head1 WARNING
-
-B<THIS IS EXPERIMENTAL AND IS LIKELY TO CHANGE BEFORE BEING DECLARED
-STABLE AS GRANITE.>
-
-Thank you for your patience.
-
 =head1 SYNOPSIS
 
  use Event qw(loop unloop);
@@ -306,19 +299,20 @@ This extension is discussed on the perl-loop@perl.org mailing list.
 
 L<Event::Advanced> (to be written) and L<NetServer::ProcessTop>
 
-While not directly related, http://consult.ml.org/~trockij/mon might
-also be of interest.  I'd be interested in hearing about similar
-tools.
-
 =head1 AUTHORS
 
-Graham Barr E<lt>F<gbarr@pobox.com>E<gt>
 Joshua Pritikin E<lt>F<bitset@mindspring.com>E<gt>
-Gisle Aas E<lt>F<gisle@aas.no>E<gt>
+
+Initial 0.01 implementation by Graham Barr
+E<lt>F<gbarr@pobox.com>E<gt>.  Also, contributions from:
+
+ Gisle Aas E<lt>F<gisle@aas.no>E<gt>
+ Mark Mielke <Mark.Mielke.markm@nt.com>
+ Nick Ing-Simmons <nick@ni-s.u-net.com>
 
 =head1 COPYRIGHT
 
-Copyright © 1997-1998 Graham Barr & Joshua Nathaniel Pritikin.  All
+Copyright © 1997-1998 Joshua Nathaniel Pritikin & Graham Barr.  All
 rights reserved.  This program is free software; you can redistribute
 it and/or modify it under the same terms as Perl itself.
 

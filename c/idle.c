@@ -30,13 +30,10 @@ static void pe_idle_start(pe_event *ev, int repeating)
   double now;
   double min,max;
   pe_idle *ip = (pe_idle*) ev;
-  if (EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
   if (SvOK(ip->min_interval) || SvOK(ip->max_interval))
     EvCBTIME_on(ev);
   else
     EvCBTIME_off(ev);
-  EvACTIVE_on(ev);
   if (!repeating) ev->cbtime = EvNOW(1);
   now = EvHARD(ev)? ev->cbtime : EvNOW(1);
   if (sv_2interval(ip->min_interval, &min)) {
@@ -60,8 +57,6 @@ static void pe_idle_alarm(pe_event *ev)
   double now = EvNOW(1);
   double min,max,left;
   pe_idle *ip = (pe_idle*) ev;
-  assert(!EvSUSPEND(ev));
-  assert(EvACTIVE(ev));
   pe_timeable_stop(ev);
   if (sv_2interval(ip->min_interval, &min)) {
     left = ev->cbtime + min - now;
@@ -92,17 +87,9 @@ static void pe_idle_alarm(pe_event *ev)
   }
 }
 
-static void pe_idle_preidle(pe_event *ev)
-{
-  pe_timeable_stop(ev);
-}
-
 static void pe_idle_stop(pe_event *ev)
 {
   pe_idle *ip = (pe_idle*) ev;
-  if (!EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
-  EvACTIVE_off(ev);
   PE_RING_DETACH(&ip->iring);
   pe_timeable_stop(ev);
 }
@@ -210,6 +197,5 @@ static void boot_idle()
   vt->start = pe_idle_start;
   vt->stop = pe_idle_stop;
   vt->alarm = pe_idle_alarm;
-  vt->preidle = pe_idle_preidle;
   pe_register_vtbl(vt);
 }

@@ -66,7 +66,7 @@ struct pe_timeable {
 #define PE_INVOKE1	0x400
 #define PE_CBTIME	0x800
 
-#define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 1:0) /*arthimetical*/
+#define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 2:0) /*arthimetical*/
 #define EvDEBUG_on(ev)		(EvFLAGS(ev) |= PE_DEBUG)
 #define EvDEBUG_off(ev)		(EvFLAGS(ev) &= ~PE_DEBUG)
 
@@ -95,7 +95,7 @@ struct pe_idle {
   SV *max_interval, *min_interval;
 };
 
-/* flags for pe_io::events */
+/* flags for pe_io::events -- maybe not IO specific...? */
 #define PE_IO_R 0x1
 #define PE_IO_W 0x2
 #define PE_IO_E 0x4
@@ -130,8 +130,8 @@ struct pe_timer {
   SV *interval;
 };
 
-typedef struct pe_watchvar pe_watchvar;
-struct pe_watchvar {
+typedef struct pe_var pe_var;
+struct pe_var {
   pe_event base;
   SV *variable;
 };
@@ -143,7 +143,7 @@ struct EventAPI {
   /* PUBLIC API */
   int (*one_event)(double block_tm);
   void (*unloop)(SV *result);
-  SV *(*sleep)(SV *howlong); /* sleep EXPERIMENTAL */
+  SV *(*sleep)(SV *howlong);
   
   void (*start)(pe_event *ev, int repeat);
   void (*queue)(pe_event *ev, int count);
@@ -155,7 +155,7 @@ struct EventAPI {
   pe_idle     *(*new_idle)();
   pe_timer    *(*new_timer)();
   pe_io       *(*new_io)();
-  pe_watchvar *(*new_watchvar)();
+  pe_var      *(*new_var)();
   pe_signal   *(*new_signal)();
 };
 

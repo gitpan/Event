@@ -1,5 +1,5 @@
 use strict;
-package Event::watchvar;
+package Event::var;
 use base 'Event::Watcher';
 
 'Event::Watcher'->register;

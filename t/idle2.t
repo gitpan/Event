@@ -16,7 +16,6 @@ $min = 100;
 my $Min = .01;
 my $Max = .2;
 Event->idle(min_interval => $Min, max_interval => $Max, desc => "*IDLE*TEST*",
-	    debug => 1,
 	    callback => sub {
 		my $now = time;
 		if (!$prev) { $prev = time; return }

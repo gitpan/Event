@@ -10,10 +10,10 @@ BEGIN {
 package Event;
 use Carp;
 use base 'Exporter';
-use vars qw($VERSION @EXPORT_OK
+use vars qw($VERSION @EXPORT_OK @EXPORT_FAIL
 	    $API $DebugLevel $Eval $DIED $Now
 	    @Prepare @Check @AsyncCheck);
-$VERSION = '0.17';
+$VERSION = '0.18';
 BOOT_XS: {
     # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -33,21 +33,37 @@ $Eval = 0;		# should avoid because c_callback is exempt
 $DIED = \&default_exception_handler;
 
 @EXPORT_OK = qw(time $Now all_events all_running all_queued all_idle
-		one_event loop unloop unloop_all
+		one_event loop unloop unloop_all sleep
 		QUEUES PRIO_NORMAL PRIO_HIGH);
+
+sub export_fail {
+    # Doesn't even get called!  Patch needed for Exporter.pm. XXX
+    shift;
+    my @fail;
+    for my $sub (@_) {
+	if (_load_watcher($sub)) {
+	    push @EXPORT_OK, $sub;
+	} else {
+	    push @fail, $sub;
+	}
+    }
+    @fail;
+}
+
+sub _load_watcher {
+    my $sub = shift;
+    eval { require "Event/$sub.pm" } or return;
+    croak "Event/$sub.pm did not define Event::$sub\::new"
+	unless defined &$sub;
+    1;
+}
 
 # We use AUTOLOAD to load the Event source packages, so
 # Event->process will load Event::process
 
 sub AUTOLOAD {
     my $sub = ($Event::AUTOLOAD =~ /(\w+)$/)[0];
-
-    eval { require "Event/$sub.pm" }
-	or croak $@ . ', Undefined subroutine &' . $sub;
-
-    croak "Event/$sub.pm did not define Event::$sub"
-	unless defined &$sub;
-
+    _load_watcher($sub) or croak $@ . ', Undefined subroutine &' . $sub;
     goto &$sub;
 }
 

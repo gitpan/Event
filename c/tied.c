@@ -2,12 +2,13 @@ static struct pe_event_vtbl pe_tied_vtbl;
 
 static pe_event *pe_tied_allocate(SV *class)
 {
-  pe_event *ev;
-  New(PE_NEWID, ev, 1, pe_event);
-  ev->vtbl = &pe_tied_vtbl;
-  pe_event_init(ev);
-  ev->stash = gv_stashsv(class, 1);
-  return ev;
+  pe_tmevent *ev;
+  New(PE_NEWID, ev, 1, pe_tmevent);
+  ev->base.vtbl = &pe_tied_vtbl;
+  pe_event_init((pe_event*)ev);
+  PE_RING_INIT(&ev->tm.ring, ev);
+  ev->base.stash = gv_stashsv(class, 1);
+  return (pe_event*) ev;
 }
 
 static void pe_tied_start(pe_event *ev, int repeat)
@@ -18,9 +19,9 @@ static void pe_tied_start(pe_event *ev, int repeat)
   XPUSHs(sv_2mortal(event_2sv(ev)));
   XPUSHs(boolSV(repeat));
   PUTBACK;
-  gv = gv_fetchmethod(ev->stash, "start");
+  gv = gv_fetchmethod(ev->stash, "_start");
   if (!gv)
-    croak("Cannot find %s->start()", HvNAME(ev->stash));
+    croak("Cannot find %s->_start()", HvNAME(ev->stash));
   perl_call_sv((SV*)GvCV(gv), G_DISCARD);
 }
 
@@ -31,9 +32,9 @@ static void pe_tied_stop(pe_event *ev)
   PUSHMARK(SP);
   XPUSHs(sv_2mortal(event_2sv(ev)));
   PUTBACK;
-  gv = gv_fetchmethod(ev->stash, "stop");
+  gv = gv_fetchmethod(ev->stash, "_stop");
   if (!gv)
-    croak("Cannot find %s->stop()", HvNAME(ev->stash));
+    croak("Cannot find %s->_stop()", HvNAME(ev->stash));
   perl_call_sv((SV*)GvCV(gv), G_DISCARD);
 }
 
@@ -49,11 +50,8 @@ static void pe_tied_STORE(pe_event *ev, SV *svkey, SV *nval)
   case 'f':
     if (len == 5 && memEQ(key, "flags", 5)) {
       IV flip = SvIV(nval) ^ ev->flags;
-      if (flip & PE_ACTIVE) {
-	if (EvACTIVE(ev))
-	  EvACTIVE_off(ev);
-	else
-	  EvACTIVE_on(ev);
+      if (flip & PE_INVOKE1) {
+	if (EvINVOKE1(SvIV(nval))) EvINVOKE1_on(ev); else EvINVOKE1_off(ev);
       }
       else
 	croak("'flags' are mostly read-only");

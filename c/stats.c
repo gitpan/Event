@@ -142,7 +142,7 @@ static void pe_stat_restart()
     ev->priority = PE_PRIO_NORMAL + 1;
     ev->c_callback = pe_stat_roll_cb;
     gettimeofday(&total_tm, 0);
-    pe_timer_start(ev, 0);
+    pe_event_start(ev, 0);
   }
   ++Stats;
 }

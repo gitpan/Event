@@ -7,7 +7,7 @@ Event->io()->cancel;
 Event->signal(signal => 'USR1')->cancel;
 Event->timer(at => time)->cancel;
 my $var = 1;
-Event->watchvar(variable => \$var)->cancel;
+Event->var(variable => \$var)->cancel;
 
 my $got = join(', ', map { ref } all_events()) || 'None';
 ok($got, 'None');

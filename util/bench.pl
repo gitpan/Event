@@ -61,7 +61,7 @@ use vars qw($IdleCount);
 $IdleCount = 0;
 
 my $idle;
-$idle = Event->idle(callback => sub {
+$idle = Event->idle(min_interval => undef, callback => sub {
     ++$IdleCount;
     for (0..@W) {
 	my $w = $W[int rand @W];

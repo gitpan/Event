@@ -1,11 +1,16 @@
-io watchers
+io watcher
   -tailpoll -- how to do this?!
   [+-] notation to modify the event mask
 
-screensaver watchers
+inactive watchers (screensaver style)
   by priority?
 
-rename watchvar to 'var', 'assign', or 'assignment'
+var watcher
+  -timeout!
+  specify r/w/t flags!
+
+tied watcher
+  complete access to timeable API
 
 croak should route through Carp!
 
@@ -17,15 +22,11 @@ documentation
 
 Event::Watcher
   complete -priority => -nice migration (in a few weeks)
-  remove support for leading dashes (by Oct 3)
-  allow editing of reentrant?  only when not running?
+  remove support for leading dashes (after Oct 3)
 
-There is currently no way to take advantage of pe_tmevent in a purely
-perl implemented watcher.
-
-clean up sleep()
-
-export_fail hook to autoload
+sweep()
+  right name?
+  queue events, process them, and return immediately
 
 optimization
   update io event-mask without invalidating cache
@@ -37,11 +38,13 @@ time
   changing speed of time
   for year 2000 testing :-)
 
+export_fail hook to autoload
+
 extra assertions for C API
 
 one_event
   configuration of StarvePrio?
-  since there is only one queue, could allow more queue priorities...?
+  since there is only one queue could allow more queue priorities...?
 
 accept "%f minutes" & "%f hours" for all time specifications?
 

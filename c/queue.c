@@ -29,6 +29,7 @@ static void dequeEvent(pe_event *ev)
   assert(!EvSUSPEND(ev));
   PE_RING_DETACH(&ev->que);
   EvQUEUED_off(ev);
+  --ActiveWatchers;
 }
 
 static void db_show_queue()
@@ -41,12 +42,21 @@ static void db_show_queue()
   }
 }
 
+static void ready_event(pe_event *ev)
+{
+  assert(!EvSUSPEND(ev));
+  assert(EvACTIVE(ev));    /* or how'd we get here?! */
+  assert(EvREENTRANT(ev) || !ev->running);
+
+  /* this cannot be done any later because the callback might want to
+     again() or whatever */
+  if (EvINVOKE1(ev) || (!EvINVOKE1(ev) && !EvREPEAT(ev)))
+    pe_event_stop(ev);
+}
+
 static void queueEvent(pe_event *ev, int count)
 {
-  pe_ring *rg;
-
-  if (EvSUSPEND(ev)) return;
-  assert(!(!EvREENTRANT(ev) && ev->running));
+  ready_event(ev);
 
   assert(count >= 0);
   ev->count += count;
@@ -64,16 +74,19 @@ static void queueEvent(pe_event *ev, int count)
   if (ev->priority >= PE_QUEUES)
     ev->priority = PE_QUEUES-1;
   if (EvDEBUGx(ev) >= 3)
-    warn("Event: queuing '%s' at priority %d\n", SvPV(ev->desc,na),
-	 ev->priority);
-  /* queue in reverse direction? XXX */ 
-  /*  warn("-- adding 0x%x/%d\n", ev, prio); db_show_queue();/**/
-  rg = NQueue.next;
-  while (rg->self && ((pe_event*)rg->self)->priority <= ev->priority)
-    rg = rg->next;
-  PE_RING_ADD_BEFORE(&ev->que, rg);
-  /*  warn("=\n"); db_show_queue();/**/
-  EvQUEUED_on(ev);
+    warn("Event: queue '%s' prio=%d\n", SvPV(ev->desc,na), ev->priority);
+  {
+    /* queue in reverse direction? XXX */ 
+    /*  warn("-- adding 0x%x/%d\n", ev, prio); db_show_queue();/**/
+    pe_ring *rg;
+    rg = NQueue.next;
+    while (rg->self && ((pe_event*)rg->self)->priority <= ev->priority)
+      rg = rg->next;
+    PE_RING_ADD_BEFORE(&ev->que, rg);
+    /*  warn("=\n"); db_show_queue();/**/
+    EvQUEUED_on(ev);
+    ++ActiveWatchers;
+  }
 }
 
 static void pe_map_check(AV *av)
@@ -168,7 +181,7 @@ static int one_event(double tm)
   }
 
   if (SvIVX(DebugLevel) >= 2) {
-    warn("Event: multiplex %.2fs %s%s\n", tm,
+    warn("Event: multiplex %.4fs %s%s\n", tm,
 	 PE_RING_EMPTY(&NQueue)?"":"QUEUE",
 	 PE_RING_EMPTY(&Idle)?"":"IDLE");
   }
@@ -197,7 +210,7 @@ static int one_event(double tm)
     pe_event *ev;
     if (PE_RING_EMPTY(&Idle)) return 0;
     PE_RING_POP(&Idle, ev);
-    (*ev->vtbl->preidle)(ev);
+    ready_event(ev);
     /* can't queueEvent because we are already beyond that */
     ++ev->count;
     if (EvDEBUGx(ev) >= 2)
@@ -224,33 +237,21 @@ static void pe_unloop(SV *why)
 
 typedef struct pe_sleep_frame pe_sleep_frame;
 struct pe_sleep_frame {
-  int died;  /* not exactly right XXX */
-  int reentrant;
+  int expired;
+  int was_reentrant;
   pe_event *cb;
   pe_event *tmr;
   SV *ret;
 };
 
-static void pe_wake_up(void *vptr)
-{
-  pe_sleep_frame *fr = (pe_sleep_frame *) vptr;
-  if (SvIVX(DebugLevel) >= 2)
-    warn("Event: sleep id=%d %s\n", fr->cb->id, fr->died? "died":"finished");
-  if (fr->reentrant) EvREENTRANT_on(fr->cb);
-  --fr->cb->refcnt;
-  --fr->tmr->refcnt;
-  sv_2mortal(fr->ret);
-  if (fr->died)
-    pe_event_cancel(fr->tmr);
-}
-
 static void pe_sleep_expire(void *vptr)
 {
   pe_sleep_frame *fr = (pe_sleep_frame *) vptr;
+  fr->expired = 1;
   pe_unloop(fr->ret);
 }
 
-static SV *pe_sleep(SV *howlong)    /* not exactly right XXX */
+static SV *pe_sleep(SV *howlong)
 {
   double duration;
   if (!sv_2interval(howlong, &duration))
@@ -262,46 +263,52 @@ static SV *pe_sleep(SV *howlong)    /* not exactly right XXX */
     return howlong;
   }
   else {
-    pe_sleep_frame *fr;
+    pe_sleep_frame fr;
     pe_timer *tm;
     SV *ret;
 
-    New(PE_NEWID, fr, 1, pe_sleep_frame);
-    fr->died = 1;
-    fr->ret = SvREFCNT_inc(howlong);
-    fr->tmr = pe_timer_allocate();
-    fr->cb = (CBFrame + CurCBFrame)->ev;
+    fr.expired = 0;
+    fr.tmr = pe_timer_allocate();
+    fr.cb = (CBFrame + CurCBFrame)->ev;
+    fr.ret = SvREFCNT_inc(howlong);
 
     /* protect callback event */
-    ++fr->cb->refcnt;
-    fr->reentrant = EvREENTRANT(fr->cb);
-    EvREENTRANT_off(fr->cb);
+    ++fr.cb->refcnt;
+    fr.was_reentrant = EvREENTRANT(fr.cb);
+    EvREENTRANT_off(fr.cb);
 
     /* set up timer */
-    tm = (pe_timer*) fr->tmr;
+    tm = (pe_timer*) fr.tmr;
     ++tm->base.refcnt;
-    sv_setpvf(tm->base.desc, "sleep(%.2f id=%d) timer", duration, fr->cb->id);
+    sv_setpvf(tm->base.desc, "sleep(%.2f id=%d) timer", duration, fr.cb->id);
     tm->tm.at = EvNOW(1) + duration;
     tm->base.c_callback = pe_sleep_expire;
-    tm->base.ext_data = fr;
-    tm->base.priority = -1; /**/
+    tm->base.ext_data = &fr;
+    tm->base.priority = PE_PRIO_HIGH;
     pe_event_start((pe_event*) tm, 0);
 
     if (SvIVX(DebugLevel) >= 2)
-      warn("Event: sleep(%.2f) id=%d\n", duration, fr->cb->id);
+      warn("Event: sleep(%.2f) id=%d\n", duration, fr.cb->id);
 
-    ENTER;
-    SAVEDESTRUCTOR(pe_wake_up, fr);
     {
       dSP;
       PUSHMARK(SP);
-      perl_call_pv("Event::loop", G_SCALAR | G_NOARGS);
+      perl_call_pv("Event::loop", G_SCALAR | G_NOARGS);  /* cannot die */
       SPAGAIN;
       ret = POPs;
       PUTBACK;
     }
-    fr->died = 0;
-    LEAVE;
+
+    if (SvIVX(DebugLevel) >= 2)
+      warn("Event: sleep id=%d %s\n", fr.cb->id,
+	   fr.expired? "finished":"unlooped early");
+    if (fr.was_reentrant)
+      EvREENTRANT_on(fr.cb);
+    --fr.cb->refcnt;
+    --fr.tmr->refcnt;
+    sv_2mortal(howlong);
+    pe_event_cancel(fr.tmr);
+
     return ret;
   }
 }

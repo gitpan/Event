@@ -52,11 +52,8 @@ io_events_2sv(int mask)
 static void pe_io_start(pe_event *_ev, int repeat)
 {
   pe_io *ev = (pe_io*) _ev;
-  if (EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
   PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
   ++IOWatchCount;
-  EvACTIVE_on(_ev);
   IOWatch_OK = 0;
   if (ev->timeout) {
     EvCBTIME_on(ev);
@@ -72,13 +69,10 @@ static void pe_io_start(pe_event *_ev, int repeat)
 static void pe_io_stop(pe_event *_ev)
 {
   pe_io *ev = (pe_io*) _ev;
-  if (!EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
   if (ev->timeout)
     pe_timeable_stop(_ev);
   PE_RING_DETACH(&ev->ioring);
   --IOWatchCount;
-  EvACTIVE_off(_ev);
   IOWatch_OK = 0;
 }
 
@@ -218,11 +212,11 @@ pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
     (ev->base.vtbl->up->STORE)(_ev, svkey, nval);
 }
 
-static void pe_io_cbdone(pe_cbframe *fp)
+static void pe_io_postCB(pe_cbframe *fp)
 {
   pe_io *io = (pe_io*) fp->ev;
   io->got = 0;
-  pe_event_cbdone(fp);
+  pe_event_postCB(fp);
 }
 
 static void boot_io()
@@ -244,7 +238,7 @@ static void boot_io()
   vt->STORE = pe_io_STORE;
   vt->start = pe_io_start;
   vt->stop = pe_io_stop;
-  vt->cbdone = pe_io_cbdone;
+  vt->postCB = pe_io_postCB;
   vt->alarm = pe_io_alarm;
   newCONSTSUB(stash, "R", newSViv(PE_IO_R));
   newCONSTSUB(stash, "W", newSViv(PE_IO_W));

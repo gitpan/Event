@@ -10,7 +10,7 @@ my $var1 = 1;
 my $var2 = 3;
 my $var3 = 0;
 
-Event->watchvar(
+Event->var(
     -variable => \$var1,
     -callback =>
 	sub {
@@ -20,7 +20,7 @@ Event->watchvar(
     desc => "var1"
 );
 
-Event->watchvar(
+Event->var(
     -variable => \$var2,
     -callback =>
 	sub {
@@ -31,7 +31,7 @@ Event->watchvar(
 		desc => "var2"
 );
 
-Event->watchvar(
+Event->var(
     -variable => \$var3,
     nice    => -10,
     -callback =>
