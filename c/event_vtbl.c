@@ -379,16 +379,13 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
   frp->ev = ev;
   frp->cbdone = 0;
   frp->run_id = ++ev->running;
-  if (EvCBTIME(ev))
-    ev->cbtime = EvNOW;
-  else
-    ev->cbtime = SvNVX(NowSV);  /* get rough estimate (it's cheap!) */
+  ev->cbtime = EvNOW(EvCBTIME(ev));
   /* set up */
 
   if (CurCBFrame+1 >= MAX_CB_NEST) {
     SV *exitL = perl_get_sv("Event::ExitLevel", 1);
     sv_setiv(exitL, 0);
-    croak("deep recursion detected; invoking unloop_all\n");
+    croak("deep recursion detected; invoking unloop_all()\n");
   }
 
   if (SvIVX(Eval) || EvDEBUG(ev))
@@ -478,15 +475,13 @@ static void pe_event_nomethod(pe_event *ev, char *meth)
 }
 
 static void pe_event_nostart(pe_event *ev, int repeat)
-{
-  pe_event_nomethod(ev,"start");
-}
-
+{ pe_event_nomethod(ev,"start"); }
 static void pe_event_stop(pe_event *ev)
 { pe_event_nomethod(ev,"stop"); }
+static void pe_event_alarm(pe_event *ev)
+{ pe_event_nomethod(ev,"alarm"); }
 
-static void
-boot_pe_event()
+static void boot_pe_event()
 {
   static char *keylist[] = {
     "id",
@@ -517,6 +512,7 @@ boot_pe_event()
   vt->start = pe_event_nostart;
   vt->stop = pe_event_stop;
   vt->cbdone = pe_event_cbdone;
+  vt->alarm = pe_event_alarm;
   newCONSTSUB(stash, "ACTIVE", newSViv(PE_ACTIVE));
   newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
   newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));

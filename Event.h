@@ -66,6 +66,7 @@ struct pe_event_vtbl {
   void (*start)(pe_event *, int);
   void (*stop)(pe_event *);
   void (*cbdone)(pe_cbframe *);
+  void (*alarm)(pe_event *);
 };
 
 typedef struct pe_run pe_run;

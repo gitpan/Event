@@ -6,16 +6,15 @@ struct pe_tmevent {
   pe_timeable tm;
 };
 
-static void checkTimers()
+static void pe_timeables_check()
 {
-  pe_ring *rg = Timeables.next;
-  double now = EvNOW;
-  while (rg->self && ((pe_tmevent*)rg->self)->tm.at < now) {
-    pe_ring *nxt = rg->next;
-    PE_RING_DETACH(rg);
-    EvACTIVE_off(rg->self);
-    queueEvent(rg->self, 1);
-    rg = nxt;
+  pe_tmevent *ev = (pe_tmevent*) Timeables.next->self;
+  double now = EvNOW(1);
+  while (ev && ev->tm.at < now) {
+    pe_tmevent *nev = (pe_tmevent*) ev->tm.ring.next->self;
+    PE_RING_DETACH(&ev->tm.ring);
+    (*ev->base.vtbl->alarm)((pe_event*)ev);
+    ev = nev;
   }
 }
 
@@ -24,7 +23,7 @@ static double timeTillTimer()
   pe_ring *rg = Timeables.next;
   if (!rg->self)
     return 3600;
-  return ((pe_tmevent*) rg->self)->tm.at - EvNOW;
+  return ((pe_tmevent*) rg->self)->tm.at - EvNOW(1);
 }
 
 static void db_show_timeables()

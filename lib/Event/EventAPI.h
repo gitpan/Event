@@ -84,12 +84,6 @@ struct pe_timeable {
 #define PE_PRIO_HIGH	2
 #define PE_PRIO_NORMAL	4
 
-/* flags for pe_io::events */
-#define PE_IO_R 1
-#define PE_IO_W 2
-#define PE_IO_E 4
-/*#define PE_IO_T 8 */
-
 typedef struct pe_idle pe_idle;
 struct pe_idle {
   pe_event base;
@@ -98,12 +92,19 @@ struct pe_idle {
   double min_interval, max_interval; /* not yet XXX */
 };
 
+/* flags for pe_io::events */
+#define PE_IO_R 0x1
+#define PE_IO_W 0x2
+#define PE_IO_E 0x4
+#define PE_IO_T 0x8
+
 typedef struct pe_io pe_io;
 struct pe_io {
   pe_event base;
   pe_timeable tm;
   pe_ring ioring;
   SV *handle;
+  double timeout;
   int events;
   int got;
 /* ifdef UNIX */
@@ -134,7 +135,7 @@ struct pe_watchvar {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 3
+#define EventAPI_VERSION 4
   I32 Ver;
 
   /* PUBLIC API */
@@ -153,14 +154,14 @@ struct EventAPI {
   pe_signal   *(*new_signal)();
 };
 
-#define FETCH_EVENT_API(api)				\
+#define FETCH_EVENT_API(YourName, api)			\
 STMT_START {						\
   SV *sv = perl_get_sv("Event::API",0);			\
   if (!sv) croak("Event::API not found");		\
   api = (struct EventAPI*) SvIV(sv);			\
   if (api->Ver != EventAPI_VERSION) {			\
-    croak("Event::API version mismatch (%d != %d) -- you must recompile with the recently installed Event",	\
-	  api->Ver, EventAPI_VERSION);			\
+    croak("Event::API version mismatch (%d != %d) -- you must recompile %s",	\
+	  api->Ver, EventAPI_VERSION, YourName);	\
   }							\
 } STMT_END
 

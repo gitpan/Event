@@ -1,3 +1,13 @@
+1998-09-29  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.15.
+
+	* Improved the EventAPI.h version check.
+	
+	* Added -timeout for io watchers.  Untested.
+
+	* Fix io watcher bugs (unix_io.c) pointed out by Gisle Aas.
+
 1998-09-28  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.14.
@@ -9,7 +19,8 @@
 
 	* Fixed whitespace in Event.pod.  (Gisle Aas again.)
 
-	* Optimized priority queue (hopefully).
+	* Optimized priority queue (hopefully).  I probably should have
+ 	benchmarked it first.  :-P
 
 1998-09-27  Joshua Pritikin  <joshua.pritikin@db.com>
 

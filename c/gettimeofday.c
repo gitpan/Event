@@ -74,4 +74,4 @@ static void pe_invalidate_now_cache()
   pe_now_valid = 0;
 }
 
-#define EvNOW (pe_now_valid? SvNVX(NowSV) : pe_cache_now())
+#define EvNOW(exact) ((!exact || pe_now_valid)? SvNVX(NowSV) : pe_cache_now())

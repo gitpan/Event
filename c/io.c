@@ -13,6 +13,7 @@ pe_io_allocate()
   pe_event_init((pe_event*) ev);
   PE_RING_INIT(&ev->ioring, ev);
   ev->fd = -1;
+  ev->timeout = 0;
   ev->handle = 0;
   ev->events = 0;
   ev->got = 0;
@@ -41,13 +42,60 @@ io_events_2sv(int mask)
   if (mask & PE_IO_R) sv_catpv(ret, "r");
   if (mask & PE_IO_W) sv_catpv(ret, "w");
   if (mask & PE_IO_E) sv_catpv(ret, "e");
+  if (mask & PE_IO_T) sv_catpv(ret, "t");
   SvIVX(ret) = mask;
   SvIOK_on(ret);
   return ret;
 }
 
-static void
-pe_io_FETCH(pe_event *_ev, SV *svkey)
+static void pe_io_start(pe_event *_ev, int repeat)
+{
+  pe_io *ev = (pe_io*) _ev;
+  if (EvACTIVE(ev) || EvSUSPEND(ev))
+    return;
+  PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
+  ++IOWatchCount;
+  EvACTIVE_on(ev);
+  IOWatch_OK = 0;
+  if (ev->timeout) {
+    EvCBTIME_on(ev);
+    ev->events |= PE_IO_T;
+    ev->tm.at = EvNOW(0) + ev->timeout;  /* too early okay */
+    pe_timeable_start(_ev);
+  } else {
+    EvCBTIME_off(ev);
+    ev->events &= ~PE_IO_T;
+  }
+}
+
+static void pe_io_stop(pe_event *_ev)
+{
+  pe_io *ev = (pe_io*) _ev;
+  if (!EvACTIVE(ev) || EvSUSPEND(ev))
+    return;
+  if (ev->timeout)
+    pe_timeable_stop(_ev);
+  PE_RING_DETACH(&ev->ioring);
+  --IOWatchCount;
+  EvACTIVE_off(ev);
+  IOWatch_OK = 0;
+}
+
+static void pe_io_alarm(pe_event *_ev)
+{
+  pe_io *ev = (pe_io*) _ev;
+  double left = (_ev->cbtime + ev->timeout) - EvNOW(1);
+  if (left > 0) {
+    ev->tm.at = left;
+    pe_timeable_start(_ev);
+  }
+  else {
+    ev->got |= PE_IO_T;
+    queueEvent(_ev, 1);
+  }
+}
+
+static void pe_io_FETCH(pe_event *_ev, SV *svkey)
 {
   pe_io *ev = (pe_io*) _ev;
   SV *ret=0;
@@ -74,6 +122,12 @@ pe_io_FETCH(pe_event *_ev, SV *svkey)
       break;
     }
     break;
+  case 't':
+    if (len == 7 && memEQ(key, "timeout", 7)) {
+      ret = sv_2mortal(newSVnv(ev->timeout));
+      break;
+    }
+    break;
   }
   if (ret) {
     dSP;
@@ -96,10 +150,10 @@ pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
   switch (key[0]) {
   case 'e':
     if (len == 6 && memEQ(key, "events", 6)) {
-      int xx;
       ok=1;
-      ev->events = 0;
+      ev->events = ev->timeout? PE_IO_T : 0;
       if (SvPOK(nval)) {  /* can fall thru to SvIOK? XXX */
+	int xx;
 	STRLEN el;
 	char *ep = SvPV(nval,el);
 	for (xx=0; xx < el; xx++) {
@@ -126,9 +180,6 @@ pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
 #endif
       } else
 	croak("Event::io::STORE('events'): expecting a string");
-
-      if (EvACTIVE(ev))
-	IOWatch_OK = 0;
       break;
     }
     break;
@@ -142,37 +193,25 @@ pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
       if (ev->handle)
 	SvREFCNT_dec(ev->handle);
       ev->handle = SvREFCNT_inc(nval);
-      if (EvACTIVE(ev))
-	IOWatch_OK = 0;
+      break;
+    }
+    break;
+  case 't':
+    if (len == 7 && memEQ(key, "timeout", 7)) {
+      ok=1;
+      ev->timeout = SvNV(nval);
       break;
     }
     break;
   }
-  if (!ok) (ev->base.vtbl->up->STORE)(_ev, svkey, nval);
-}
-
-static void
-pe_io_start(pe_event *_ev, int repeat)
-{
-  pe_io *ev = (pe_io*) _ev;
-  if (EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
-  PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
-  EvACTIVE_on(ev);
-  ++IOWatchCount;
-  IOWatch_OK = 0;
-}
-
-static void
-pe_io_stop(pe_event *_ev)
-{
-  pe_io *ev = (pe_io*) _ev;
-  if (!EvACTIVE(ev) || EvSUSPEND(ev))
-    return;
-  PE_RING_DETACH(&ev->ioring);
-  EvACTIVE_off(ev);
-  --IOWatchCount;
-  IOWatch_OK = 0;
+  if (ok) {
+    if (EvACTIVE(ev)) {
+      pe_io_stop(_ev);
+      pe_io_start(_ev, 0);
+    }
+  }
+  else
+    (ev->base.vtbl->up->STORE)(_ev, svkey, nval);
 }
 
 static void pe_io_cbdone(pe_cbframe *fp)
@@ -202,9 +241,11 @@ static void boot_io()
   vt->start = pe_io_start;
   vt->stop = pe_io_stop;
   vt->cbdone = pe_io_cbdone;
+  vt->alarm = pe_io_alarm;
   newCONSTSUB(stash, "R", newSViv(PE_IO_R));
   newCONSTSUB(stash, "W", newSViv(PE_IO_W));
   newCONSTSUB(stash, "E", newSViv(PE_IO_E));
+  newCONSTSUB(stash, "T", newSViv(PE_IO_T));
   PE_RING_INIT(&IOWatch, 0);
   IOWatch_OK = 0;
   IOWatchCount = 0;

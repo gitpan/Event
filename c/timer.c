@@ -50,7 +50,7 @@ static void pe_timer_start(pe_event *ev, int repeat)
     if (tm->hard) {
       tm->tm.at = interval + tm->tm.at;
     } else {
-      tm->tm.at = interval + EvNOW;
+      tm->tm.at = interval + EvNOW(1);
     }
   }
   if (!tm->tm.at)
@@ -60,8 +60,7 @@ static void pe_timer_start(pe_event *ev, int repeat)
   EvACTIVE_on(ev);
 }
 
-static void
-pe_timer_stop(pe_event *ev)
+static void pe_timer_stop(pe_event *ev)
 {
   pe_timer *tm = (pe_timer *) ev;
   if (!EvACTIVE(ev) || EvSUSPEND(ev))
@@ -70,8 +69,13 @@ pe_timer_stop(pe_event *ev)
   EvACTIVE_off(ev);
 }
 
-static void
-pe_timer_FETCH(pe_event *_ev, SV *svkey)
+static void pe_timer_alarm(pe_event *ev)
+{
+  EvACTIVE_off(ev);
+  queueEvent(ev, 1);
+}
+
+static void pe_timer_FETCH(pe_event *_ev, SV *svkey)
 {
   pe_timer *ev = (pe_timer*) _ev;
   SV *ret=0;
@@ -179,5 +183,6 @@ static void boot_timer()
   vt->STORE = pe_timer_STORE;
   vt->start = pe_timer_start;
   vt->stop = pe_timer_stop;
+  vt->alarm = pe_timer_alarm;
   pe_register_vtbl(vt);
 }

@@ -134,7 +134,7 @@ static void pe_stat_restart()
     
     if (!RollTimer)
       RollTimer = (pe_timer*) pe_timer_allocate();
-    RollTimer->tm.at = EvNOW;
+    RollTimer->tm.at = EvNOW(1);
     sv_setnv(RollTimer->interval, PE_STAT_SECONDS);
     ev = (pe_event*) RollTimer;
     EvREPEAT_on(ev);

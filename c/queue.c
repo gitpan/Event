@@ -3,8 +3,7 @@ static pe_stat idleStats;
 static AV *Prepare, *Check, *AsyncCheck;
 static int StarvePrio = PE_QUEUES - 2;
 
-static void
-boot_queue()
+static void boot_queue()
 {
   int xx;
   HV *stash = gv_stashpv("Event", 1);
@@ -180,7 +179,7 @@ static int one_event(double tm)
     }
   }
 
-  checkTimers();
+  pe_timeables_check();
   if (av_len(Check) >= 0) pe_map_check(Check);
 
   if (tm) {

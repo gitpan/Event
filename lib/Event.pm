@@ -14,7 +14,7 @@ use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now
 	    @Prepare @Check @AsyncCheck);
 # $Now is refreshed at least every time the event queue is empty. XXX
-$VERSION = '0.14';
+$VERSION = '0.15';
 BOOT_XS: {
     # If I inherit DynaLoader then I inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -114,10 +114,11 @@ sub add_hooks {
 
 my $backward_noise = 20;
 
-# Event 0.12
 if (1) {
+    # Do you feel like you need mouthwash?  Have some of this!
     no strict 'refs';
-    # Do you feel like you need mouthwash?  Have some of this:
+
+    # Event 0.12
     for my $m (qw(QUEUES PRIO_HIGH PRIO_NORMAL queueEvent)) {
 	*{"Event::Loop::$m"} = sub {
 	    carp "$m moved to Event" if --$backward_noise > 0;
@@ -144,16 +145,16 @@ if (1) {
 	    &$n;
 	};
     }
-}
 
-# Event 0.02
-sub Loop {
-    carp "please use Event::loop";
-    &loop
-}
-sub exit {
-    carp "please use Event::unloop";
-    &unloop
+    # Event 0.02
+    *Loop = sub {
+	carp "please use Event::loop" if --$backward_noise > 0;
+	&loop
+    };
+    *exit = sub {
+	carp "please use Event::unloop" if --$backward_noise > 0;
+	&unloop
+    };
 }
 
 package Event::Watcher;

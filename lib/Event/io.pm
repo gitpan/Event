@@ -2,7 +2,7 @@ use strict;
 package Event::io;
 use vars qw(@ISA @EXPORT_OK);
 @ISA = qw(Event::Watcher Exporter);
-@EXPORT_OK = qw(R W E);  # bit constants
+@EXPORT_OK = qw(R W E T);  # bit constants
 
 'Event::Watcher'->register;
 

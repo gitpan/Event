@@ -2,7 +2,7 @@
   I believe this is comparible in efficiency with Apache 1.3.
 
   Applications with a large number of open fds would benefit by
-  incremental update of the select/poll structures.  Maybe next
+  an incremental update of the select/poll structures.  Maybe next
   release!
 
 */
@@ -101,7 +101,7 @@ pe_io_waitForEvent(double timeout)
     return;
   }
   ev = IOWatch.next->self;
-  while (ev && ret) {
+  while (ev) {
     int xref = ev->xref;
     if (xref >= 0) {
       int got = 0;
@@ -109,12 +109,16 @@ pe_io_waitForEvent(double timeout)
       if (mask & (POLLIN | POLLRDNORM)) got |= PE_IO_R;
       if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_IO_W;
       if (mask & (POLLRDBAND | POLLPRI)) got |= PE_IO_E;
-      if (got & ev->events) {
-	/* must use |= since watcher can trigger more than once
+      if (got) {
+	/* must use | since watcher can trigger more than once
 	   before it is serviced */
-	ev->got |= got;
-	queueEvent((pe_event*) ev, 1);
-	--ret;
+	ev->got = (ev->got | got) & ev->events;
+	if (ev->got) queueEvent((pe_event*) ev, 1);
+	/*
+	  Can only do this if fd-to-watcher is 1-to-1
+	  
+	  if (--ret == 0) { ev=0; continue; }
+	*/
       }
     }
     ev = ev->ioring.next->self;
@@ -198,19 +202,23 @@ pe_io_waitForEvent(double timeout)
     return;
   }
   ev = IOWatch.next->self;
-  while (ev && ret) {
+  while (ev) {
     int fd = ev->fd;
     if (fd >= 0) {
       int got = 0;
       if (FD_ISSET(fd, &rfds)) got |= PE_IO_R;
       if (FD_ISSET(fd, &wfds)) got |= PE_IO_W;
       if (FD_ISSET(fd, &efds)) got |= PE_IO_E;
-      if (got & ev->events) {
+      if (got) {
 	/* must use |= since watcher can trigger more than once
 	   before it is serviced */
-	ev->got |= got;
-	queueEvent((pe_event*) ev, 1);
-	--ret;
+	ev->got = (ev->got | got) & ev->events;
+	if (ev->got) queueEvent((pe_event*) ev, 1);
+	/*
+	  Can only do this if fd-to-watcher is 1-to-1
+	  
+	  if (--ret == 0) { ev=0; continue; }
+	*/
       }
     }
     ev = ev->ioring.next->self;
