@@ -8,7 +8,7 @@
     One Ring to bring them all and in the darkness bind them
   In the Land of Mordor where the Shadows lie.
 
-  s/ring/loop/ig;
+  s/ring/loop/ig; # :-)
  */
 
 #ifndef _event_api_H_
@@ -53,6 +53,15 @@ struct pe_timeable {
   pe_ring ring;
   double at;
 };
+
+typedef struct pe_qcallback pe_qcallback;
+struct pe_qcallback {
+  pe_ring ring;
+  int is_perl;
+  void *callback;
+  void *ext_data;
+};
+
 /* close enough to zero -- this needs to be bigger if you turn
    on lots of debugging?  Can determine clock resolution on the fly? XXX */
 #define PE_INTERVAL_EPSILON 0.00001
@@ -139,7 +148,7 @@ struct pe_var {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 8
+#define EventAPI_VERSION 9
   I32 Ver;
 
   /* EVENTS */
@@ -150,15 +159,19 @@ struct EventAPI {
   void (*resume)(pe_event *ev);
   void (*cancel)(pe_event *ev);
 
-  /* TIMEABLE */
-  void (*tstart)(pe_timeable *);
-  void (*tstop)(pe_timeable *);
-
   pe_idle     *(*new_idle)();
   pe_timer    *(*new_timer)();
   pe_io       *(*new_io)();
   pe_var      *(*new_var)();
   pe_signal   *(*new_signal)();
+
+  /* TIMEABLE */
+  void (*tstart)(pe_timeable *);
+  void (*tstop)(pe_timeable *);
+
+  /* HOOKS */
+  pe_qcallback *(*add_hook)(char *which, void *cb, void *ext_data);
+  void (*cancel_hook)(pe_qcallback *qcb);
 };
 
 #define FETCH_EVENT_API(YourName, api)			\

@@ -6,6 +6,10 @@
 #include <perl.h>
 #include <XSUB.h>
 
+#ifdef WIN32
+#   include <fcntl.h>
+#endif
+
 #if defined(HAS_POLL)
 # include <poll.h>
 
@@ -98,6 +102,8 @@ BOOT:
     api->new_io =       (pe_io*(*)())             pe_io_allocate;
     api->new_var =      (pe_var*(*)())           pe_var_allocate;
     api->new_signal =   (pe_signal*(*)())     pe_signal_allocate;
+    api->add_hook = capi_add_hook;
+    api->cancel_hook = pe_cancel_hook;
     apisv = perl_get_sv("Event::API", 1);
     sv_setiv(apisv, (IV)api);
     SvREADONLY_on(apisv);
@@ -109,6 +115,14 @@ _sizeof()
 	RETVAL = sizeof(pe_event);
 	OUTPUT:
 	RETVAL
+
+void
+_add_hook(type, code)
+	char *type
+	SV *code
+	CODE:
+	pe_add_hook(type, 1, code, 0);
+	/* would be nice to return new pe_qcallback* XXX */
 
 void
 time()

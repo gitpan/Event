@@ -39,6 +39,7 @@ patches/leak.fix
 t/0load.t
 t/bored.t
 t/eval.t
+t/hook.t
 t/idle.t
 t/idle2.t
 t/inactivity.t

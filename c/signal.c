@@ -6,7 +6,7 @@ static struct pe_event_vtbl pe_signal_vtbl;
 
 /* GLOBALS: Sigvalid Sigring Sigstat Sigslot */
 
-static U32 Sigvalid[(1+NSIG)/32]; /*assume 32bit; doesn't matter*/
+static U32 Sigvalid[1+NSIG/32]; /*assume 32bit; doesn't matter*/
 #define PE_SIGVALID(sig)  	(Sigvalid[sig>>5] & (1 << ((sig) & 0x1f)))
 #define PE_SIGVALID_off(sig)	Sigvalid[sig>>5] &= ~(1 << ((sig) & 0x1f))
 

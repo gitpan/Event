@@ -1,14 +1,22 @@
+1998-10-18  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.23.
+
+	* Unified Perl & C API for hooks.
+
+	* Niggles for Win32 (thanks Jan!).
+
 1998-10-17  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.22.
 
 	* Include copy of self-tie patch with dist.
 
-	* Documentation for Event::MakeMaker
+	* Documentation for Event::MakeMaker.
 
-	* tailpoll fix
+	* tailpoll revamped.
 
-	* MIN_PERL_DEFINE clean
+	* MIN_PERL_DEFINE clean.
 
 1998-10-15  Joshua Pritikin  <joshua.pritikin@db.com>
 

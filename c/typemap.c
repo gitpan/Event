@@ -114,5 +114,6 @@ static int sv_2events_mask(SV *sv, int bits)
   else {
     sv_dump(sv);
     croak("Must be a string /[rwet]/ or bit mask");
+    return 0; /* NOTREACHED */
   }
 }

@@ -57,7 +57,7 @@ Just be aware of it and set your expectations accordingly.
   BOOT:
     FETCH_EVENT_API("YourModule", Ev);
 
-=head2 API (v8)
+=head2 API (v9)
 
  struct EventAPI {
 
@@ -69,15 +69,19 @@ Just be aware of it and set your expectations accordingly.
   void (*resume)(pe_event *ev);
   void (*cancel)(pe_event *ev);
 
-  /* TIMEABLE */
-  void (*tstart)(pe_timeable *);
-  void (*tstop)(pe_timeable *);
-
   pe_idle     *(*new_idle)();
   pe_timer    *(*new_timer)();
   pe_io       *(*new_io)();
   pe_var      *(*new_var)();
   pe_signal   *(*new_signal)();
+
+  /* TIMEABLE */
+  void (*tstart)(pe_timeable *);
+  void (*tstop)(pe_timeable *);
+
+  /* HOOKS */
+  pe_qcallback *(*add_hook)(char *which, void *cb, void *ext_data);
+  void (*cancel_hook)(pe_qcallback *qcb);
 
  };
 
@@ -99,5 +103,27 @@ Just be aware of it and set your expectations accordingly.
   X11_ev->fd = x_fd;
   Ev->resume((pe_event*) X11_ev);
   Ev->start((pe_event*) X11_ev, 0);
+
+=head2 BUT I NEED A NEW TYPE OF WATCHER FOR MY INTERGALACTIC INFEROMETER
+
+Are you sure?  Hopefully you can just do something like this:
+
+  struct xevent {
+    pe_io *io;
+    XEvent event;
+    ...etc...
+  };
+
+To create it you'll need to:
+
+  struct xevent *xe;
+  New(xe, 0, 1, struct xevent);
+  xe->io = Ev->new_io();
+  xe->io->ext_data = xe;   /* note: circular ref */
+  ...
+
+I'd prefer not to export the entire Event.h apparatus in favour of
+minimizing interdependencies.  If you really, really need to create a
+new type of watcher send your problem analysis to the mailing list.
 
 =cut

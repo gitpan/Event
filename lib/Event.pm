@@ -8,12 +8,11 @@ BEGIN {
 }
 
 package Event;
-use Carp;
 use base 'Exporter';
-use vars qw($VERSION @EXPORT_OK @EXPORT_FAIL
-	    $API $DebugLevel $Eval $DIED $Now
-	    @Prepare @Check @AsyncCheck);
-$VERSION = '0.22';
+use Carp;
+use vars qw($VERSION @EXPORT_OK
+	    $API $DebugLevel $Eval $DIED $Now);
+$VERSION = '0.23';
 BOOT_XS: {
     # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -35,20 +34,6 @@ $DIED = \&default_exception_handler;
 @EXPORT_OK = qw(time $Now all_events all_running all_queued all_idle
 		one_event sweep loop unloop unloop_all sleep queue
 		QUEUES PRIO_NORMAL PRIO_HIGH R W E T);
-
-sub export_fail {
-    # Doesn't even get called!  Patch needed for Exporter.pm. XXX
-    shift;
-    my @fail;
-    for my $sub (@_) {
-	if (_load_watcher($sub)) {
-	    push @EXPORT_OK, $sub;
-	} else {
-	    push @fail, $sub;
-	}
-    }
-    @fail;
-}
 
 sub _load_watcher {
     my $sub = shift;
@@ -166,17 +151,11 @@ sub add_hooks {
     while (@_) {
 	my $k = shift;
 	my $v = shift;
-	$k =~ s/^\-//; # optional dash
-	croak "$v must be CODE" if ref $v ne 'CODE';
-	if ($k eq 'prepare') {
-	    push @Event::Prepare, $v;
-	} elsif ($k eq 'check') {
-	    push @Event::Check, $v;
-	} elsif ($k eq 'asynccheck') {
-	    push @Event::AsyncCheck, $v;
-	} else {
-	    carp "Event: add_hooks '$k' => $v (ignored)";
+	if ($k =~ s/^\-//) {
+	    carp "please remove leading dash on $k"; #XXX
 	}
+	croak "$v must be CODE" if ref $v ne 'CODE';
+	_add_hook($k, $v);
     }
 }
 

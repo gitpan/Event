@@ -340,8 +340,9 @@ Initial 0.01 implementation by Graham Barr
 E<lt>F<gbarr@pobox.com>E<gt>.  Also, contributions from:
 
  Gisle Aas E<lt>F<gisle@aas.no>E<gt>
+ E<lt>F<jan.dubois@ibm.net>E<gt> (Win32)
  E<lt>F<Matija.Grabnar@arnes.si>E<gt> (File::Tail)
- Nick Ing-Simmons E<lt>F<nick@ni-s.u-net.com>E<gt>
+ Nick Ing-Simmons E<lt>F<nick@ni-s.u-net.com>E<gt> (Tk)
  Mark Mielke E<lt>F<Mark.Mielke.markm@nt.com>E<gt>
 
 =head1 COPYRIGHT

@@ -1,5 +1,9 @@
 #include "EventAPI.h"
 
+#ifdef DELETE /* DELETE is defined by Win32 as a file access mask XXX */
+#   undef DELETE
+#endif
+
 #define PE_NEWID ('e'+'v')  /* for New() macro */
 
 #define PE_RING_INIT(LNK, SELF) 		\

@@ -1,5 +1,13 @@
 # process -*-perl-*-
 
+BEGIN {
+    if ($^O eq 'MSWin32') {
+	print "1..0\n";
+	print "ok 1 # skipped; Win32 doesn't support fork()\n";
+	exit;
+    }
+}
+
 use strict;
 use Test; plan tests => 6;
 use Event qw(loop unloop);

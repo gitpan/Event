@@ -1,6 +1,6 @@
 static pe_ring NQueue;
+static pe_ring Prepare, Check, AsyncCheck;
 static pe_stat idleStats;
-static AV *Prepare, *Check, *AsyncCheck;
 static int StarvePrio = PE_QUEUES - 2;
 static double QueueTime[PE_QUEUES];
 
@@ -9,20 +9,13 @@ static void boot_queue()
   int xx;
   HV *stash = gv_stashpv("Event", 1);
   PE_RING_INIT(&NQueue, 0);
+  PE_RING_INIT(&Prepare, 0);
+  PE_RING_INIT(&Check, 0);
+  PE_RING_INIT(&AsyncCheck, 0);
   memset(QueueTime, 0, sizeof(QueueTime));
   newCONSTSUB(stash, "QUEUES", newSViv(PE_QUEUES));
   newCONSTSUB(stash, "PRIO_NORMAL", newSViv(PE_PRIO_NORMAL));
   newCONSTSUB(stash, "PRIO_HIGH", newSViv(PE_PRIO_HIGH));
-
-  Prepare = perl_get_av("Event::Prepare", 0);
-  assert(Prepare);
-  SvREFCNT_inc(Prepare);
-  AsyncCheck = perl_get_av("Event::AsyncCheck", 0);
-  assert(AsyncCheck);
-  SvREFCNT_inc(AsyncCheck);
-  Check = perl_get_av("Event::Check", 0);
-  assert(Check);
-  SvREFCNT_inc(Check);
 }
 
 static void dequeEvent(pe_event *ev)
@@ -54,8 +47,8 @@ static void prepare_event(pe_event *ev)
 	    SvPV(ev->desc,PL_na));
   }
   else {
-    /* this cannot be done any later because the callback might want to
-     again() or whatever */
+    /* cannot be done any later because the callback might want
+       to call again() on itself or whatever */
     if (EvINVOKE1(ev) || (!EvINVOKE1(ev) && !EvREPEAT(ev)))
       pe_event_stop(ev);
   }
@@ -98,48 +91,104 @@ static void queueEvent(pe_event *ev, int count)
   }
 }
 
+static pe_qcallback *
+pe_add_hook(char *which, int is_perl, void *cb, void *ext_data)
+{
+  pe_qcallback *qcb;
+  New(PE_NEWID, qcb, 1, pe_qcallback);
+  PE_RING_INIT(&qcb->ring, qcb);
+  qcb->is_perl = is_perl;
+  if (is_perl) {
+    qcb->callback = SvREFCNT_inc((SV*)cb);
+    qcb->ext_data = 0;
+  }
+  else {
+    qcb->callback = cb;
+    qcb->ext_data = ext_data;
+  }
+  if (strEQ(which, "prepare"))
+    PE_RING_UNSHIFT(&qcb->ring, &Prepare);
+  else if (strEQ(which, "check"))
+    PE_RING_UNSHIFT(&qcb->ring, &Check);
+  else if (strEQ(which, "asynccheck"))
+    PE_RING_UNSHIFT(&qcb->ring, &AsyncCheck);
+  else
+    croak("Unknown hook '%s' in pe_add_hook", which);
+  return qcb;
+}
+
+static pe_qcallback *capi_add_hook(char *which, void *cb, void *ext_data)
+{ pe_add_hook(which, 0, cb, ext_data); }
+
+static void pe_cancel_hook(pe_qcallback *qcb)
+{
+  if (qcb->is_perl)
+    SvREFCNT_dec((SV*)qcb->callback);
+  PE_RING_DETACH(&qcb->ring);
+  safefree(qcb);
+}
+
 static double pe_map_prepare(double tm)
 {
-  /* untested XXX */
-  int xx;
-  ENTER;
-  SAVETMPS;
-  for (xx=0; xx <= av_len(Prepare); xx++) {
-    SV *got;
-    SV **cv = av_fetch(Prepare, xx, 0);
-    dSP;
-    PUSHMARK(SP);
-    PUTBACK;
-    if (!cv) croak("$Prepare[xx] unset");
-    perl_call_sv(*cv, G_SCALAR);
-    SPAGAIN;
-    got = POPs;
-    PUTBACK;
-    if (SvOK(got) && SvNOK(got)) {
-      double when = SvNV(got);
+  int scoped=0;
+  pe_qcallback *qcb = Prepare.prev->self;
+  while (qcb) {
+    if (qcb->is_perl) {
+      SV *got;
+      double when;
+      dSP;
+      if (!scoped) {
+	scoped=1;
+	ENTER;
+	SAVETMPS;
+      }
+      PUSHMARK(SP);
+      PUTBACK;
+      perl_call_sv((SV*)qcb->callback, G_SCALAR);
+      SPAGAIN;
+      got = POPs;
+      PUTBACK;
+      when = SvNOK(got) ? SvNVX(got) : SvNV(got);
       if (when < tm) tm = when;
     }
+    else { /* !is_perl */
+      double got = (* (double(*)(void*)) qcb->callback)(qcb->ext_data);
+      if (got < tm) tm = got;
+    }
+    qcb = qcb->ring.prev->self;
   }
-  FREETMPS;
-  LEAVE;
+  if (scoped) {
+    FREETMPS;
+    LEAVE;
+  }
   return tm;
 }
 
-static void pe_map_check(AV *av)
+static void pe_map_check(pe_ring *List)
 {
-  int xx;
-  ENTER;
-  SAVETMPS;
-  for (xx=0; xx <= av_len(av); xx++) {
-    SV **cv = av_fetch(av, xx, 0);
-    dSP;
-    PUSHMARK(SP);
-    PUTBACK;
-    if (!cv) croak("$AV[xx] unset");
-    perl_call_sv(*cv, G_DISCARD);
+  int scoped=0;
+  pe_qcallback *qcb = List->prev->self;
+  while (qcb) {
+    if (qcb->is_perl) {
+      dSP;
+      if (!scoped) {
+	scoped=1;
+	ENTER;
+	SAVETMPS;
+      }
+      PUSHMARK(SP);
+      PUTBACK;
+      perl_call_sv((SV*)qcb->callback, G_DISCARD);
+    }
+    else { /* !is_perl */
+      (* (void(*)(void*)) qcb->callback)(qcb->ext_data);
+    }
+    qcb = qcb->ring.prev->self;
   }
-  FREETMPS;
-  LEAVE;
+  if (scoped) {
+    FREETMPS;
+    LEAVE;
+  }
 }
 
 static int pe_empty_queue(maxprio)
@@ -179,21 +228,21 @@ static int pe_empty_queue(maxprio)
 static void pe_queue_pending()
 {
   double tm = 0;
-  if (av_len(Prepare) >= 0) tm = pe_map_prepare(tm);
+  if (!PE_RING_EMPTY(&Prepare)) tm = pe_map_prepare(tm);
 
   pe_multiplex(0);
 
   pe_timeables_check();
-  if (av_len(Check) >= 0) pe_map_check(Check);
+  if (!PE_RING_EMPTY(&Check)) pe_map_check(&Check);
 
   pe_signal_asynccheck();
-  if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
+  if (!PE_RING_EMPTY(&AsyncCheck)) pe_map_check(&AsyncCheck);
 }
 
 static int one_event(double tm)
 {
   pe_signal_asynccheck();
-  if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
+  if (!PE_RING_EMPTY(&AsyncCheck)) pe_map_check(&AsyncCheck);
 
   if (pe_empty_queue(StarvePrio)) return 1;
 
@@ -204,16 +253,16 @@ static int one_event(double tm)
     double t1 = timeTillTimer();
     if (t1 < tm) tm = t1;
   }
-  if (av_len(Prepare) >= 0) tm = pe_map_prepare(tm);
+  if (!PE_RING_EMPTY(&Prepare)) tm = pe_map_prepare(tm);
 
   pe_multiplex(tm);
 
   pe_timeables_check();
-  if (av_len(Check) >= 0) pe_map_check(Check);
+  if (!PE_RING_EMPTY(&Check)) pe_map_check(&Check);
 
   if (tm) {
     pe_signal_asynccheck();
-    if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
+    if (!PE_RING_EMPTY(&AsyncCheck)) pe_map_check(&AsyncCheck);
   }
 
   if (pe_empty_queue(PE_QUEUES)) return 1;
@@ -223,7 +272,7 @@ static int one_event(double tm)
     if (PE_RING_EMPTY(&Idle)) return 0;
     PE_RING_POP(&Idle, ev);
     prepare_event(ev);
-    /* can't queueEvent because we are already beyond that */
+    /* can't queueEvent because we are already missed that */
     ++ev->count;
     if (EvDEBUGx(ev) >= 2)
       warn("Event: invoking '%s' (idle)\n", SvPV(ev->desc, PL_na));

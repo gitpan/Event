@@ -28,9 +28,10 @@ ok $io->{size}, 0;
 
 my $c=0;
 Event->timer(interval => .2, callback => sub {
-		 # without tailpoll this gets called repeatedly -- busy wait
+		 # without tailpoll this gets called repeatedly -- busy wait!
 		 unloop() if $c == 4;
 		 open $w, ">>$name";
+		 binmode $w;
 		 print $w $c++."\n";
 		 close $w;
 	     });

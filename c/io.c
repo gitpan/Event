@@ -47,7 +47,7 @@ static void pe_io_start(pe_event *_ev, int repeat)
   statret = fstat(ev->fd, &sbuf);
   if (statret && errno == EINTR) goto retry;
 
-  if (!ev->tailpoll && ev->events & PE_R && S_ISREG(sbuf.st_mode))
+  if (!ev->tailpoll && (ev->events & PE_R) && S_ISREG(sbuf.st_mode))
     ev->tailpoll = 1;  /* hope okay to auto-detect */
   if (ev->tailpoll) {
     if (statret)

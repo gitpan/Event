@@ -5,7 +5,7 @@ use Event qw(all_events);
 sub thrash {
     Event->idle()->cancel;
     Event->io()->cancel;
-    Event->signal(signal => 'USR1')->cancel;
+    Event->signal(signal => 'INT')->cancel;
     Event->timer(at => time)->cancel;
 #    my $var = 1;
 #    Event->var(variable => \$var)->cancel;

@@ -1,5 +1,13 @@
 # signal -*-perl-*-
 
+BEGIN {
+    if ($^O eq 'MSWin32') {
+	print "1..0\n";
+	print "ok 1 # skipped; kill() doesn't send signals on Win32\n";
+	exit;
+    }
+}
+
 use Test; plan tests => 4;
 use Event qw(loop unloop);
 
