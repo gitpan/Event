@@ -58,7 +58,7 @@ pe_signal_start(pe_event *_ev, int repeat)
   if (PE_RING_EMPTY(&Sigring[sig]))
     rsignal(sig, process_sighandler);
   PE_RING_UNSHIFT(&ev->sring, &Sigring[sig]);
-  EvACTIVE_on(ev);
+  EvACTIVE_on(_ev);
 }
 
 static void
@@ -71,7 +71,7 @@ pe_signal_stop(pe_event *_ev)
   PE_RING_DETACH(&ev->sring);
   if (PE_RING_EMPTY(&Sigring[sig]))
     rsignal(sig, SIG_DFL);
-  EvACTIVE_off(ev);
+  EvACTIVE_off(_ev);
 }
 
 static void

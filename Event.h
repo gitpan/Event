@@ -1,5 +1,7 @@
 #include "EventAPI.h"
 
+#define PE_NEWID ('e'+'v')  /* for New() macro */
+
 #define PE_RING_INIT(LNK, SELF) 		\
 STMT_START {					\
   (LNK)->next = LNK;				\
@@ -47,26 +49,30 @@ typedef struct pe_cbframe pe_cbframe;
 struct pe_cbframe {
   pe_event *ev;
   int run_id;
-  int cbdone;
+  int cbdone; /*can pack into flags XXX */
+  int resume;
 };
 
 struct pe_event_vtbl {
-  struct pe_event_vtbl *up; /* dubious; how does it work for more than 1 level? */
+  /* how does it work for more than 1 level? XXX */
+  /* only used for DELETE, EXISTS, FIRSTKEY, & NEXTKEY */
+  struct pe_event_vtbl *up;
+
   HV *stash;
   int keys;
   char **keylist;
-  void (*init)(pe_event *);
   void (*dtor)(pe_event *);
   void (*FETCH)(pe_event *, SV *);
   void (*STORE)(pe_event *, SV *, SV *);
-  void (*DELETE)(pe_event *, SV *key);
-  int (*EXISTS)(pe_event *, SV *key);
-  void (*FIRSTKEY)(pe_event *);
-  void (*NEXTKEY)(pe_event *);
+  void (*DELETE)(pe_event *, SV *key); /* never overridden? XXX */
+  int (*EXISTS)(pe_event *, SV *key); /* never overridden? XXX */
+  void (*FIRSTKEY)(pe_event *); /* never overridden? XXX */
+  void (*NEXTKEY)(pe_event *); /* never overridden? XXX */
   void (*start)(pe_event *, int);
   void (*stop)(pe_event *);
   void (*cbdone)(pe_cbframe *);
   void (*alarm)(pe_event *);
+  void (*preidle)(pe_event *);
 };
 
 typedef struct pe_run pe_run;
@@ -93,25 +99,47 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define PE_QUEUED	0x04
 #define PE_RUNNING	0x08  /* virtual flag */
 #define PE_REENTRANT	0x10
+#define PE_HARD		0x20 /**/
 
 #define PE_VISIBLE_FLAGS \
 (PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
 
+#define EvDEBUGx(ev) (SvIVX(DebugLevel) + EvDEBUG(ev))
+
 /* ACTIVE: waiting for something to happen that might cause queueEvent */
 /* controlled by start/stop methods */
 #define EvACTIVE(ev)		(EvFLAGS(ev) & PE_ACTIVE)
-#define EvACTIVE_on(ev)		(EvFLAGS(ev) |= PE_ACTIVE)
-#define EvACTIVE_off(ev)	(EvFLAGS(ev) &= ~PE_ACTIVE)
+#define EvACTIVE_on(ev)						\
+STMT_START {							\
+  assert(!EvACTIVE(ev));					\
+  if (EvDEBUGx(ev) >= 4)					\
+    warn("Event: active ON '%s'\n", SvPV(ev->desc,na));		\
+  EvFLAGS(ev) |= PE_ACTIVE;					\
+  ++ActiveWatchers;						\
+} STMT_END
+#define EvACTIVE_off(ev)					\
+STMT_START {							\
+  assert(EvACTIVE(ev));						\
+  if (EvDEBUGx(ev) >= 4)					\
+    warn("Event: active OFF '%s'\n", SvPV(ev->desc,na));	\
+  EvFLAGS(ev) &= ~PE_ACTIVE;					\
+  --ActiveWatchers;						\
+} STMT_END
 
 #define EvSUSPEND(ev)		(EvFLAGS(ev) & PE_SUSPEND)
-#define EvSUSPEND_on(ev)	(EvFLAGS(ev) |= PE_SUSPEND)
-#define EvSUSPEND_off(ev)	(EvFLAGS(ev) &= ~PE_SUSPEND)
 
 #define EvQUEUED(ev)		(EvFLAGS(ev) & PE_QUEUED)
 #define EvQUEUED_on(ev)		(EvFLAGS(ev) |= PE_QUEUED)
 #define EvQUEUED_off(ev)	(EvFLAGS(ev) &= ~PE_QUEUED)
 
+#define EvREENTRANT(ev)		(EvFLAGS(ev) & PE_REENTRANT)
+#define EvREENTRANT_on(ev)	(EvFLAGS(ev) |= PE_REENTRANT)
+#define EvREENTRANT_off(ev)	(EvFLAGS(ev) &= ~PE_REENTRANT)
+
+#define EvHARD(ev)		(EvFLAGS(ev) & PE_HARD)
+#define EvHARD_on(ev)		(EvFLAGS(ev) |= PE_HARD)   /* :-) */
+#define EvHARD_off(ev)		(EvFLAGS(ev) &= ~PE_HARD)
+
 #define EvCANDESTROY(ev)					\
  (ev->refcnt == 0 && ev->running == 0 &&			\
-  !(EvFLAGS(ev)&(PE_ACTIVE|PE_SUSPEND|PE_QUEUED)) &&	\
-  !ev->c_callback)
+  !(EvFLAGS(ev)&(PE_ACTIVE|PE_SUSPEND|PE_QUEUED)))

@@ -9,8 +9,7 @@ pe_timer_allocate()
   ev->base.vtbl = &pe_timer_vtbl;
   PE_RING_INIT(&ev->tm.ring, ev);
   ev->tm.at = 0;
-  ev->hard = 0;
-  ev->interval = newSVnv(0);
+  ev->interval = &sv_undef;
   pe_event_init((pe_event*) ev);
   return (pe_event*) ev;
 }
@@ -19,7 +18,7 @@ static void pe_timer_dtor(pe_event *ev)
 {
   pe_timer *tm = (pe_timer*) ev;
   SvREFCNT_dec(tm->interval);
-  (*ev->vtbl->up->dtor)(ev);
+  pe_event_dtor(ev);
 }
 
 static void pe_timer_start(pe_event *ev, int repeat)
@@ -30,34 +29,20 @@ static void pe_timer_start(pe_event *ev, int repeat)
   if (repeat) {
     /* We just finished the callback and need to re-insert at
        the appropriate time increment. */
-    SV *sv = tm->interval;
     double interval;
 
-    if (SvGMAGICAL(sv))
-      mg_get(sv);
-    if (SvNIOK(sv))
-      interval = SvNV(sv);
-    else if (SvROK(sv) && SvNIOK(SvRV(sv)))
-      interval = SvNV(SvRV(sv));
-    else {
-      sv_dump(sv);
-      croak("Interval must be a number or a reference to a number");
-    }
-
+    if (!sv_2interval(tm->interval, &interval))
+      croak("Repeating timer with no interval");
     if (interval <= 0)
       croak("Timer has non-positive interval");
 
-    if (tm->hard) {
-      tm->tm.at = interval + tm->tm.at;
-    } else {
-      tm->tm.at = interval + EvNOW(1);
-    }
+    tm->tm.at = interval + (EvHARD(ev)? tm->tm.at : EvNOW(1));
   }
   if (!tm->tm.at)
     croak("Timer unset");
 
-  pe_timeable_start(ev);
   EvACTIVE_on(ev);
+  pe_timeable_start(ev);
 }
 
 static void pe_timer_stop(pe_event *ev)
@@ -71,7 +56,6 @@ static void pe_timer_stop(pe_event *ev)
 
 static void pe_timer_alarm(pe_event *ev)
 {
-  EvACTIVE_off(ev);
   queueEvent(ev, 1);
 }
 
@@ -92,7 +76,7 @@ static void pe_timer_FETCH(pe_event *_ev, SV *svkey)
     break;
   case 'h':
     if (len == 4 && memEQ(key, "hard", 4)) {
-      ret = sv_2mortal(newSViv(ev->hard));
+      ret = boolSV(EvHARD(ev));
       break;
     }
     break;
@@ -130,7 +114,14 @@ pe_timer_STORE(pe_event *_ev, SV *svkey, SV *nval)
   if (!len) return;
   switch (key[0]) {
   case 'h':
-    if (len == 4 && memEQ(key, "hard", 4)) { ev->hard = SvIV(nval); ok=1; break; }
+    if (len == 4 && memEQ(key, "hard", 4)) {
+      if (sv_true(nval))
+	EvHARD_on(ev);
+      else
+	EvHARD_off(ev);
+      ok=1;
+      break;
+    }
     break;
   case 'a':
     if (len == 2 && memEQ(key, "at", 2)) {

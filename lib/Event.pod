@@ -105,7 +105,7 @@ events (see C<$event-E<gt>start> below).
 Watchers are configured with attributes (also called properties).
 This is a fancy way of saying that a watcher object works like hash
 reference.  For example:
- 
+
    $watcher->{callback} = \&some_code;
    $watcher->{-callback} = \&some_code;  # same thing
 
@@ -134,7 +134,8 @@ argument.
 
 The number of times this event has happened since last time the
 callback was invoked.  This attribute is read-only.  It is reset to
-zero when the callback completes.
+zero when the callback completes or as soon as you call one_event(),
+loop(), or now() within the callback.
 
 =item -priority => $int
 
@@ -249,7 +250,8 @@ the -at attribute.
 
 =item io
 
-Extra attributes: -handle => $fh, -events => "rwe", -got => "rwe"
+Extra attributes: -handle => $fh, -events => "rwe", -got => "rwet",
+[-timeout => 10]
 
 The callback is invoked when the filehandle has data to be read,
 written, or pending exceptions.  The -handle attribute specifies which
@@ -261,7 +263,9 @@ trigger when the handle is writable.  "e" to trigger when the handle
 has pending exceptions.
 
 When the callback is invoked, then the -got attribute tell you which
--events triggered.  The -got attribute is read-only.
+-events triggered.  The -got attribute is read-only.  If you think
+that testing for letters is too slow, you can also use -got as a bit
+mask.  The bit constants are available in Event::io.
 
 Note that it is your choice whether to have multiple watchers per
 filehandle or a single watcher that handles all event flavors.
@@ -301,6 +305,10 @@ This extension is discussed on the perl-loop@perl.org mailing list.
 =head1 ALSO SEE
 
 L<Event::Advanced> (to be written) and L<NetServer::ProcessTop>
+
+While not directly related, http://consult.ml.org/~trockij/mon might
+also be of interest.  I'd be interested in hearing about similar
+tools.
 
 =head1 AUTHORS
 

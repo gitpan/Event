@@ -99,7 +99,7 @@ pe_watchvar_start(pe_event *_ev, int repeat)
     mg_magical(sv);
     if (!SvMAGICAL(sv))
       croak("mg_magical didn't");
-    EvACTIVE_on(ev);
+    EvACTIVE_on(_ev);
 }
 
 static void
@@ -113,7 +113,7 @@ pe_watchvar_stop(pe_event *_ev)
 
     if (!EvACTIVE(ev) || EvSUSPEND(ev))
       return;
-    EvACTIVE_off(ev);
+    EvACTIVE_off(_ev);
 
     if (SvTYPE(sv) < SVt_PVMG || !SvMAGIC(sv))
         return;

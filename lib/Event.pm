@@ -13,10 +13,9 @@ use base 'Exporter';
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now
 	    @Prepare @Check @AsyncCheck);
-# $Now is refreshed at least every time the event queue is empty. XXX
-$VERSION = '0.15';
+$VERSION = '0.17';
 BOOT_XS: {
-    # If I inherit DynaLoader then I inherit AutoLoader; Bletch!
+    # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;
 
     # DynaLoader calls dl_load_flags as a static method.
@@ -30,7 +29,7 @@ BOOT_XS: {
 }
 
 $DebugLevel = 0;
-$Eval = 0;  #should avoid because c_callback is exempt
+$Eval = 0;		# should avoid because c_callback is exempt
 $DIED = \&default_exception_handler;
 
 @EXPORT_OK = qw(time $Now all_events all_running all_queued all_idle
@@ -55,8 +54,34 @@ sub AUTOLOAD {
 sub default_exception_handler {
     my $run = shift;
     my $desc = $run? $run->{desc} : '?';
-    warn "Event: trapped error in '$desc': $@";
+    my $m = "Event: trapped error in '$desc': $@";
+    $m .= "\n" if $m !~ m/\n$/;
+    warn $m;
     #Carp::cluck "Event: fatal error trapped in '$desc'";
+}
+
+sub verbose_exception_handler {
+    my $run = shift;
+
+    my $m = "Event: trapped error: $@";
+    $m .= "\n" if $m !~ m/\n$/;
+    return warn $m if !$run;
+
+    $m .= "$run:\n";
+    for my $k (sort keys %$run) {
+	$m .= sprintf "%18s: ", $k;
+	eval {
+	    my $v = $run->{$k};
+	    if (!defined $v) {
+		$m .= 'undef';
+	    } else {
+		$m .= "'$v'";
+	    }
+	};
+	if ($@) { $m .= "[$@]" }
+	$m .= "\n";
+    }
+    warn $m;
 }
 
 use vars qw($LoopLevel $ExitLevel $Result);
@@ -167,9 +192,6 @@ sub register {
     no strict 'refs';
     my $package = caller;
 
-    unshift @{"$package\::ISA"}, 'Event::Watcher'
-	if !$package->isa('Event::Watcher');
-
     my $name = $package;
     $name =~ s/^.*:://;
 
@@ -178,11 +200,12 @@ sub register {
 	if !$sub;
     *{"Event::".$name} = $sub;
 
-    &Event::add_hooks;
+    &Event::add_hooks if @_;
 }
 
 sub init {
     croak "Event::Watcher::init wants 3 args" if @_ != 3;
+    local $Carp::CarpLevel = $Carp::CarpLevel + 2;
     my ($o, $keys, $arg) = @_;
 
     for my $up (1..4) {
@@ -206,9 +229,17 @@ sub init {
 	$o->{priority} = $ { ref($o)."::DefaultPriority" } ||
 	    Event::PRIO_NORMAL();
     };
-    $o->{priority} += $arg->{"-priority"} || $arg->{priority} || 0;
-    $o->{priority} = -1
-	if $arg->{async} || $arg->{'-async'};
+    if (exists $arg->{'-priority'} || exists $arg->{priority}) {
+	carp "'priority' has been renamed to 'nice'";
+	$o->{priority} += $arg->{"-priority"} || $arg->{priority} || 0;
+    }
+    $o->{priority} += $arg->{"-nice"} || $arg->{nice} || 0;
+
+    if ($arg->{async} || $arg->{'-async'}) {
+	# I like async!
+	#carp "async is depreciated";
+	$o->{priority} = -1;
+    }
 
     Carp::cluck "creating ".ref($o)." desc='$o->{desc}'\n"
 	if $Event::DebugLevel >= 3;
@@ -225,6 +256,7 @@ use vars qw(@EXPORT_OK);
 
 package Event::idle;
 use Carp;
+use base 'Event::Watcher';
 
 'Event::Watcher'->register;
 
@@ -235,8 +267,11 @@ sub new {
     my %arg = @_;
 
     my $o = allocate();
-    $o->init([], \%arg);
-    $o->again;
+    $o->init([qw(min_interval max_interval hard)], \%arg);
+    $o->{repeat} = 1 if (!exists $arg{repeat} and
+			 (defined $o->{min_interval} or
+			  defined $o->{max_interval}));
+    $o->start;
     $o;
 }
 

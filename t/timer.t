@@ -6,7 +6,7 @@ use Event qw(loop unloop);
 #$Event::DebugLevel = 2;
 
 my $count = 0;
-Event->timer(after => 0.5, interval => .1, priority => -1,
+Event->timer(after => 0.5, interval => .1, nice => -1,
 	     callback => sub { ++$count }, desc => "counter");
 
 my $when = time + 2;

@@ -4,8 +4,6 @@
 #include <perl.h>
 #include <XSUB.h>
 
-#define PE_NEWID ('e'+'v')  /* for New() macro */
-
 #if defined(HAS_POLL)
 # include <poll.h>
 
@@ -31,6 +29,7 @@
 
 #include "Event.h"
 
+static int ActiveWatchers=0;
 static int Stats=0;
 static SV *DebugLevel;
 static SV *Eval;
@@ -40,6 +39,7 @@ static void dequeEvent(pe_event *ev);
 
 static void pe_event_cancel(pe_event *ev);
 static void pe_event_suspend(pe_event *ev);
+static void pe_event_resume(pe_event *ev);
 static void pe_event_now(pe_event *ev);
 static void pe_event_start(pe_event *ev, int repeat);
 
@@ -81,6 +81,7 @@ BOOT:
     New(PE_NEWID, api, 1, struct EventAPI);
     api->Ver = EventAPI_VERSION;
     api->one_event = safe_one_event;
+    api->unloop = pe_unloop;
     api->start = pe_event_start;
     api->queue = queueEvent;
     api->now = pe_event_now;
@@ -212,8 +213,19 @@ _loop()
 	SV *loopL = perl_get_sv("Event::LoopLevel", 1);
 	pe_check_recovery();
 	assert(SvIOK(exitL) && SvIOK(loopL));
-	while (SvIVX(exitL) >= SvIVX(loopL))
+	while (SvIVX(exitL) >= SvIVX(loopL) && ActiveWatchers)
 	  one_event(60);
+
+void
+sleep(tm)
+	SV *tm;
+	PROTOTYPE: $
+	PPCODE:
+	SV *ret;
+	PUTBACK;
+	ret = pe_sleep(tm);
+	SPAGAIN;
+	XPUSHs(ret);
 
 void
 _check_recovery()

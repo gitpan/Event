@@ -21,6 +21,7 @@ c/timer.c
 c/typemap.c
 c/unix_io.c
 c/watchvar.c
+demo/in.pl
 lib/Event.pm
 lib/Event.pod
 lib/Event/EventAPI.h
@@ -32,13 +33,17 @@ lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
 lib/Event/watchvar.pm
+t/0load.t
+t/bored.t
 t/eval.t
 t/idle.t
+t/idle2.t
 t/io.t
 t/leak.t
 t/process.t
 t/reenter.t
 t/signal.t
+t/stats.t
 t/timer.t
 t/var.t
 typemap

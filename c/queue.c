@@ -44,31 +44,32 @@ static void db_show_queue()
 static void queueEvent(pe_event *ev, int count)
 {
   pe_ring *rg;
-  int prio = ev->priority;
-  int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
 
   if (EvSUSPEND(ev)) return;
+  assert(!(!EvREENTRANT(ev) && ev->running));
 
   assert(count >= 0);
   ev->count += count;
 
-  if (prio < 0) {  /* invoke the event immediately! */
-    if (debug >= 3)
-      warn("Event: calling %s asyncronously (priority %d)\n",
-	   SvPV(ev->desc,na), prio);
+  if (ev->priority < 0) {  /* invoke the event immediately! */
+    ev->priority = -1;
+    if (EvDEBUGx(ev) >= 2)
+      warn("Event: invoking %s (async)\n", SvPV(ev->desc,na));
     pe_event_invoke(ev);
     return;
   }
 
   if (EvQUEUED(ev))
     return;
-  if (prio >= PE_QUEUES)
-    prio = PE_QUEUES-1;
-  if (debug >= 3)
-    warn("Event: queuing '%s' at priority %d\n", SvPV(ev->desc,na), prio);
+  if (ev->priority >= PE_QUEUES)
+    ev->priority = PE_QUEUES-1;
+  if (EvDEBUGx(ev) >= 3)
+    warn("Event: queuing '%s' at priority %d\n", SvPV(ev->desc,na),
+	 ev->priority);
+  /* queue in reverse direction? XXX */ 
   /*  warn("-- adding 0x%x/%d\n", ev, prio); db_show_queue();/**/
   rg = NQueue.next;
-  while (rg->self && ((pe_event*)rg->self)->priority <= prio)
+  while (rg->self && ((pe_event*)rg->self)->priority <= ev->priority)
     rg = rg->next;
   PE_RING_ADD_BEFORE(&ev->que, rg);
   /*  warn("=\n"); db_show_queue();/**/
@@ -101,7 +102,7 @@ static void pe_map_check(AV *av)
 
   tm = min @Prepare
 
-  pe_io_waitForEvent(tm)
+  pe_sys_multiplex(tm)
 
   @Check
 
@@ -114,11 +115,14 @@ static void pe_map_check(AV *av)
   return 0
  */
 
-#define EMPTYQUEUE(max)				\
+#define EMPTYQUEUE(MAX)				\
 STMT_START {					\
   pe_event *ev = NQueue.next->self;		\
-  if (ev && ev->priority < max) {		\
+  if (ev && ev->priority < MAX) {		\
     dequeEvent(ev);				\
+    if (EvDEBUGx(ev) >= 2)			\
+      warn("Event: invoking '%s' (prio %d)\n",	\
+	   SvPV(ev->desc, na), ev->priority);	\
     pe_event_invoke(ev);			\
     return 1;					\
   }						\
@@ -131,7 +135,7 @@ static int one_event(double tm)
 
   EMPTYQUEUE(StarvePrio);
 
-  if (!PE_RING_EMPTY(&NQueue) || wantIdle()) {
+  if (!PE_RING_EMPTY(&NQueue) || !PE_RING_EMPTY(&Idle)) {
     tm = 0;
   }
   else {
@@ -163,20 +167,20 @@ static int one_event(double tm)
     LEAVE;
   }
 
-  if (SvIVX(DebugLevel) >= 2)
-    warn("Event: waitForEvent(%f) wantIdle=%d\n", tm, wantIdle());
-  {
-    struct timeval start_tm;
-    if (Stats)
-      gettimeofday(&start_tm, 0);
-    pe_io_waitForEvent(tm);
-    if (Stats) {
-      /* not strictly accurate, but close enough for government work */
-      struct timeval done_tm;
-      gettimeofday(&done_tm, 0);
-      pe_stat_record(&idleStats, (done_tm.tv_sec-start_tm.tv_sec +
-				  (done_tm.tv_usec-start_tm.tv_usec)/1000000.0));
-    }
+  if (SvIVX(DebugLevel) >= 2) {
+    warn("Event: multiplex %.2fs %s%s\n", tm,
+	 PE_RING_EMPTY(&NQueue)?"":"QUEUE",
+	 PE_RING_EMPTY(&Idle)?"":"IDLE");
+  }
+  if (!Stats)
+    pe_sys_multiplex(tm);
+  else {  
+    struct timeval start_tm, done_tm;
+    gettimeofday(&start_tm, 0);
+    pe_sys_multiplex(tm);
+    gettimeofday(&done_tm, 0);
+    pe_stat_record(&idleStats, (done_tm.tv_sec-start_tm.tv_sec +
+				(done_tm.tv_usec-start_tm.tv_usec)/1000000.0));
   }
 
   pe_timeables_check();
@@ -188,16 +192,117 @@ static int one_event(double tm)
   }
 
   EMPTYQUEUE(PE_QUEUES);
-  
-  if (runIdle())
-    return 1;
 
-  return 0;
+  {
+    pe_event *ev;
+    if (PE_RING_EMPTY(&Idle)) return 0;
+    PE_RING_POP(&Idle, ev);
+    (*ev->vtbl->preidle)(ev);
+    /* can't queueEvent because we are already beyond that */
+    ++ev->count;
+    if (EvDEBUGx(ev) >= 2)
+      warn("Event: invoking '%s' (idle)\n", SvPV(ev->desc, na));
+    pe_event_invoke(ev);
+    return 1;
+  }
 }
 
 static int safe_one_event(double maxtm)
 {
   pe_check_recovery();
   return one_event(maxtm);
+}
+
+static void pe_unloop(SV *why)
+{
+  SV *exitL = perl_get_sv("Event::ExitLevel", 0);
+  SV *result = perl_get_sv("Event::Result", 0);
+  assert(exitL && result);
+  sv_setsv(result, why);
+  sv_dec(exitL);
+}
+
+typedef struct pe_sleep_frame pe_sleep_frame;
+struct pe_sleep_frame {
+  int died;  /* not exactly right XXX */
+  int reentrant;
+  pe_event *cb;
+  pe_event *tmr;
+  SV *ret;
+};
+
+static void pe_wake_up(void *vptr)
+{
+  pe_sleep_frame *fr = (pe_sleep_frame *) vptr;
+  if (SvIVX(DebugLevel) >= 2)
+    warn("Event: sleep id=%d %s\n", fr->cb->id, fr->died? "died":"finished");
+  if (fr->reentrant) EvREENTRANT_on(fr->cb);
+  --fr->cb->refcnt;
+  --fr->tmr->refcnt;
+  sv_2mortal(fr->ret);
+  if (fr->died)
+    pe_event_cancel(fr->tmr);
+}
+
+static void pe_sleep_expire(void *vptr)
+{
+  pe_sleep_frame *fr = (pe_sleep_frame *) vptr;
+  pe_unloop(fr->ret);
+}
+
+static SV *pe_sleep(SV *howlong)    /* not exactly right XXX */
+{
+  double duration;
+  if (!sv_2interval(howlong, &duration))
+    croak("Event::sleep expecting a duration");
+  if (CurCBFrame < 0) {
+    if (SvIVX(DebugLevel) >= 3)
+      warn("Event: sleep(%.2f)\n", duration);
+    pe_sys_sleep(duration);
+    return howlong;
+  }
+  else {
+    pe_sleep_frame *fr;
+    pe_timer *tm;
+    SV *ret;
+
+    New(PE_NEWID, fr, 1, pe_sleep_frame);
+    fr->died = 1;
+    fr->ret = SvREFCNT_inc(howlong);
+    fr->tmr = pe_timer_allocate();
+    fr->cb = (CBFrame + CurCBFrame)->ev;
+
+    /* protect callback event */
+    ++fr->cb->refcnt;
+    fr->reentrant = EvREENTRANT(fr->cb);
+    EvREENTRANT_off(fr->cb);
+
+    /* set up timer */
+    tm = (pe_timer*) fr->tmr;
+    ++tm->base.refcnt;
+    sv_setpvf(tm->base.desc, "sleep(%.2f id=%d) timer", duration, fr->cb->id);
+    tm->tm.at = EvNOW(1) + duration;
+    tm->base.c_callback = pe_sleep_expire;
+    tm->base.ext_data = fr;
+    tm->base.priority = -1; /**/
+    pe_event_start((pe_event*) tm, 0);
+
+    if (SvIVX(DebugLevel) >= 2)
+      warn("Event: sleep(%.2f) id=%d\n", duration, fr->cb->id);
+
+    ENTER;
+    SAVEDESTRUCTOR(pe_wake_up, fr);
+    {
+      dSP;
+      PUSHMARK(SP);
+      perl_call_pv("Event::loop", G_SCALAR | G_NOARGS);
+      SPAGAIN;
+      ret = POPs;
+      PUTBACK;
+    }
+    fr->died = 0;
+    LEAVE;
+    return ret;
+  }
 }
 

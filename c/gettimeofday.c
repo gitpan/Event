@@ -43,12 +43,6 @@ gettimeofday (struct timeval *tp, void *nothing)
 static SV *NowSV;
 static int pe_now_valid;
 
-static void boot_gettimeofday()
-{
-  NowSV = perl_get_sv("Event::Now", 1);
-  pe_now_valid = 0;
-}
-
 /*
   Make virtual method for:
   - alternate time encodings
@@ -61,8 +55,10 @@ static double pe_cache_now()
   struct timeval now_tm;
   gettimeofday(&now_tm, 0);
   got = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
-  if (!SvNOK(NowSV))
+  if (!SvNOK(NowSV)) {
     sv_setnv(NowSV, got);
+    SvREADONLY_on(NowSV);
+  }
   else
     SvNVX(NowSV) = got;
   /*  pe_now_valid = 1; XXX */
@@ -72,6 +68,13 @@ static double pe_cache_now()
 static void pe_invalidate_now_cache()
 {
   pe_now_valid = 0;
+}
+
+static void boot_gettimeofday()
+{
+  NowSV = perl_get_sv("Event::Now", 1);
+  pe_now_valid = 0;
+  pe_cache_now();
 }
 
 #define EvNOW(exact) ((!exact || pe_now_valid)? SvNVX(NowSV) : pe_cache_now())

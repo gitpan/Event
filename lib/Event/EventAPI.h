@@ -16,8 +16,8 @@
 
 /*
   There are a finite number of types of events that are truly
-  asycronous.  Truly asycronous events must be built into the
-  main Event distribution.  Listed below:
+  asycronous.  Truly asycronous events must be carefully hand coded
+  into the main Event distribution.  Listed below:
  */
 
 typedef struct pe_event_vtbl pe_event_vtbl;
@@ -56,6 +56,9 @@ struct pe_timeable {
   pe_ring ring;
   double at;
 };
+/* close enough to zero -- this needs to be bigger if you turn
+   on lots of debugging? XXX */
+#define PE_INTERVAL_EPSILON 0.00001
 
 /* PUBLIC FLAGS */
 #define PE_DEBUG	0x100
@@ -89,7 +92,7 @@ struct pe_idle {
   pe_event base;
   pe_timeable tm;
   pe_ring iring;
-  double min_interval, max_interval; /* not yet XXX */
+  SV *max_interval, *min_interval;
 };
 
 /* flags for pe_io::events */
@@ -124,7 +127,6 @@ typedef struct pe_timer pe_timer;
 struct pe_timer {
   pe_event base;
   pe_timeable tm;
-  int hard;
   SV *interval;
 };
 
@@ -140,6 +142,9 @@ struct EventAPI {
 
   /* PUBLIC API */
   int (*one_event)(double block_tm);
+  void (*unloop)(SV *result);
+  SV *(*sleep)(SV *howlong); /* sleep EXPERIMENTAL */
+  
   void (*start)(pe_event *ev, int repeat);
   void (*queue)(pe_event *ev, int count);
   void (*now)(pe_event *ev);

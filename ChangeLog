@@ -1,4 +1,32 @@
+1998-10-01  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.17
+
+	* Added tests.
+	
+1998-09-30  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Added sleep().  Truly a tortuous experience.
+	
+	* Added min/max interval to idle watchers.
+
+	* c_callback no longer prevents watcher destruction.  Use refcnt!
+
+	* Renamed various C APIs for accuracy (unix_io.c).
+	
+	* Reentrant flag added.
+
 1998-09-29  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.16 (only as a patch)
+
+	* loop() now terminates when there are no active watchers left.
+
+	* Depreciated async.  Moved -priority to -nice & added warning.
+
+	* Fixed minor stuff.
+	
+	* Make io timeouts work for real.  (Thanks Gisle :-)
 
 	* Release 0.15.
 

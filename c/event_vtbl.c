@@ -23,6 +23,7 @@ pe_event_init(pe_event *ev)
   PE_RING_INIT(&ev->que, ev);
   EvFLAGS(ev) = 0;
   EvINVOKE1_on(ev);
+  EvREENTRANT_on(ev);
   ev->FALLBACK = 0;
   NextID = (NextID+1) & 0x7fff; /* make it look like the kernel :-, */
   ev->id = NextID;
@@ -35,6 +36,7 @@ pe_event_init(pe_event *ev)
   ev->perl_callback[0] = 0;
   ev->perl_callback[1] = 0;
   ev->c_callback = 0;
+  ev->ext_data = 0;
   ev->stats = 0;
 }
 
@@ -309,24 +311,52 @@ pe_event_NEXTKEY(pe_event *ev)
   }
 }
 
+static void pe_event_died(pe_event *ev)
+{
+  int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
+  SV *eval = perl_get_sv("Event::DIED", 1);
+  dSP;
+  if (debug) {
+    /* avoid adding extra \n XXX */
+    warn("Event: '%s' died with: %s\n", SvPV(ev->desc,na), SvPV(ERRSV,na));
+  }
+  PUSHMARK(SP);
+  XPUSHs(sv_2mortal(event_2sv(ev)));
+  PUTBACK;
+  perl_call_sv(eval, G_EVAL|G_KEEPERR|G_DISCARD);
+}
+
 static void pe_check_recovery()
 {
-  /* NO ASSERTIONS HERE! */
+  pe_event *ev;
+  /* NO ASSERTIONS HERE!  EVAL CONTEXT VERY MESSY */
   int alert;
   struct pe_cbframe *fp;
   if (CurCBFrame < 0) {
     if (SvIVX(DebugLevel) >= 3)
-      warn("Event: recovery okay\n");
+      warn("Event: no callback running\n");
     return;
   }
 
   /* always invalidate most recent callback */
   fp = CBFrame + CurCBFrame;
-  if (!fp->cbdone)
-    (*fp->ev->vtbl->cbdone)(fp);
-  if (fp->ev->running == fp->run_id) {
-    if (SvIVX(DebugLevel) >= 3)
-      warn("Event: recovery okay at frame %d\n", CurCBFrame);
+  ev = fp->ev;
+  if (ev->running == fp->run_id) {
+    if (EvREENTRANT(ev)) {
+      if (!fp->cbdone)
+	(*fp->ev->vtbl->cbdone)(fp);
+    }
+    else {
+      if (EvREPEAT(ev) && !EvSUSPEND(ev)) {
+	/* temporarily suspend non-reentrant watcher until callback is
+	   finished -- is this too insane? XXX */
+	pe_event_suspend(ev);
+	fp->resume = 1;
+      }
+    }
+    if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
+      warn("Event: [%d] '%s' okay (resume=%d)\n", CurCBFrame,
+	   SvPV(ev->desc,na), fp->resume);
     return;
   }
 
@@ -338,23 +368,16 @@ static void pe_check_recovery()
     fp = CBFrame + CurCBFrame;
     if (fp->ev->running == fp->run_id)
       break;
+    if (!alert) {
+      alert=1;
+      pe_event_died(fp->ev);
+    }
     if (!fp->cbdone)
       (*fp->ev->vtbl->cbdone)(fp);
-    if (!alert) {
-      SV *eval = perl_get_sv("Event::DIED", 1); /* factor DIED stuff XXX */
-      pe_event *ev = fp->ev;
-      int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
-      dSP;
-      alert=1;
-      if (debug) 
-	warn("Event: died in '%s'\n", SvPV(ev->desc,na));
-      PUSHMARK(SP);
-      XPUSHs(sv_2mortal(event_2sv(ev)));
-      PUTBACK;
-      perl_call_sv(eval, G_EVAL|G_KEEPERR|G_DISCARD);
-    }
     --CurCBFrame;
   }
+  if (!alert)
+    warn("Event: don't know where exception occurred");
 }
 
 static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
@@ -363,24 +386,30 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
   struct timeval start_tm;
   int flags = G_VOID;
   int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
-  int old_running = ev->running;
-  assert(!EvSUSPEND(ev));
+  assert(!EvSUSPEND(ev)); /* how'd we here, otherwise?? */
+  assert(EvACTIVE(ev));
+  assert(!(ev->running && !EvREENTRANT(ev))); /* should have been avoided */
 
   pe_check_recovery();
-  if (debug >= 2)
-    warn("Event: invoking '%s'\n", SvPV(ev->desc, na));
   if (Stats)
     gettimeofday(&start_tm, 0);
 
-  /* set up */
+  /* SETUP */
+  /* this cannot be done any later because the callback might want to
+     call again or whatever */
+  if (EvINVOKE1(ev))
+    EvACTIVE_off(ev);
+  else if (!EvREPEAT(ev))
+    (*ev->vtbl->stop)(ev);
   ENTER;
   SAVEINT(ev->running);
   frp = &CBFrame[++CurCBFrame];
   frp->ev = ev;
   frp->cbdone = 0;
+  frp->resume = 0;
   frp->run_id = ++ev->running;
   ev->cbtime = EvNOW(EvCBTIME(ev));
-  /* set up */
+  /* SETUP */
 
   if (CurCBFrame+1 >= MAX_CB_NEST) {
     SV *exitL = perl_get_sv("Event::ExitLevel", 1);
@@ -406,16 +435,8 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
       PUTBACK;
       perl_call_method(SvPV(ev->perl_callback[1],na), flags);
     }
-    if ((flags & G_EVAL) && SvTRUE(ERRSV)) {
-      SV *eval = perl_get_sv("Event::DIED", 1);
-      dSP;
-      if (debug) 
-	warn("Event: '%s' died with: %s\n", SvPV(ev->desc,na), SvPV(ERRSV,na));
-      PUSHMARK(SP);
-      XPUSHs(sv_2mortal(event_2sv(ev)));
-      PUTBACK;
-      perl_call_sv(eval, G_EVAL|G_KEEPERR|G_DISCARD);
-    }
+    if ((flags & G_EVAL) && SvTRUE(ERRSV))
+      pe_event_died(ev);
     FREETMPS;
   } else if (ev->c_callback) {
     (*ev->c_callback)(ev->ext_data);
@@ -427,7 +448,6 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
   if (!frp->cbdone)
     (*ev->vtbl->cbdone)(frp);
   LEAVE;
-  assert(ev->running == old_running);
   --CurCBFrame;
   /* clean up */
 
@@ -456,14 +476,15 @@ static void pe_event_cbdone(pe_cbframe *fp)
   /* clear all fields that are used to indicate status to the callback */
   ev->count = 0;
 
+  if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
+    warn("Event: '%s' callback reset; resume=%d\n",
+	 SvPV(ev->desc, na), fp->resume);
+
+  if (fp->resume)
+    pe_event_resume(ev);
   if (EvINVOKE1(ev)) {
-    /* optimized for non-repeating events [DEFAULT] */
     if (EvREPEAT(ev))
       (*ev->vtbl->start)(ev, 1);
-  } else {
-    /* optimized for repeating events */
-    if (!EvREPEAT(ev))
-      (*ev->vtbl->stop)(ev);
   }
 }
 
@@ -480,6 +501,8 @@ static void pe_event_stop(pe_event *ev)
 { pe_event_nomethod(ev,"stop"); }
 static void pe_event_alarm(pe_event *ev)
 { pe_event_nomethod(ev,"alarm"); }
+static void pe_event_preidle(pe_event *ev)
+{ pe_event_nomethod(ev,"preidle"); }
 
 static void boot_pe_event()
 {
@@ -513,6 +536,7 @@ static void boot_pe_event()
   vt->stop = pe_event_stop;
   vt->cbdone = pe_event_cbdone;
   vt->alarm = pe_event_alarm;
+  vt->preidle = pe_event_preidle;
   newCONSTSUB(stash, "ACTIVE", newSViv(PE_ACTIVE));
   newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
   newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));
@@ -522,12 +546,19 @@ static void boot_pe_event()
 static void
 pe_register_vtbl(pe_event_vtbl *vt)
 {
-  /* why?  dunno */
+  /* maybe check more stuff? */
+  assert(vt->up);
+  assert(vt->stash);
 }
 
 static void pe_event_cancel(pe_event *ev)
 {
-  if (!EvSUSPEND(ev)) {
+  if (EvSUSPEND(ev)) {
+    EvFLAGS(ev) &= ~PE_SUSPEND; /* must happen nowhere else!! */
+    EvACTIVE_off(ev);
+    EvQUEUED_off(ev);
+  }
+  else {
     (*ev->vtbl->stop)(ev);
     if (EvQUEUED(ev))
       dequeEvent(ev);
@@ -536,31 +567,44 @@ static void pe_event_cancel(pe_event *ev)
     (*ev->vtbl->dtor)(ev);
 }
 
+
 static void pe_event_suspend(pe_event *ev)
 {
+  int active, queued;
   if (EvSUSPEND(ev))
     return;
-  if (EvACTIVE(ev)) {
+  active = EvACTIVE(ev);
+  queued = EvQUEUED(ev);
+  if (EvDEBUGx(ev) >= 4)
+    warn("Event: suspend '%s'%s%s\n", SvPV(ev->desc,na),
+	 active?" ACTIVE":"", queued?" QUEUED":"");
+  if (active) {
     (*ev->vtbl->stop)(ev);
     EvACTIVE_on(ev);
   }
-  if (EvQUEUED(ev)) {
+  if (queued) {
     dequeEvent(ev);
     EvQUEUED_on(ev);
   }
-  EvSUSPEND_on(ev);
+  EvFLAGS(ev) |= PE_SUSPEND; /* must happen nowhere else!! */
 }
 
 static void pe_event_resume(pe_event *ev)
 {
+  int active, queued;
   if (!EvSUSPEND(ev))
     return;
-  EvSUSPEND_off(ev);
-  if (EvACTIVE(ev)) {
+  active = EvACTIVE(ev);
+  queued = EvQUEUED(ev);
+  if (EvDEBUGx(ev) >= 4)
+    warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,na),
+	 active?" ACTIVE":"", queued?" QUEUED":"");
+  EvFLAGS(ev) &= ~PE_SUSPEND; /* must happen nowhere else!! */
+  if (active) {
     EvACTIVE_off(ev);
     (*ev->vtbl->start)(ev, 0);
   }
-  if (EvQUEUED(ev)) {
+  if (queued) {
     EvQUEUED_off(ev);
     queueEvent(ev, 0);
   }
@@ -577,3 +621,4 @@ static void pe_event_now(pe_event *ev)
 
 static void pe_event_start(pe_event *ev, int repeat)
 { (*ev->vtbl->start)(ev, repeat); }
+

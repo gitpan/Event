@@ -49,3 +49,25 @@ event_2sv(pe_event *ev)
   /*warn("id=%d ++refcnt=%d", ev->id, ev->refcnt); /**/
   return ret;
 }
+
+static int sv_2interval(SV *in, double *out)
+{
+  SV *sv = in;
+  if (!sv) return 0;
+  if (SvGMAGICAL(sv))
+    mg_get(sv);
+  if (!SvOK(sv)) return 0;
+  if (SvROK(sv))
+    sv = SvRV(sv);
+  if (SvNOK(sv)) {
+    *out = SvNVX(sv);
+    return 1;
+  }
+  if (SvIOK(sv)) {
+    *out = SvIVX(sv);
+    return 1;
+  }
+  sv_dump(in);
+  croak("Interval must be a number of reference to a number");
+  return 0;
+}

@@ -7,8 +7,7 @@
 
 */
 
-static int
-pe_io_fileno(pe_io *ev)
+static int pe_sys_fileno(pe_io *ev)
 {
   SV *sv = ev->handle;
   IO *io;
@@ -43,8 +42,20 @@ static struct pollfd *Pollfd=0;
 static int pollMax=0;
 static int Nfds;
 
-static void
-pe_io_waitForEvent(double timeout)
+static void pe_sys_sleep(double left)
+{
+  int ret;
+  double t0 = EvNOW(1);
+  double t1 = t0 + left;
+  do {
+    ret = poll(0, 0, left * 1000); /* hope zeroes okay */
+    if (ret < 0 && errno != EAGAIN && errno != EINTR)
+      croak("poll(%.2f) got errno %d", left, errno);
+    left = t1 - EvNOW(1);
+  } while (left > PE_INTERVAL_EPSILON);
+}
+
+static void pe_sys_multiplex(double timeout)
 {
   pe_io *ev;
   int xx;
@@ -61,7 +72,7 @@ pe_io_waitForEvent(double timeout)
     Zero(Pollfd, pollMax, struct pollfd);
     ev = IOWatch.next->self;
     while (ev) {
-      int fd = pe_io_fileno(ev);
+      int fd = pe_sys_fileno(ev);
       ev->xref = -1;
       ev->fd = fd;
       if (fd >= 0) {
@@ -134,8 +145,24 @@ pe_io_waitForEvent(double timeout)
 static int Nfds;
 static fd_set Rfds, Wfds, Efds;
 
-static void
-pe_io_waitForEvent(double timeout)
+static void pe_sys_sleep(double left)
+{
+  /* UNTESTED XXX */
+  struct timeval tm;
+  double t0 = EvNOW(1);
+  double t1 = t0 + left;
+  int ret;
+  do {
+    tm.tv_sec = timeout;
+    tm.tv_usec = (timeout - tm.tv_sec) * 1000000;
+    ret = select(0, 0, 0, 0, &tm);
+    if (ret < 0 && errno != EINTR && errno != EAGAIN)
+      croak("select(%.2f) got errno %d", left, errno);
+    left = t1 - EvNOW(1);
+  } while (left > PE_INTERVAL_EPSILON);
+}
+
+static void pe_sys_multiplex(double timeout)
 {
   struct timeval tm;
   int ret;
@@ -149,7 +176,7 @@ pe_io_waitForEvent(double timeout)
     FD_ZERO(&Efds);
     ev = IOWatch.next->self;
     while (ev) {
-      int fd = pe_io_fileno(ev);
+      int fd = pe_sys_fileno(ev);
       ev->fd = fd;
       if (fd >= 0) {
 	int bits=0;

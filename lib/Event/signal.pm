@@ -1,6 +1,7 @@
 use strict;
 package Event::signal;
 use Carp;
+use base 'Event::Watcher';
 use vars qw($DefaultPriority);
 $DefaultPriority = Event::PRIO_HIGH();
 

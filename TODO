@@ -1,26 +1,35 @@
 io watchers
-  -timeout
-  -tailpoll
-  -got 't' (needed to contrast with 'now' method)
+  -tailpoll -- how to do this?!
   [+-] notation to modify the event mask
-
-idle watchers
-  min_interval, max_interval
 
 screensaver watchers
   by priority?
+
+rename watchvar to 'var', 'assign', or 'assignment'
 
 croak should route through Carp!
 
 documentation
   how to design new event types
-  exception handling
+  the mysteries of exception handling
   how to use $Event::API
   io events 'got' has both alpha & numeric encoding
 
+Event::Watcher
+  complete -priority => -nice migration (in a few weeks)
+  remove support for leading dashes (by Oct 3)
+  allow editing of reentrant?  only when not running?
+
+There is currently no way to take advantage of pe_tmevent in a purely
+perl implemented watcher.
+
+clean up sleep()
+
+export_fail hook to autoload
+
 optimization
   update io event-mask without invalidating cache
-  use fancy profiler tricks to improve performance?
+  use fancy profiler tricks to figure out how to improve performance!
 
 time
   CORE::time?
@@ -28,9 +37,11 @@ time
   changing speed of time
   for year 2000 testing :-)
 
-nuke suspend/resume?  maybe not!
+extra assertions for C API
 
-configuration of StarvePrio?
+one_event
+  configuration of StarvePrio?
+  since there is only one queue, could allow more queue priorities...?
 
 accept "%f minutes" & "%f hours" for all time specifications?
 

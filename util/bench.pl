@@ -14,7 +14,7 @@ eval q[ use NetServer::ProcessTop; warn '[Top @ '.(7000+$$%1000)."]\n"; ];
 
 Event->timer(callback => \&unloop,
 	     after => $TestTime,
-	     priority => -1, desc => "End of benchmark");
+	     nice => -1, desc => "End of benchmark");
 
 #------------------------------ Timer
 use vars qw($TimerCount $TimerExpect);

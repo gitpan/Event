@@ -1,6 +1,7 @@
 use strict;
 package Event::timer;
 use Carp;
+use base 'Event::Watcher';
 
 'Event::Watcher'->register;
 

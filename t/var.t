@@ -33,7 +33,7 @@ Event->watchvar(
 
 Event->watchvar(
     -variable => \$var3,
-    -async    => 1,
+    nice    => -10,
     -callback =>
 	sub {
 	    print "ok ",$var3,"\n";

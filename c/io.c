@@ -11,6 +11,7 @@ pe_io_allocate()
   New(PE_NEWID, ev, 1, pe_io);
   ev->base.vtbl = &pe_io_vtbl;
   pe_event_init((pe_event*) ev);
+  PE_RING_INIT(&ev->tm.ring, ev);
   PE_RING_INIT(&ev->ioring, ev);
   ev->fd = -1;
   ev->timeout = 0;
@@ -55,7 +56,7 @@ static void pe_io_start(pe_event *_ev, int repeat)
     return;
   PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
   ++IOWatchCount;
-  EvACTIVE_on(ev);
+  EvACTIVE_on(_ev);
   IOWatch_OK = 0;
   if (ev->timeout) {
     EvCBTIME_on(ev);
@@ -77,22 +78,24 @@ static void pe_io_stop(pe_event *_ev)
     pe_timeable_stop(_ev);
   PE_RING_DETACH(&ev->ioring);
   --IOWatchCount;
-  EvACTIVE_off(ev);
+  EvACTIVE_off(_ev);
   IOWatch_OK = 0;
 }
 
 static void pe_io_alarm(pe_event *_ev)
 {
   pe_io *ev = (pe_io*) _ev;
-  double left = (_ev->cbtime + ev->timeout) - EvNOW(1);
-  if (left > 0) {
-    ev->tm.at = left;
-    pe_timeable_start(_ev);
-  }
-  else {
+  double now = EvNOW(1);
+  double left = (_ev->cbtime + ev->timeout) - now;
+  if (left < PE_INTERVAL_EPSILON) {
+    ev->tm.at = now + ev->timeout;
     ev->got |= PE_IO_T;
     queueEvent(_ev, 1);
   }
+  else {
+    ev->tm.at = left;
+  }
+  pe_timeable_start(_ev);
 }
 
 static void pe_io_FETCH(pe_event *_ev, SV *svkey)
@@ -206,6 +209,7 @@ pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
   }
   if (ok) {
     if (EvACTIVE(ev)) {
+      /* will deque if queued? XXX */
       pe_io_stop(_ev);
       pe_io_start(_ev, 0);
     }

@@ -13,7 +13,7 @@ sub new {
     my %arg = @_;
 
     my $o = allocate();
-    $o->init([qw(handle events)], \%arg);
+    $o->init([qw(timeout handle events)], \%arg);
     $o->start;
     $o;
 }
