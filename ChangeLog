@@ -1,3 +1,11 @@
+2001-06-22  <vishnu@pobox.com>
+
+	* Release 0.83.
+
+2001-06-22  <vishnu@pobox.com>
+
+	* Waste less time in timeable.c. (Peter Lombard <lombard@seismo.berkeley.edu>)
+
 2001-06-21  <vishnu@pobox.com>
 
 	* Release 0.82.

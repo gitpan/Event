@@ -17,9 +17,9 @@ static void db_show_timeables()
 
 static void pe_timeables_check() {
     pe_timeable *tm = (pe_timeable*) Timeables.ring.next;
-    double now = NVtime();
+    double now = NVtime() + IntervalEpsilon;
     /*  warn("timeables at %.2f\n", now); db_show_timeables();/**/
-    while (tm->ring.self && tm->at < now) {
+    while (tm->ring.self && now >= tm->at) {
 	pe_watcher *ev = (pe_watcher*) tm->ring.self;
 	pe_timeable *next = (pe_timeable*) tm->ring.next;
 	D_TIMEABLE({
