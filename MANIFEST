@@ -37,8 +37,10 @@ lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
 lib/Event/var.pm
+ppport.h
 t/attach_to.t
 t/bored.t
+t/callback.t
 t/delete.t
 t/eval.t
 t/hook.t

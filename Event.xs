@@ -14,7 +14,7 @@ extern "C" {
 }
 #endif
 
-#include "patchlevel.h"
+#include "ppport.h"
 
 /* This is unfortunately necessary for the 5.005_0x series. */
 #if PERL_REVISION == 5 && PERL_VERSION <= 5 && PERL_SUBVERSION < 53

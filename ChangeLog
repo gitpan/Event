@@ -1,4 +1,21 @@
+1999-09-10  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.54.
+
+	* Improved cb(...) diagnostics.  Added tests.
+
+	* Devel-PPPort (schinder@pobox.com of cpan-testers@perl.org).
+
 1999-09-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* If a file is unexpectedly closed, the io watcher is no longer
+ 	stopped.  Instead the file handle is reset.  This symantic allows
+ 	io timeouts to continue to trigger and should make recovery
+ 	simpler.  Added tests.
+
+	* Prohibit attach_to blessed refs.  Added test.
+
+	* Minor doc updates.
 
 	* Release 0.53.
 
@@ -22,7 +39,7 @@
 
 	* Removed a bunch of deprecated features.
 
-	* Reformatted the source to be more consistent, if not beautiful.
+	* Reformatted the source to be more consistent (if not beautiful).
 
 1999-08-18  Joshua Pritikin  <joshua.pritikin@db.com>
 

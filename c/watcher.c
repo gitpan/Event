@@ -89,6 +89,7 @@ WKEYMETH(_watcher_callback) {
 	XPUSHs(ret);
 	PUTBACK;
     } else {
+	AV *av;
 	SV *sv;
 	SV *old=0;
 	if (EvPERLCB(ev))
@@ -97,14 +98,19 @@ WKEYMETH(_watcher_callback) {
 	    EvPERLCB_off(ev);
 	    ev->callback = 0;
 	    ev->ext_data = 0;
-	} else if (!SvROK(nval) ||
-		 (SvTYPE(sv=SvRV(nval)) != SVt_PVCV &&
-		  (SvTYPE(sv) != SVt_PVAV || av_len((AV*)sv) != 1))) {
-	    sv_dump(sv);
-	    croak("Callback must be a code ref or two element array ref");
-	} else {
+	} else if (SvROK(nval) && (SvTYPE(sv=SvRV(nval)) == SVt_PVCV)) {
 	    EvPERLCB_on(ev);
 	    ev->callback = SvREFCNT_inc(nval);
+	} else if (SvROK(nval) &&
+		   (SvTYPE(av=(AV*)SvRV(nval)) == SVt_PVAV) &&
+		   av_len(av) == 1 &&
+		   !SvROK(sv=*av_fetch(av, 1, 0))) {
+	    EvPERLCB_on(ev);
+	    ev->callback = SvREFCNT_inc(nval);
+	} else {
+	    if (SvIV(DebugLevel) >= 2)
+		sv_dump(sv);
+	    croak("Callback must be a code ref or [$object, $method_name]");
 	}
 	if (old)
 	    SvREFCNT_dec(old);

@@ -10,11 +10,13 @@ static SV *wrap_watcher(void *ptr, HV *stash, SV *temple) {
 	temple = (SV*)newHV();
     else
 	SvREFCNT_inc(temple);
+    if (SvOBJECT(temple))
+	croak("Can't attach to blessed reference");
     assert(!SvROK(temple));
+    assert(mg_find(temple, '~') == 0); /* multiplicity disallowed! */
+
     ref = newRV_noinc(temple);
     sv_bless(ref, stash);
-
-    assert(mg_find(temple, '~') == 0); /* multiplicity disallowed! */
 
     mgp = &SvMAGIC(temple);
     while ((mg = *mgp))

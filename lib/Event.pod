@@ -461,57 +461,57 @@ See L<Event::MakeMaker>.
 =head1 WHAT ABOUT THREADS?
 
 Event loops and threads are two different solutions to the same
-problem: asynchronous processing.
+problem: asynchronous processing.  Event loops have been around since
+the beginning of computing.  They are well understood and proven to be
+a good solution for many applications.
 
-Event loops have been around since the beginning of computing.  They
-are well understood and proven to be a good solution for many
-applications.  While they make use of basic operating system services,
-the bulk of their implementation is usually outside the kernel.
-Therefore, while an event loop may appear to do many things in
-parallel, it does not.  Actions are always executed sequentially.
-This implies that long running callbacks must be avoided because they
-halt event processing.
+While event loops make use of basic operating system services, the
+bulk of their implementation is usually outside the kernel.  While an
+event loop may appear to do many things in parallel, it does not, even
+on multiprocessor hardware.  Actions are always dispatched
+sequentially.  This implies that long running callbacks must be
+avoided because otherwise event processing is halted.
 
 Event loops work well when actions are short and to the point.
 Long-running tasks must be broken into short steps and scheduled for
-execution.  Some sort of a state machine is usually required.  For
-example, consider a JPEG file download and render.  When some new
-bytes are available they must be sorted to the right place on the
-screen.  Quite a lot of state must be kept to keep track of how much
-has been rendered and how to process subsequent incoming bytes.  While
-a web browser can easily get by without threads, a big complex web
-application server might be a great deal simpler to implement in
-a multithreaded fashion.
+execution.  Some sort of a state machine is usually required.  While a
+big, complex application server is usually simpler to implement in a
+multithreaded fashion, a web browser can easily get by without
+threads.  Consider a JPEG file download and render.  When some new
+bytes are available they are sorted to the right place on the screen.
+Only a little state must be kept to keep track of how much has been
+rendered and to process subsequent incoming bytes.
 
 Threads can either substitute for an event loop or complement it.
 Threads are similar to processes in that the operating system manages
 task switching for you.  However, the difference is that all threads
 share the same address space.  This is good and bad.  Much higher
-performance can be acheived, but since data is shared between threads
-extreme care must be taken when accessing or modifying global data.
-The operating system can switch threads at any moment or can execute
+performance can be acheived but since data is shared between threads
+extreme care must be taken to access or modify global data.  The
+operating system can switch threads at any moment or can execute
 multiple threads simultaineously.  I hope this sounds dangerous!  It
-is.  Threads can introduce maddeningly complicated and hard to debug
-syncronization problems.  Threads are like rocket fuel.  They are
-essential when you really need them but most applications would be
-better off with a simple event loop.  Even if threads are genuinely
-needed, consider confining them to the parts of an application where
-truly scalable performance is really worth the difficulty of a thread
-safe implementation.  For example, most GUIs applications do not need
-threads and most scientific compute intensive problems can be isolated
-from event dispatching.  On the other hand, high performance
-transaction servers generally do need a truly multithreaded
-implementation.
+is!  Threads can introduce maddeningly complicated and hard to debug
+syncronization problems.
+
+Threads are like rocket fuel.  They are essential when you really need
+them but most applications would be better off with a simple event
+loop.  Even if threads are genuinely needed, consider confining them
+to the parts of an application where truly scalable performance is
+really worth the difficulty of a multithreaded implementation.  For
+example, most GUIs applications do not need threads and most
+scientific compute intensive problems can be isolated from event
+dispatching.  On the other hand, high performance transaction servers
+generally do mandate a truly multithreaded approach.
 
 Another consideration is that threads are not quite as widely
 available as event loops.  While a few forward-thinking operating
 systems have offered threads since the beginning, their addition to
 many popular operating systems is much more recent and some still
 offer no threads support.  If portability is a requirement, one must
-check that threads support is available and also carefully test to be
-sure that a particular threads implementation supports the features
-you need.  It is likely that all platforms will have a solid
-implementation soon, but at this point in history it is best to double
+check that threads support is available and also carefully test a
+particular threads implementation to see whether it supports the
+features you need.  It is likely that all platforms will have a solid
+implementation soon but at this point in history it is best to double
 check.
 
 =head1 WHAT ABOUT NON-PREEMPTIVE THREADS?

@@ -94,6 +94,14 @@ static void _io_restart(pe_watcher *ev) {
     pe_watcher_on(ev, 0);
 }
 
+static void pe_io_reset_handle(pe_watcher *ev) {
+    pe_io *io = (pe_io*)ev;
+    SvREFCNT_dec(io->handle);
+    io->handle = &PL_sv_undef;
+    io->fd = -1;
+    _io_restart(ev);
+}
+
 WKEYMETH(_io_poll) {
     pe_io *io = (pe_io*)ev;
     if (!nval) {
@@ -121,6 +129,7 @@ WKEYMETH(_io_handle) {
 	SV *old = io->handle;
 	io->handle = SvREFCNT_inc(nval);
 	SvREFCNT_dec(old);
+	io->fd = -1;
 	_io_restart(ev);
     }
 }

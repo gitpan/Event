@@ -13,7 +13,7 @@ use Carp;
 eval { require Carp::Heavy; };  # work around perl_call_pv bug XXX
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.53';
+$VERSION = '0.54';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -184,15 +184,6 @@ sub add_hooks {
 END { $_->cancel for all_watchers() }
 
 require Event::Watcher;
-
-#----------------------------------- backward compatibility
-#----------------------------------- backward forward backward
-
-if (1) {
-    # Do you feel like you need entwash?  Have some of this!
-    no strict 'refs';
-
-}
 
 package Event::Event::Io;
 use vars qw(@ISA);
