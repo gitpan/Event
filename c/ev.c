@@ -19,10 +19,9 @@ static void pe_event_init(pe_event *ev, pe_watcher *wa) {
     ev->prio = wa->prio;
 }
 
-static void pe_event_dtor(pe_event *ev) {
+static void pe_anyevent_dtor(pe_event *ev) {
     STRLEN n_a;
     pe_watcher *wa = ev->up;
-    HV *fb = wa->FALLBACK;
     if (EvDEBUGx(wa) >= 3)
 	warn("Event=0x%x '%s' destroyed (SV=0x%x)",
 	     ev,
@@ -33,10 +32,14 @@ static void pe_event_dtor(pe_event *ev) {
     ev->hits = 0;
     PE_RING_DETACH(&ev->peer);
     PE_RING_DETACH(&ev->que);
-    PE_RING_UNSHIFT(&ev->que, &event_vtbl.freelist);
     --wa->event_counter;
     if (EvCANDESTROY(wa)) /* running */
 	(*wa->vtbl->dtor)(wa);
+}
+
+static void pe_event_dtor(pe_event *ev) {
+    pe_anyevent_dtor(ev);
+    PE_RING_UNSHIFT(&ev->que, &event_vtbl.freelist);
 }
 
 /*****************************************************************/
@@ -47,7 +50,7 @@ static pe_event *pe_event_allocate(pe_watcher *wa) {
     if (EvCLUMPx(wa))
 	return (pe_event*) wa->events.next->self;
     if (PE_RING_EMPTY(&event_vtbl.freelist)) {
-	New(PE_NEWID, ev, 1, pe_event);
+	EvNew(0, ev, 1, pe_event);
 	ev->vtbl = &event_vtbl;
 	PE_RING_INIT(&ev->que, ev);
     } else {
@@ -59,8 +62,7 @@ static pe_event *pe_event_allocate(pe_watcher *wa) {
     return ev;
 }
 
-static void pe_event_release(pe_event *ev)
-{
+static void pe_event_release(pe_event *ev) {
     if (!ev->mysv)
 	(*ev->vtbl->dtor)(ev);
     else {
@@ -69,24 +71,22 @@ static void pe_event_release(pe_event *ev)
     }
 }
 
-EKEYMETH(_event_hits)
-{
-  if (!nval) {
-    dSP;
-    XPUSHs(sv_2mortal(newSViv(ev->hits)));
-    PUTBACK;
-  } else
-    croak("'e_hits' is read-only");
+EKEYMETH(_event_hits) {
+    if (!nval) {
+	dSP;
+	XPUSHs(sv_2mortal(newSViv(ev->hits)));
+	PUTBACK;
+    } else
+	croak("'e_hits' is read-only");
 }
 
-EKEYMETH(_event_prio)
-{
-  if (!nval) {
-    dSP;
-    XPUSHs(sv_2mortal(newSViv(ev->prio)));
-    PUTBACK;
-  } else
-    croak("'e_prio' is read-only");
+EKEYMETH(_event_prio) {
+    if (!nval) {
+	dSP;
+	XPUSHs(sv_2mortal(newSViv(ev->prio)));
+	PUTBACK;
+    } else
+	croak("'e_prio' is read-only");
 }
 
 /*------------------------------------------------------*/
@@ -97,7 +97,7 @@ static pe_event *pe_ioevent_allocate(pe_watcher *wa) {
     if (EvCLUMPx(wa))
 	return (pe_event*) wa->events.next->self;
     if (PE_RING_EMPTY(&ioevent_vtbl.freelist)) {
-	New(PE_NEWID, ev, 1, pe_ioevent);
+	EvNew(1, ev, 1, pe_ioevent);
 	ev->base.vtbl = &ioevent_vtbl;
 	PE_RING_INIT(&ev->base.que, ev);
     } else {
@@ -110,15 +110,19 @@ static pe_event *pe_ioevent_allocate(pe_watcher *wa) {
     return &ev->base;
 }
 
-EKEYMETH(_event_got)
-{
-  pe_ioevent *io = (pe_ioevent *)ev;
-  if (!nval) {
-    dSP;
-    XPUSHs(sv_2mortal(events_mask_2sv(io->got)));
-    PUTBACK;
-  } else
-    croak("'e_got' is read-only");
+static void pe_ioevent_dtor(pe_event *ev) {
+    pe_anyevent_dtor(ev);
+    PE_RING_UNSHIFT(&ev->que, &ioevent_vtbl.freelist);
+}
+
+EKEYMETH(_event_got) {
+    pe_ioevent *io = (pe_ioevent *)ev;
+    if (!nval) {
+	dSP;
+	XPUSHs(sv_2mortal(events_mask_2sv(io->got)));
+	PUTBACK;
+    } else
+	croak("'e_got' is read-only");
 }
 
 /*------------------------------------------------------*/
@@ -307,7 +311,7 @@ static void boot_pe_event() {
     memcpy(vt, &event_vtbl, sizeof(pe_event_vtbl));
     vt->stash = gv_stashpv("Event::Event::Io", 1);
     vt->new_event = pe_ioevent_allocate;
-    vt->dtor = pe_event_dtor;
+    vt->dtor = pe_ioevent_dtor;
     PE_RING_INIT(&vt->freelist, 0);
 
     memset(QueueTime, 0, sizeof(QueueTime));

@@ -6,7 +6,7 @@ static pe_ring Idle;
 
 static pe_watcher *pe_idle_allocate(HV *stash, SV *temple) {
     pe_idle *ev;
-    New(PE_NEWID, ev, 1, pe_idle);
+    EvNew(3, ev, 1, pe_idle);
     ev->base.vtbl = &pe_idle_vtbl;
     pe_watcher_init(&ev->base, stash, temple);
     PE_RING_INIT(&ev->tm.ring, ev);

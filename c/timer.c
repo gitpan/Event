@@ -2,7 +2,7 @@ static struct pe_watcher_vtbl pe_timer_vtbl;
 
 static pe_watcher *pe_timer_allocate(HV *stash, SV *temple) {
     pe_timer *ev;
-    New(PE_NEWID, ev, 1, pe_timer);
+    EvNew(7, ev, 1, pe_timer);
     assert(ev);
     ev->base.vtbl = &pe_timer_vtbl;
     PE_RING_INIT(&ev->tm.ring, ev);

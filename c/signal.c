@@ -31,7 +31,7 @@ static Signal_t process_sighandler(int sig) {
 
 static pe_watcher *pe_signal_allocate(HV *stash, SV *temple) {
     pe_signal *ev;
-    New(PE_NEWID, ev, 1, pe_signal);
+    EvNew(5, ev, 1, pe_signal);
     ev->base.vtbl = &pe_signal_vtbl;
     PE_RING_INIT(&ev->sring, ev);
     ev->signal = 0;

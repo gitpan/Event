@@ -109,11 +109,11 @@ For example:
 All watchers support at least the following attributes: cb, clump,
 hits, prio, desc, repeat, debug, and reentrant.  Most watchers also
 offer additional attributes according to their specialty.  Moreover,
-some attributes only meaningful when passed to a constructor.
+some attributes are only meaningful when passed via the constructor.
 
 =head2 Shared Watcher Methods
 
-The following non-attribute methods are available:
+The following methods are available for all watchers:
 
 =over 4
 
@@ -148,6 +148,15 @@ methods.
 Stop and destroy C<$watcher>.  Running events are allowed to complete
 but pending events are cancelled.  If an attempt is made to use
 C<$watcher> after calling C<cancel> then an exception will be thrown.
+
+=item $watcher->is_active
+
+Reports whether the C<$watcher> has been started.  The return value is
+not affected by suspend.
+
+=item $watcher->is_suspended
+
+Reports whether the C<$watcher> is suspended.
 
 =back
 
@@ -391,9 +400,9 @@ the documentation for C<%SIG>.
 =item suspend => $bool
 
 Don't look for events any more.  Running events are allowed to
-complete but pending events are cancelled.  Suspend should be
-considered a debugging tool.  If you actually want to stop a watcher,
-use the C<stop> method.
+complete but queued events are cancelled and subsequent pending events
+are ignored.  Suspend should be considered a debugging tool.  If you
+actually want to stop a watcher then use the C<stop> method.
 
 =item timeout => $seconds
 
@@ -564,7 +573,8 @@ Thanks!
 Joshua N. Pritikin E<lt>F<bitset@mindspring.com>E<gt>
 
 Initial 0.01 implementation by Graham Barr
-E<lt>F<gbarr@pobox.com>E<gt>.  Also, contributions from:
+E<lt>F<gbarr@pobox.com>E<gt>.  Other contributors include at least
+those lists below and folks mentioned in the ChangeLog.
 
  Gisle Aas E<lt>F<gisle@aas.no>E<gt>
  E<lt>F<jan.dubois@ibm.net>E<gt> (Win32)

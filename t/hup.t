@@ -1,5 +1,13 @@
 #!./perl -w
 
+BEGIN {
+    if ($^O eq 'MSWin32') {
+	print "1..0\n";
+	print "ok 1 # skipped; Win32 is too strange\n";
+	exit;
+    }
+}
+
 # contributed by Gisle Aas <aas@gaustad.sys.sol.no>
 
 use Event qw(loop unloop);

@@ -2,7 +2,7 @@ static struct pe_watcher_vtbl pe_tied_vtbl;
 
 static pe_watcher *pe_tied_allocate(HV *stash, SV *temple) {
     pe_tied *ev;
-    New(PE_NEWID, ev, 1, pe_tied);
+    EvNew(6, ev, 1, pe_tied);
     ev->base.vtbl = &pe_tied_vtbl;
     if (!stash) croak("tied_allocate(0)");
     pe_watcher_init(&ev->base, stash, temple);

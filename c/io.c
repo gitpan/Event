@@ -6,7 +6,7 @@ static int IOWatch_OK;
 
 static pe_watcher *pe_io_allocate(HV *stash, SV *temple) {
     pe_io *ev;
-    New(PE_NEWID, ev, 1, pe_io);
+    EvNew(4, ev, 1, pe_io);
     ev->base.vtbl = &pe_io_vtbl;
     pe_watcher_init(&ev->base, stash, temple);
     PE_RING_INIT(&ev->tm.ring, ev);

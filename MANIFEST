@@ -24,6 +24,7 @@ c/watcher.c
 demo/in.pl
 demo/inactivity.t
 demo/process.pm
+demo/spin_io.t
 lib/Event.pm
 lib/Event.pod
 lib/Event/EventAPI.h

@@ -85,6 +85,21 @@ static void fallback_U2time(U32 *ret)
 
 #include "Event.h"
 
+/* The following is for very simplistic memory leak detection. */
+
+#define MAX_MEMORYCOUNT 20
+static int MemoryCount[MAX_MEMORYCOUNT];
+static void dbg_count_memory(int id, int cnt) {
+    assert(id >= 0 && id < MAX_MEMORYCOUNT);
+    MemoryCount[id] += cnt;
+}
+
+#if DEBUGGING
+#  define EvNew(id, ptr, size, type) dbg_count_memory(id,1); New(0,ptr,size,type)
+#else
+#  define EvNew(x, ptr, size, type) New(0,ptr,size,type)
+#endif
+
 static int ActiveWatchers=0; /* includes EvACTIVE + queued events */
 static int WarnCounter=16; /*XXX nuke */
 static SV *DebugLevel;
@@ -292,6 +307,17 @@ _timeout_too_early()
 	OUTPUT:
 	RETVAL
 
+void
+_memory_counters()
+     PPCODE:
+{
+#ifdef DEBUGGING
+    int xx;
+    for (xx=0; xx < MAX_MEMORYCOUNT; xx++)
+	XPUSHs(sv_2mortal(newSViv(MemoryCount[xx])));
+#endif
+}
+
 bool
 cache_time_api()
 	CODE:
@@ -404,8 +430,7 @@ one_event(...)
 	RETVAL
 
 void
-_loop(...)
-	PROTOTYPE: ;$
+_loop()
 	CODE:
 	SV *exitL = perl_get_sv("Event::ExitLevel", 1);
 	SV *loopL = perl_get_sv("Event::LoopLevel", 1);

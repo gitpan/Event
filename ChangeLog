@@ -1,4 +1,17 @@
+1999-10-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.57.
+
+	* Memory leak fixed: ioevents were being retired to the wrong
+ 	freelist. (thospel@mail.dma.be)
+
+1999-09-23  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Document is_active/is_suspended. (Jochen.Stenzel.gp@icn.siemens.de)
+
 1999-09-22  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Skip hup.t on Win32. (Paul.Moore@uk.origin-it.com)
 
 	* Release 0.56.
 

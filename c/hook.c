@@ -12,7 +12,7 @@ static pe_qcallback *
 pe_add_hook(char *which, int is_perl, void *cb, void *ext_data)
 {
   pe_qcallback *qcb;
-  New(PE_NEWID, qcb, 1, pe_qcallback);
+  EvNew(2, qcb, 1, pe_qcallback);
   PE_RING_INIT(&qcb->ring, qcb);
   qcb->is_perl = is_perl;
   if (is_perl) {

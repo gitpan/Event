@@ -22,7 +22,8 @@ static SV *wrap_watcher(void *ptr, HV *stash, SV *temple) {
     while ((mg = *mgp))
 	mgp = &mg->mg_moremagic;
 
-    Newz(PE_NEWID, mg, 1, MAGIC);
+    EvNew(8, mg, 1, MAGIC);
+    Zero(mg, 1, MAGIC);
     mg->mg_type = '~';
     mg->mg_obj = (SV*) ptr;  /* NOT refcnt'd */
     *mgp = mg;

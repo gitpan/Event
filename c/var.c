@@ -2,7 +2,7 @@ static struct pe_watcher_vtbl pe_var_vtbl;
 
 static pe_watcher *pe_var_allocate(HV *stash, SV *temple) {
     pe_var *ev;
-    New(PE_NEWID, ev, 1, pe_var);
+    EvNew(10, ev, 1, pe_var);
     ev->base.vtbl = &pe_var_vtbl;
     pe_watcher_init(&ev->base, stash, temple);
     ev->variable = &PL_sv_undef;
@@ -75,12 +75,13 @@ static void pe_var_start(pe_watcher *_ev, int repeat) {
 	mgp = &mg->mg_moremagic;
     }
 
-    Newz(PE_NEWID, mg, 1, MAGIC);
+    EvNew(11, mg, 1, MAGIC);
+    Zero(mg, 1, MAGIC);
     mg->mg_type = 'U';
     mg->mg_virtual = &PL_vtbl_uvar;
     *mgp = mg;
-
-    New(PE_NEWID, ufp, 1, struct ufuncs);
+    
+    EvNew(12, ufp, 1, struct ufuncs);
     ufp->uf_val = ev->events & PE_R? tracevar_r : 0;
     ufp->uf_set = ev->events & PE_W? tracevar_w : 0;
     ufp->uf_index = (IV) ev;
