@@ -41,8 +41,7 @@ static void pe_event_dtor(pe_event *ev) {
 
 /*****************************************************************/
 
-static pe_event *pe_event_allocate(pe_watcher *wa)
-{
+static pe_event *pe_event_allocate(pe_watcher *wa) {
     pe_event *ev;
     assert(wa);
     if (EvCLUMPx(wa))
@@ -58,6 +57,16 @@ static pe_event *pe_event_allocate(pe_watcher *wa)
     }	
     pe_event_init(ev, wa);
     return ev;
+}
+
+static void pe_event_release(pe_event *ev)
+{
+    if (!ev->mysv)
+	(*ev->vtbl->dtor)(ev);
+    else {
+	SvREFCNT_dec(ev->mysv);
+	ev->mysv=0;
+    }
 }
 
 EKEYMETH(_event_hits)
@@ -82,8 +91,7 @@ EKEYMETH(_event_prio)
 
 /*------------------------------------------------------*/
 
-static pe_event *pe_ioevent_allocate(pe_watcher *wa)
-{
+static pe_event *pe_ioevent_allocate(pe_watcher *wa) {
     pe_ioevent *ev;
     assert(wa);
     if (EvCLUMPx(wa))
@@ -130,78 +138,71 @@ static void pe_event_postCB(pe_cbframe *fp) {
 	    Estat.resume((CBFrame + CurCBFrame)->stats);
     }
     /* this must be last because it can destroy the watcher */
-    if (!ev->mysv)
-	(*ev->vtbl->dtor)(ev);
-    else {
-	SvREFCNT_dec(ev->mysv);
-	ev->mysv=0;
+    pe_event_release(ev);
+}
+
+static void pe_callback_died(pe_cbframe *fp) {
+    dSP;
+    STRLEN n_a;
+    pe_watcher *wa = fp->ev->up;
+    SV *eval = perl_get_sv("Event::DIED", 1);
+    SV *err = sv_true(ERRSV)? sv_mortalcopy(ERRSV):sv_2mortal(newSVpv("?",0));
+    if (EvDEBUGx(wa) >= 4)
+	warn("Event: '%s' died with: %s\n", SvPV(wa->desc,n_a),
+	     SvPV(ERRSV,n_a));
+    PUSHMARK(SP);
+    XPUSHs(event_2sv(fp->ev));
+    XPUSHs(err);
+    PUTBACK;
+    perl_call_sv(eval, G_EVAL|G_DISCARD);
+    if (sv_true(ERRSV)) {
+	warn("Event: '%s' died and then $Event::DIED died with: %s\n",
+	     SvPV(wa->desc,n_a), SvPV(ERRSV,n_a));
+	sv_setpv(ERRSV, "");
     }
 }
 
-static void pe_callback_died(pe_cbframe *fp)
-{
-  dSP;
-  STRLEN n_a;
-  pe_watcher *wa = fp->ev->up;
-  SV *eval = perl_get_sv("Event::DIED", 1);
-  SV *err = sv_true(ERRSV)? sv_mortalcopy(ERRSV) : sv_2mortal(newSVpv("?",0));
-  if (EvDEBUGx(wa) >= 4)
-    warn("Event: '%s' died with: %s\n", SvPV(wa->desc,n_a), SvPV(ERRSV,n_a));
-  PUSHMARK(SP);
-  XPUSHs(event_2sv(fp->ev));
-  XPUSHs(err);
-  PUTBACK;
-  perl_call_sv(eval, G_EVAL|G_DISCARD);
-  if (sv_true(ERRSV)) {
-    warn("Event: '%s' died and then $Event::DIED died with: %s\n",
-	 SvPV(wa->desc,n_a), SvPV(ERRSV,n_a));
-    sv_setpv(ERRSV, "");
-  }
+static void _resume_watcher(void *vp) {
+    pe_watcher *wa = (pe_watcher *)vp;
+    pe_watcher_resume(wa);
 }
 
-static void _resume_watcher(void *vp)
-{
-  pe_watcher *wa = (pe_watcher *)vp;
-  pe_watcher_resume(wa);
-}
+static void pe_check_recovery() {
+    pe_watcher *ev;
+    /* NO ASSERTIONS HERE!  EVAL CONTEXT IS VERY MESSY */
+    int alert;
+    struct pe_cbframe *fp;
+    if (CurCBFrame < 0)
+	return;
 
-static void pe_check_recovery()
-{
-  pe_watcher *ev;
-  /* NO ASSERTIONS HERE!  EVAL CONTEXT VERY MESSY */
-  int alert;
-  struct pe_cbframe *fp;
-  if (CurCBFrame < 0)
-    return;
-
-  fp = CBFrame + CurCBFrame;
-  ev = fp->ev->up;
-  if (ev->running == fp->run_id) {
-    if (Estat.on)
-      Estat.suspend(fp->stats);
-    if (!EvREENTRANT(ev) && EvREPEAT(ev) && !EvSUSPEND(ev)) {
-      /* temporarily suspend non-reentrant watcher until callback is
-	 finished! */
-      pe_watcher_suspend(ev);
-      SAVEDESTRUCTOR(_resume_watcher, ev);
-    }
-    return;
-  }
-
-  /* exception detected; alert the militia! */
-  alert=0;
-  while (CurCBFrame >= 0) {
     fp = CBFrame + CurCBFrame;
-    if (fp->ev->up->running == fp->run_id)
-      break;
-    if (!alert) {
-      alert=1;
-      pe_callback_died(fp);
+    ev = fp->ev->up;
+    if (ev->running == fp->run_id) {
+	if (Estat.on)
+	    Estat.suspend(fp->stats);
+	if (!EvREENTRANT(ev) && EvREPEAT(ev) && !EvSUSPEND(ev)) {
+	    /* temporarily suspend non-reentrant watcher until callback is
+	       finished! */
+	    pe_watcher_suspend(ev);
+	    SAVEDESTRUCTOR(_resume_watcher, ev);
+	}
+	return;
     }
-    pe_event_postCB(fp);
-  }
-  if (!alert)
-    warn("Event: don't know where exception occurred");
+
+    /* exception detected; alert the militia! */
+    alert=0;
+    while (CurCBFrame >= 0) {
+	fp = CBFrame + CurCBFrame;
+	if (fp->ev->up->running == fp->run_id)
+	    break;
+	if (!alert) {
+	    alert=1;
+	    pe_callback_died(fp);
+	}
+	pe_event_postCB(fp);
+    }
+    if (!alert)
+	warn("Event: don't know where exception occurred");
 }
 
 static void pe_event_invoke(pe_event *ev) {
@@ -292,151 +293,21 @@ static void pe_event_invoke(pe_event *ev) {
     pe_event_postCB(frp);
 }
 
-static void pe_event_FETCH(void *vptr, SV *svkey)
-{
-  pe_event *ev = (pe_event*) vptr;
-  pe_watcher *wa = ev->up;
-  SV **mp;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  if (!len) return;
-  mp = hv_fetch(ev->vtbl->keymethod, key, len, 0);
-  if (mp) {
-      if (--WarnCounter >= 0)
-	  warn("Please access '%s' via the method '%s'", key, 2+key);
-    assert(*mp && SvIOK(*mp));
-    ((void(*)(pe_event*,SV*)) SvIVX(*mp))(ev,0);
-    return;
-  }
-  assert(wa);
-  mp = hv_fetch(wa->vtbl->keymethod, key, len, 0);
-  if (mp) {
-    assert(*mp && SvIOK(*mp));
-    if (--WarnCounter >= 0)
-	warn("Please access attribute '%s' via the watcher method", key);
-    ((void(*)(pe_watcher*,SV*)) SvIVX(*mp))(wa,0);
-    return;
-  }
-  else if (wa->FALLBACK) {
-    SV **svp = hv_fetch(wa->FALLBACK, key, len, 0);
-    if (svp) {
-	dSP;
-	if (--WarnCounter >= 0)
-	    warn("Please access attribute '%s' via the watcher", key);
-	XPUSHs(*svp);
-	PUTBACK;
-    }
-  }
-}
+static void boot_pe_event() {
+    pe_event_vtbl *vt;
 
-static void pe_event_STORE(void *vptr, SV *svkey, SV *nval)
-{
-  pe_event *ev = (pe_event*) vptr;
-  pe_watcher *wa = ev->up;
-  SV **mp;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  if (!len) return;
-  mp = hv_fetch(ev->vtbl->keymethod, key, len, 0);
-  if (mp) {
-      if (--WarnCounter >= 0)
-	  warn("Please access '%s' via the method '%s'", key, 2+key);
-    assert(*mp && SvIOK(*mp));
-    ((void(*)(pe_event*,SV*)) SvIVX(*mp))(ev,nval);
-    return;
-  }
-  assert(wa);
-  mp = hv_fetch(wa->vtbl->keymethod, key, len, 0);
-  if (mp) {
-    assert(*mp && SvIOK(*mp));
-    if (--WarnCounter >= 0)
-	warn("Please access attribute '%s' via the watcher method", key);
-    ((void(*)(pe_watcher*,SV*)) SvIVX(*mp))(wa,nval);
-  }
-  else {
-    if (--WarnCounter >= 0)
-	warn("Please access attribute '%s' via the watcher", key);
-    pe_watcher_STORE_FALLBACK(wa, svkey, nval);
-  }
-}
+    vt = &event_vtbl;
+    vt->new_event = pe_event_allocate;
+    vt->dtor = pe_event_dtor;
+    vt->stash = gv_stashpv("Event::Event", 1);
+    PE_RING_INIT(&vt->freelist, 0);
 
-static void pe_event_NEXTKEY(void *vptr) {
-    pe_event *ev = (pe_event*) vptr;
-    HE *he = hv_iternext(ev->vtbl->keymethod);
-    if (he) {
-	dSP;
-	XPUSHs(hv_iterkeysv(he));
-	PUTBACK;
-    }
-}
+    vt = &ioevent_vtbl;
+    memcpy(vt, &event_vtbl, sizeof(pe_event_vtbl));
+    vt->stash = gv_stashpv("Event::Event::Io", 1);
+    vt->new_event = pe_ioevent_allocate;
+    vt->dtor = pe_event_dtor;
+    PE_RING_INIT(&vt->freelist, 0);
 
-static void pe_event_FIRSTKEY(void *vptr) {
-    pe_event *ev = (pe_event*) vptr;
-    hv_iterinit(ev->vtbl->keymethod);
-    pe_event_NEXTKEY(ev);
-}
-
-static void pe_event_DELETE(void *vptr, SV *svkey)
-{
-    dTHR;
-    STRLEN n_a;
-    pe_event *ev = (pe_event*) vptr;
-    pe_watcher *wa = ev->up;
-    SV *ret;
-    if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0))
-	croak("Cannot delete key '%s'", SvPV(svkey,n_a));
-    if (hv_exists_ent(wa->vtbl->keymethod, svkey, 0))
-	croak("Cannot delete key '%s'", SvPV(svkey,n_a));
-    if (!wa->FALLBACK)
-	return;
-    ret = hv_delete_ent(wa->FALLBACK, svkey, 0, 0);
-    if (ret && GIMME_V != G_VOID) {
-	djSP;
-	XPUSHs(ret);  /* already mortalized */
-	PUTBACK;
-    }
-}
-
-static int pe_event_EXISTS(void *vptr, SV *svkey)
-{
-  pe_event *ev = (pe_event*) vptr;
-  pe_watcher *wa = ev->up;
-  if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0))
-    return 1;
-  if (hv_exists_ent(wa->vtbl->keymethod, svkey, 0))
-    return 1;
-  if (!wa->FALLBACK)
-    return 0;
-  return hv_exists_ent(wa->FALLBACK, svkey, 0);
-}
-
-static void boot_pe_event()
-{
-  pe_event_vtbl *vt;
-
-  vt = &event_vtbl;
-  vt->base.Fetch = pe_event_FETCH;
-  vt->base.Store = pe_event_STORE;
-  vt->base.Firstkey = pe_event_FIRSTKEY;
-  vt->base.Nextkey = pe_event_NEXTKEY;
-  vt->base.Delete = pe_event_DELETE;
-  vt->base.Exists = pe_event_EXISTS;
-  vt->new_event = pe_event_allocate;
-  vt->dtor = pe_event_dtor;
-  vt->stash = gv_stashpv("Event::Event", 1);
-  vt->keymethod = newHV();
-  hv_store(vt->keymethod, "e_hits", 6, newSViv((IV)_event_hits), 0);
-  hv_store(vt->keymethod, "e_prio", 6, newSViv((IV)_event_prio), 0);
-  PE_RING_INIT(&vt->freelist, 0);
-
-  vt = &ioevent_vtbl;
-  memcpy(vt, &event_vtbl, sizeof(pe_event_vtbl));
-  vt->stash = gv_stashpv("Event::Event::Io", 1);
-  vt->keymethod = newHVhv(event_vtbl.keymethod);
-  hv_store(vt->keymethod, "e_got", 5, newSViv((IV)_event_got), 0);
-  vt->new_event = pe_ioevent_allocate;
-  vt->dtor = pe_event_dtor;
-  PE_RING_INIT(&vt->freelist, 0);
-
-  memset(QueueTime, 0, sizeof(QueueTime));
+    memset(QueueTime, 0, sizeof(QueueTime));
 }

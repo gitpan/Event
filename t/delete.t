@@ -12,7 +12,7 @@ sub DESTROY { ++$foo }
 package main;
 
 my $e = Event->timer(after => 0,
-		     cb => sub { delete shift->{foo}; unloop });
+		     cb => sub { delete shift->w->{foo}; unloop });
 $e->{foo} = bless [], 'Foo';
 
 loop();

@@ -179,13 +179,13 @@ Extra attributes: at => $time, interval => $sec, hard => $bool
 
 The C<$time> and C<$sec> are in seconds.  Fractional seconds may be
 used if L<Time::HiRes> is available.  The constructor also accepts an
-C<after> attribute for easier initialization.  You can find the time
-at the start of today with:
+C<after> attribute for easier initialization.  It might be useful to
+know the time at the start of today.  You can find it with:
 
   use Time::Local;
   my $TodaySeconds = int timelocal(0,0,0,(localtime)[3,4,5]);
 
-If C<interval> set then the watcher will automatically repeat.  Be
+If C<interval> is set then the watcher will automatically repeat.  Be
 aware that due to lags in the event loop, the C<interval> timeout may
 already be in the past.  If the C<hard> flag is set, the event will be
 queued for execution relative to the last time the callback was

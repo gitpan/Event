@@ -69,8 +69,6 @@ sub init {
 	    $o->$m($arg->{$k});
 	    next;
 	}
-	carp "Setting non-event fields in the constructor is deprecated ($k)";
-	$o->{$k} = $arg->{$k};
     }
 
     Carp::cluck "creating ".ref($o)." desc='".$o->desc."'\n"

@@ -10,8 +10,9 @@ use vars qw(@ATTRIBUTE);
 
 sub new {
 #    lock %Event::;
-    my $o = allocate(shift);
+    my $class = shift;
     my %arg = @_;
+    my $o = allocate($class, delete $arg{attach_to} || {});
 
     # deprecated
     for (qw(at after interval repeat)) {

@@ -1,11 +1,11 @@
 static struct pe_watcher_vtbl pe_tied_vtbl;
 
-static pe_watcher *pe_tied_allocate(HV *stash) {
+static pe_watcher *pe_tied_allocate(HV *stash, SV *temple) {
     pe_tied *ev;
     New(PE_NEWID, ev, 1, pe_tied);
     ev->base.vtbl = &pe_tied_vtbl;
     if (!stash) croak("tied_allocate(0)");
-    pe_watcher_init(&ev->base, stash);
+    pe_watcher_init(&ev->base, stash, temple);
     PE_RING_INIT(&ev->tm.ring, ev);
     return (pe_watcher*) ev;
 }
@@ -68,7 +68,11 @@ WKEYMETH(_tied_at) {
 
 WKEYMETH(_tied_flags) {
     if (!nval) {
-	_watcher_flags(ev, nval);
+	dSP;
+	XPUSHs(sv_2mortal(newSViv((ev->flags & PE_VISIBLE_FLAGS) |
+				  (ev->running? PE_RUNNING : 0) |
+				  (PE_RING_EMPTY(&ev->events)? 0:PE_QUEUED))));
+	PUTBACK;
     } else {
 	IV nflags = SvIV(nval);
 	IV flip = nflags ^ ev->flags;
@@ -88,10 +92,6 @@ static void boot_tied() {
     pe_watcher_vtbl *vt = &pe_tied_vtbl;
     memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
     vt->did_require = 1; /* otherwise tries to autoload Event::Event! */
-    vt->keymethod = newHVhv(vt->keymethod);
-    hv_store(vt->keymethod, "e_at",     4, newSViv((IV)_tied_at), 0);
-    hv_store(vt->keymethod, "e_flags",  7, newSViv((IV)_tied_flags), 0);
-    hv_store(vt->keymethod, "e_hard",   6, newSViv((IV)_timeable_hard), 0);
     vt->start = pe_tied_start;
     vt->stop = pe_tied_stop;
     vt->alarm = pe_tied_alarm;

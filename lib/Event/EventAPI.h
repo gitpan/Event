@@ -3,8 +3,8 @@
 
 /*
   The API for the operating system dictates which events are
-  truly asyncronous.  Event only needs C-level support for
-  these kinds of events.
+  truly asyncronous.  Event needs C-level support only for
+  these types of events.
  */
 
 typedef struct pe_watcher_vtbl pe_watcher_vtbl;
@@ -14,10 +14,6 @@ typedef struct pe_event pe_event;
 typedef struct pe_ring pe_ring;
 
 struct pe_ring { void *self; pe_ring *next, *prev; };
-
-#define PE_ITER_EVENT 0
-#define PE_ITER_WATCHER 1
-#define PE_ITER_FALLBACK 2
 
 struct pe_watcher {
     pe_watcher_vtbl *vtbl;
@@ -33,8 +29,6 @@ struct pe_watcher {
     pe_ring events;  /* queued events */
     HV *FALLBACK;
     I16 event_counter; /* refcnt? XXX */
-    I16 id;   /* DEPRECATED */
-    I16 iter; /* DEPRECATED */
     I16 prio;
     I16 max_cb_tm;
 };
@@ -53,16 +47,16 @@ struct pe_event {
    layouts are always compatible. XXX? */
 typedef struct pe_timeable pe_timeable;
 struct pe_timeable {
-  pe_ring ring;
-  double at;
+    pe_ring ring;
+    double at;
 };
 
 typedef struct pe_qcallback pe_qcallback;
 struct pe_qcallback {
-  pe_ring ring;
-  int is_perl;
-  void *callback;
-  void *ext_data;
+    pe_ring ring;
+    int is_perl;
+    void *callback;
+    void *ext_data;
 };
 
 /* PUBLIC FLAGS */
@@ -102,82 +96,84 @@ struct pe_qcallback {
 
 typedef struct pe_ioevent pe_ioevent;
 struct pe_ioevent {
-  pe_event base;
-  U16 got;
+    pe_event base;
+    U16 got;
 };
 
 typedef struct pe_idle pe_idle;
 struct pe_idle {
-  pe_watcher base;
-  pe_timeable tm;
-  pe_ring iring;
-  SV *max_interval, *min_interval;
+    pe_watcher base;
+    pe_timeable tm;
+    pe_ring iring;
+    SV *max_interval, *min_interval;
 };
 
 typedef struct pe_io pe_io;
 struct pe_io {
-  pe_watcher base;
-  pe_timeable tm; /*timeout*/
-  pe_ring ioring;
-  SV *handle;
-  float timeout;
-  U16 poll;
-/* ifdef UNIX */
-  int fd;
-  int xref;  /*private: for poll*/
-/* endif */
+    pe_watcher base;
+    pe_timeable tm; /*timeout*/
+    pe_ring ioring;
+    SV *handle;
+    float timeout;
+    U16 poll;
+    /* ifdef UNIX */
+    int fd;
+    int xref;  /*private: for poll*/
+    /* endif */
 };
 
 typedef struct pe_signal pe_signal;
 struct pe_signal {
-  pe_watcher base;
-  pe_ring sring;
-  IV signal;
+    pe_watcher base;
+    pe_ring sring;
+    IV signal;
 };
 
 typedef struct pe_timer pe_timer;
 struct pe_timer {
-  pe_watcher base;
-  pe_timeable tm;
-  SV *interval;
+    pe_watcher base;
+    pe_timeable tm;
+    SV *interval;
 };
 
 typedef struct pe_var pe_var;
 struct pe_var {
-  pe_watcher base;
-  SV *variable;
-  U16 events;
+    pe_watcher base;
+    SV *variable;
+    U16 events;
 };
 
 typedef struct pe_event_stats_vtbl pe_event_stats_vtbl;
 struct pe_event_stats_vtbl {
-  int on;
-  void*(*enter)(int frame, int max_tm);
-  void (*suspend)(void *);
-  void (*resume)(void *);
-  void (*commit)(void *, pe_watcher *);
-  void (*scrub)(void *, pe_watcher *);
-  void (*dtor)(void *);
+    int on;
+    void*(*enter)(int frame, int max_tm);
+    void (*suspend)(void *);
+    void (*resume)(void *);
+    void (*commit)(void *, pe_watcher *);
+    void (*scrub)(void *, pe_watcher *);
+    void (*dtor)(void *);
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 20
+#define EventAPI_VERSION 21
     I32 Ver;
 
     /* EVENTS */
-    void (*queue)(pe_event *ev);
-    void (*start)(pe_watcher *ev, int repeat);
-    void (*now)(pe_watcher *ev);
-    void (*stop)(pe_watcher *ev, int cancel_events);
-    void (*cancel)(pe_watcher *ev);
-    void (*suspend)(pe_watcher *ev);
-    void (*resume)(pe_watcher *ev);
+    void (*queue   )(pe_event *ev);
+    void (*start   )(pe_watcher *ev, int repeat);
+    void (*now     )(pe_watcher *ev);
+    void (*stop    )(pe_watcher *ev, int cancel_events);
+    void (*cancel  )(pe_watcher *ev);
+    void (*suspend )(pe_watcher *ev);
+    void (*resume  )(pe_watcher *ev);
 
-    pe_idle     *(*new_idle)(HV *);
-    pe_timer    *(*new_timer)(HV *);
-    pe_io       *(*new_io)(HV *);
-    pe_var      *(*new_var)(HV *);
-    pe_signal   *(*new_signal)(HV *);
+    /* All constructors optionally take a stash and template.  Either
+      or both can be NULL.  The template should not be a reference. */
+    pe_idle     *(*new_idle  )(HV*, SV*);
+    pe_timer    *(*new_timer )(HV*, SV*);
+    pe_io       *(*new_io    )(HV*, SV*);
+    pe_var      *(*new_var   )(HV*, SV*);
+    pe_signal   *(*new_signal)(HV*, SV*);
 
     /* TIMEABLE */
     void (*tstart)(pe_timeable *);
@@ -193,9 +189,10 @@ struct EventAPI {
     pe_ring *AllWatchers;
 
     /* TYPEMAP */
-    SV *(*watcher_2sv)(pe_watcher *wa);
-    SV *(*event_2sv)(pe_event *ev);
-    void *(*unwrap_obj)(SV *sv);
+    SV   *(*watcher_2sv)(pe_watcher *wa);
+    void *(*sv_2watcher)(SV *sv);
+    SV   *(*event_2sv)(pe_event *ev);
+    void *(*sv_2event)(SV *sv);
 };
 
 static struct EventAPI *GEventAPI=0;

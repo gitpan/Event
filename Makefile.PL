@@ -1,14 +1,6 @@
 # This -*- perl -*- script makes the Makefile
 
-# hope this is right!  :-)
-if ($] < 5.00503 or ($] > 5.0055 and $] < 5.00552)) {
-    warn "
-  ** WARNING ** REQUIRES NEW SELF-TIE PATCH ** WARNING **
-
-  (see patches/leak.fix for a copy)
-
-";
-}
+require 5.005; #most likely
 
 use ExtUtils::MakeMaker;
 

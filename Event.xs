@@ -14,9 +14,10 @@ extern "C" {
 }
 #endif
 
-/* This is unfortunately necessary for the 5.005_0x series. */
 #include "patchlevel.h"
-#if SUBVERSION < 53  /* WRONG XXX */
+
+/* This is unfortunately necessary for the 5.005_0x series. */
+#if PERL_REVISION == 5 && PERL_VERSION <= 5 && PERL_SUBVERSION < 53
 #  define PL_vtbl_uvar vtbl_uvar
 #  define PL_sig_name sig_name
 #endif
@@ -142,16 +143,15 @@ static void pe_watcher_STORE_FALLBACK(pe_watcher *wa, SV *svkey, SV *nval)
 
 /***************** STATS */
 static int StatsInstalled=0;
-static void pe_install_stats(pe_event_stats_vtbl *esvtbl)
-{
-  ++StatsInstalled;
-  Copy(esvtbl, &Estat, 1, pe_event_stats_vtbl);
-  Estat.on=0;
+static void pe_install_stats(pe_event_stats_vtbl *esvtbl) {
+    ++StatsInstalled;
+    Copy(esvtbl, &Estat, 1, pe_event_stats_vtbl);
+    Estat.on=0;
 }
-static void pe_collect_stats(int yes)
-{
-  if (!StatsInstalled) croak("collect_stats: no event statistics are available");
-  Estat.on = yes;
+static void pe_collect_stats(int yes) {
+    if (!StatsInstalled)
+	croak("collect_stats: no event statistics are available");
+    Estat.on = yes;
 }
 
 #ifdef HAS_GETTIMEOFDAY
@@ -256,19 +256,20 @@ BOOT:
       api->cancel = pe_watcher_cancel;
       api->tstart = pe_timeable_start;
       api->tstop  = pe_timeable_stop;
-      api->new_idle =   (pe_idle*(*)(HV*))         pe_idle_allocate;
-      api->new_timer =  (pe_timer*(*)(HV*))       pe_timer_allocate;
-      api->new_io =     (pe_io*(*)(HV*))             pe_io_allocate;
-      api->new_var =    (pe_var*(*)(HV*))           pe_var_allocate;
-      api->new_signal = (pe_signal*(*)(HV*))     pe_signal_allocate;
+      api->new_idle =   (pe_idle*  (*)(HV*,SV*))    pe_idle_allocate;
+      api->new_timer =  (pe_timer* (*)(HV*,SV*))    pe_timer_allocate;
+      api->new_io =     (pe_io*    (*)(HV*,SV*))    pe_io_allocate;
+      api->new_var =    (pe_var*   (*)(HV*,SV*))    pe_var_allocate;
+      api->new_signal = (pe_signal*(*)(HV*,SV*))    pe_signal_allocate;
       api->add_hook = capi_add_hook;
       api->cancel_hook = pe_cancel_hook;
       api->install_stats = pe_install_stats;
       api->collect_stats = pe_collect_stats;
       api->AllWatchers = &AllWatchers;
       api->watcher_2sv = watcher_2sv;
+      api->sv_2watcher = sv_2watcher;
       api->event_2sv = event_2sv;
-      api->unwrap_obj = unwrap_obj;
+      api->sv_2event = sv_2event;
       apisv = perl_get_sv("Event::API", 1);
       sv_setiv(apisv, (IV)api);
       SvREADONLY_on(apisv);
@@ -373,7 +374,7 @@ queue(...)
 	pe_event *ev;
 	int cnt = 1;
 	PPCODE:
-	wa = (pe_watcher*) unwrap_obj(ST(0));
+	wa = (pe_watcher*) sv_2watcher(ST(0));
 	if (items == 1) {
 	    ev = (*wa->vtbl->new_event)(wa);
 	    ++ev->hits;
@@ -384,7 +385,7 @@ queue(...)
 	    ev->hits += SvIV(ST(1));
 	  }
 	  else {
-	    ev = (pe_event*) unwrap_obj(ST(1));
+	    ev = (pe_event*) sv_2event(ST(1));
 	    if (ev->up != wa)
 	      croak("queue: event doesn't match watcher");
 	  }
@@ -462,15 +463,15 @@ DESTROY(ref)
 	SV *ref;
 	CODE:
 {
-	SV *sv;
-	pe_event *THIS;
-	assert(SvROK(ref));
-	sv = SvRV(ref);
-	assert(SvTYPE(sv) == SVt_PVHV);
-	THIS = (pe_event*) HvNAME(sv);
-	assert(THIS);
+	pe_event *THIS = (pe_event*) sv_2event(ref);
+	/*
+	if (EvDEBUGx(THIS) >= 4) {
+	    STRLEN n_a;
+	    warn("Event=0x%x '%s' DESTROY SV=0x%x",
+		 THIS, SvPV(THIS->up->desc, n_a), SvRV(THIS->mysv));
+	}
+	*/
 	(*THIS->vtbl->dtor)(THIS);
-	HvNAME(sv) = 0;
 }
 
 void
@@ -494,87 +495,6 @@ pe_event::prio()
 	PPCODE:
 	XPUSHs(sv_2mortal(newSViv(THIS->prio)));
 
-void
-FETCH(obj, key)
-	SV *obj;
-	SV *key;
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Fetch(vp, key);
-	SPAGAIN;
-
-void
-STORE(obj, key, nval)
-	SV *obj
-	SV *key
-	SV *nval
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	/* Otherwise massive confusion when event goes out of scope.
-	   SVs that hold magic that hold the event will blow up. XXX */
-	nval = sv_mortalcopy(nval);
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Store(vp, key, nval);
-	SPAGAIN;
-
-void
-FIRSTKEY(obj)
-	SV *obj
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Firstkey(vp);
-	SPAGAIN;
-
-void
-NEXTKEY(obj, prevkey)
-	SV *obj;
-	SV *prevkey
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Nextkey(vp);
-	SPAGAIN;
-
-void
-DELETE(obj, key)
-	SV *obj
-	SV *key
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Delete(vp, key);
-	SPAGAIN;
-
-void
-EXISTS(obj, key)
-	SV *obj;
-	SV *key
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	ST(0) = boolSV(vt->Exists(vp, key));
-	XSRETURN(1);
-
 MODULE = Event		PACKAGE = Event::Watcher
 
 void
@@ -582,19 +502,13 @@ DESTROY(ref)
 	SV *ref;
 	CODE:
 {
-	SV *sv;
-	pe_watcher *THIS;
-	assert(SvROK(ref));
-	sv = SvRV(ref);
-	assert(SvTYPE(sv) == SVt_PVHV);
-	THIS = (pe_watcher*) HvNAME(sv);
+	pe_watcher *THIS = (pe_watcher*) sv_2watcher(ref);
 	assert(THIS);
 	if (THIS->mysv) {
 	    THIS->mysv=0;
 	    if (EvCANDESTROY(THIS)) /*mysv*/
 		(*THIS->vtbl->dtor)(THIS);
 	}
-	HvNAME(sv) = 0;
 }
 
 void
@@ -682,87 +596,6 @@ pe_watcher::is_queued(...)
 	XPUSHs(boolSV(EvFLAGS(THIS) & PE_QUEUED));
 
 void
-FETCH(obj, key)
-	SV *obj;
-	SV *key;
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Fetch(vp, key);
-	SPAGAIN;
-
-void
-STORE(obj, key, nval)
-	SV *obj
-	SV *key
-	SV *nval
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	/* Otherwise massive confusion when event goes out of scope.
-	   SVs that hold magic that hold the event will blow up. XXX */
-	nval = sv_mortalcopy(nval);
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Store(vp, key, nval);
-	SPAGAIN;
-
-void
-FIRSTKEY(obj)
-	SV *obj
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Firstkey(vp);
-	SPAGAIN;
-
-void
-NEXTKEY(obj, prevkey)
-	SV *obj;
-	SV *prevkey
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Nextkey(vp);
-	SPAGAIN;
-
-void
-DELETE(obj, key)
-	SV *obj
-	SV *key
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	vt->Delete(vp, key);
-	SPAGAIN;
-
-void
-EXISTS(obj, key)
-	SV *obj;
-	SV *key
-	PREINIT:
-	void *vp;
-	pe_base_vtbl *vt;
-	PPCODE:
-	PUTBACK;
-	get_base_vtbl(obj, &vp, &vt);
-	ST(0) = boolSV(vt->Exists(vp, key));
-	XSRETURN(1);
-
-void
 pe_watcher::cb(...)
 	PPCODE:
 	PUTBACK;
@@ -828,10 +661,13 @@ pe_watcher::max_cb_tm(...)
 MODULE = Event		PACKAGE = Event::Watcher::Tied
 
 void
-allocate(clname)
+allocate(clname, temple)
 	SV *clname
+	SV *temple
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_tied_allocate(gv_stashsv(clname, 1))));
+	if (!SvROK(temple)) croak("Bad template");
+	XPUSHs(watcher_2sv(pe_tied_allocate(gv_stashsv(clname, 1),
+					    SvRV(temple))));
 
 void
 pe_watcher::hard(...)
@@ -857,10 +693,13 @@ pe_watcher::flags(...)
 MODULE = Event		PACKAGE = Event::idle
 
 void
-allocate(clname)
+allocate(clname, temple)
 	SV *clname;
+	SV *temple;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_idle_allocate(gv_stashsv(clname, 1))));
+	if (!SvROK(temple)) croak("Bad template");
+	XPUSHs(watcher_2sv(pe_idle_allocate(gv_stashsv(clname, 1),
+			SvRV(temple))));
 
 void
 pe_watcher::hard(...)
@@ -886,10 +725,12 @@ pe_watcher::min(...)
 MODULE = Event		PACKAGE = Event::timer
 
 void
-allocate(clname)
+allocate(clname, temple)
 	SV *clname;
+	SV *temple;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_timer_allocate(gv_stashsv(clname, 1))));
+	XPUSHs(watcher_2sv(pe_timer_allocate(gv_stashsv(clname, 1),
+			SvRV(temple))));
 
 void
 pe_watcher::at(...)
@@ -915,10 +756,13 @@ pe_watcher::interval(...)
 MODULE = Event		PACKAGE = Event::io
 
 void
-allocate(clname)
+allocate(clname, temple)
 	SV *clname;
+	SV *temple;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_io_allocate(gv_stashsv(clname, 1))));
+	if (!SvROK(temple)) croak("Bad template");
+	XPUSHs(watcher_2sv(pe_io_allocate(gv_stashsv(clname, 1),
+			SvRV(temple))));
 
 void
 pe_watcher::poll(...)
@@ -944,10 +788,12 @@ pe_watcher::timeout(...)
 MODULE = Event		PACKAGE = Event::var
 
 void
-allocate(clname)
+allocate(clname, temple)
 	SV *clname;
+	SV *temple;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_var_allocate(gv_stashsv(clname, 1))));
+	XPUSHs(watcher_2sv(pe_var_allocate(gv_stashsv(clname, 1),
+		SvRV(temple))));
 
 void
 pe_watcher::var(...)
@@ -966,10 +812,12 @@ pe_watcher::poll(...)
 MODULE = Event		PACKAGE = Event::signal
 
 void
-allocate(clname)
+allocate(clname, temple)
 	SV *clname;
+	SV *temple;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_signal_allocate(gv_stashsv(clname, 1))));
+	XPUSHs(watcher_2sv(pe_signal_allocate(gv_stashsv(clname, 1),
+		SvRV(temple))));
 
 void
 pe_watcher::signal(...)

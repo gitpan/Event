@@ -49,34 +49,22 @@ STMT_START {					\
 
 typedef struct pe_cbframe pe_cbframe;
 struct pe_cbframe {
-  pe_event *ev;
-  IV run_id;
-  void *stats;
+    pe_event *ev;
+    IV run_id;
+    void *stats;
 };
 
 typedef struct pe_tied pe_tied;
 struct pe_tied {
-  pe_watcher base;
-  pe_timeable tm;
+    pe_watcher base;
+    pe_timeable tm;
 };
 
 #define WKEYMETH(M) static void M(pe_watcher *ev, SV *nval)
 #define EKEYMETH(M) static void M(pe_event *ev, SV *nval)
 
-typedef struct pe_base_vtbl pe_base_vtbl;
-struct pe_base_vtbl {
-    void (*Fetch)(void *, SV *key);
-    void (*Store)(void *, SV *key, SV *nval);
-    void (*Firstkey)(void *);
-    void (*Nextkey)(void *);
-    void (*Delete)(void *, SV *key);
-    int (*Exists)(void *, SV *key);
-};
-
 struct pe_event_vtbl {
-    pe_base_vtbl base;
     HV *stash;
-    HV *keymethod;
     pe_event *(*new_event)(pe_watcher *);
     void (*dtor)(pe_event *);
 
@@ -84,16 +72,14 @@ struct pe_event_vtbl {
 };
 
 struct pe_watcher_vtbl {
-  pe_base_vtbl base;
-  int did_require;
-  HV *stash;
-  HV *keymethod;
-  void (*dtor)(pe_watcher *);
-  void (*start)(pe_watcher *, int);
-  void (*stop)(pe_watcher *);
-  void (*alarm)(pe_watcher *, pe_timeable *);
-  pe_event_vtbl *event_vtbl;
-  pe_event *(*new_event)(pe_watcher *);
+    int did_require;
+    HV *stash;
+    void (*dtor)(pe_watcher *);
+    void (*start)(pe_watcher *, int);
+    void (*stop)(pe_watcher *);
+    void (*alarm)(pe_watcher *, pe_timeable *);
+    pe_event_vtbl *event_vtbl;
+    pe_event *(*new_event)(pe_watcher *);
 };
 
 #define PE_ACTIVE	0x001

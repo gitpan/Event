@@ -13,7 +13,10 @@ sub event_args {
     my %arg = @_;
     my $dir;
     for my $d ($installsitearch, @INC) {
-	$dir = $d if -e "$d/Event/EventAPI.h";
+	if (-e "$d/Event/EventAPI.h") {
+	    $dir = $d;
+	    last
+	}
     }
     $arg{INC} .= " -I$dir/Event";
     %arg;
@@ -56,37 +59,50 @@ Just be aware of it and set your expectations accordingly.
 =head2 XS
 
   #include "EventAPI.h"
-  static struct EventAPI *Ev=0;
 
   BOOT:
-    FETCH_EVENT_API("YourModule", Ev);
+    I_EVENT_API("YourModule");
 
-=head2 API (v9)
+=head2 API (v21)
 
  struct EventAPI {
+    I32 Ver;
 
-  /* EVENTS */
-  void (*start)(pe_event *ev, int repeat);
-  void (*queue)(pe_event *ev, int count);
-  void (*now)(pe_event *ev);
-  void (*suspend)(pe_event *ev);
-  void (*resume)(pe_event *ev);
-  void (*cancel)(pe_event *ev);
+    /* EVENTS */
+    void (*queue   )(pe_event *ev);
+    void (*start   )(pe_watcher *ev, int repeat);
+    void (*now     )(pe_watcher *ev);
+    void (*stop    )(pe_watcher *ev, int cancel_events);
+    void (*cancel  )(pe_watcher *ev);
+    void (*suspend )(pe_watcher *ev);
+    void (*resume  )(pe_watcher *ev);
 
-  pe_idle     *(*new_idle)();
-  pe_timer    *(*new_timer)();
-  pe_io       *(*new_io)();
-  pe_var      *(*new_var)();
-  pe_signal   *(*new_signal)();
+    /* All constructors optionally take a stash and template.  Either
+      or both can be NULL.  The template should not be a reference. */
+    pe_idle     *(*new_idle  )(HV*, SV*);
+    pe_timer    *(*new_timer )(HV*, SV*);
+    pe_io       *(*new_io    )(HV*, SV*);
+    pe_var      *(*new_var   )(HV*, SV*);
+    pe_signal   *(*new_signal)(HV*, SV*);
 
-  /* TIMEABLE */
-  void (*tstart)(pe_timeable *);
-  void (*tstop)(pe_timeable *);
+    /* TIMEABLE */
+    void (*tstart)(pe_timeable *);
+    void (*tstop)(pe_timeable *);
 
-  /* HOOKS */
-  pe_qcallback *(*add_hook)(char *which, void *cb, void *ext_data);
-  void (*cancel_hook)(pe_qcallback *qcb);
+    /* HOOKS */
+    pe_qcallback *(*add_hook)(char *which, void *cb, void *ext_data);
+    void (*cancel_hook)(pe_qcallback *qcb);
 
+    /* STATS */
+    void (*install_stats)(pe_event_stats_vtbl *esvtbl);
+    void (*collect_stats)(int yes);
+    pe_ring *AllWatchers;
+
+    /* TYPEMAP */
+    SV   *(*watcher_2sv)(pe_watcher *wa);
+    void *(*sv_2watcher)(SV *sv);
+    SV   *(*event_2sv)(pe_event *ev);
+    void *(*sv_2event)(SV *sv);
  };
 
 =head2 EXAMPLE
@@ -97,21 +113,21 @@ Just be aware of it and set your expectations accordingly.
   { ... }
 
   if (!X11_ev) {
-    X11_ev = Ev->new_io();
-    X11_ev->events = PE_R;
+    X11_ev = GEventAPI->new_io(0,0);
+    X11_ev->poll = PE_R;
     sv_setpv(X11_ev->base.desc, "X::Server");
     X11_ev->base.callback = (void*) x_server_dispatch;
     X11_ev->base.ext_data = <whatever>;
-    X11_ev->base.priority = PE_PRIO_NORMAL;
+    X11_ev->base.prio = PE_PRIO_NORMAL;
   }
   X11_ev->fd = x_fd;
-  Ev->resume((pe_event*) X11_ev);
-  Ev->start((pe_event*) X11_ev, 0);
+  GEventAPI->resume((pe_event*) X11_ev);
+  GEventAPI->start((pe_event*) X11_ev, 0);
 
 =head2 BUT I NEED A NEW TYPE OF WATCHER FOR MY INTERGALACTIC INFEROMETER
 
-I'd prefer not to export the entire Event.h apparatus in favour of
+I'd prefer not to export the entire Event.h apparatus in favor of
 minimizing interdependencies.  If you really, really need to create a
-new type of watcher send your problem analysis to the mailing list.
+new type of watcher send your problem analysis to the mailing list!
 
 =cut

@@ -3,7 +3,7 @@
 use Test; plan tests => 6;
 use Event qw(loop unloop);
 
-#$Event::DebugLevel = 2;
+# $Event::DebugLevel = 4;
 
 my $count = 0;
 Event->timer(after => 0.5, interval => .1, nice => -1,

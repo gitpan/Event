@@ -37,6 +37,7 @@ lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
 lib/Event/var.pm
+t/attach_to.t
 t/bored.t
 t/delete.t
 t/eval.t

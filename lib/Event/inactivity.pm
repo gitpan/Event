@@ -9,8 +9,9 @@ $DefaultPriority = PRIO_NORMAL + 1;
 'Event::Watcher'->register();
 
 sub new {
-    my $o = shift->allocate();
+    my $class = shift;
     my %arg = @_;
+    my $o = $class->allocate(delete $arg{attach_to} || {});
 
     # deprecated
     for (qw(timeout level)) {

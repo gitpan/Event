@@ -1,26 +1,24 @@
 static struct pe_watcher_vtbl pe_var_vtbl;
 
-static pe_watcher *pe_var_allocate(HV *stash) {
-  pe_var *ev;
-  New(PE_NEWID, ev, 1, pe_var);
-  ev->base.vtbl = &pe_var_vtbl;
-  pe_watcher_init(&ev->base, stash);
-  ev->variable = &PL_sv_undef;
-  ev->events = PE_W;
-  EvREPEAT_on(ev);
-  EvINVOKE1_off(ev);
-  return (pe_watcher*) ev;
+static pe_watcher *pe_var_allocate(HV *stash, SV *temple) {
+    pe_var *ev;
+    New(PE_NEWID, ev, 1, pe_var);
+    ev->base.vtbl = &pe_var_vtbl;
+    pe_watcher_init(&ev->base, stash, temple);
+    ev->variable = &PL_sv_undef;
+    ev->events = PE_W;
+    EvREPEAT_on(ev);
+    EvINVOKE1_off(ev);
+    return (pe_watcher*) ev;
 }
 
-static void pe_var_dtor(pe_watcher *ev)
-{
-  pe_var *wv = (pe_var *)ev;
-  SvREFCNT_dec(wv->variable);
-  pe_watcher_dtor(ev);
+static void pe_var_dtor(pe_watcher *ev) {
+    pe_var *wv = (pe_var *)ev;
+    SvREFCNT_dec(wv->variable);
+    pe_watcher_dtor(ev);
 }
 
-static void pe_tracevar(pe_watcher *wa, SV *sv, int got)
-{
+static void pe_tracevar(pe_watcher *wa, SV *sv, int got) {
     /* Adapted from tkGlue.c
 
        We are a "magic" set processor.
@@ -36,16 +34,16 @@ static void pe_tracevar(pe_watcher *wa, SV *sv, int got)
        some magic list or be careful how we insert ourselves in the list?
     */
 
-  pe_ioevent *ev;
+    pe_ioevent *ev;
 
-  if (SvPOKp(sv)) SvPOK_on(sv);
-  if (SvNOKp(sv)) SvNOK_on(sv);
-  if (SvIOKp(sv)) SvIOK_on(sv);
+    if (SvPOKp(sv)) SvPOK_on(sv);
+    if (SvNOKp(sv)) SvNOK_on(sv);
+    if (SvIOKp(sv)) SvIOK_on(sv);
 
-  ev = (pe_ioevent*) (*wa->vtbl->new_event)(wa);
-  ++ev->base.hits;
-  ev->got |= got;
-  queueEvent((pe_event*) ev);
+    ev = (pe_ioevent*) (*wa->vtbl->new_event)(wa);
+    ++ev->base.hits;
+    ev->got |= got;
+    queueEvent((pe_event*) ev);
 }
 
 static I32 tracevar_r(IV ix, SV *sv)
@@ -53,8 +51,7 @@ static I32 tracevar_r(IV ix, SV *sv)
 static I32 tracevar_w(IV ix, SV *sv)
 { pe_tracevar((pe_watcher *)ix, sv, PE_W); return 0; /*ignored*/ }
 
-static void pe_var_start(pe_watcher *_ev, int repeat)
-{
+static void pe_var_start(pe_watcher *_ev, int repeat) {
     dTHR;
     struct ufuncs *ufp;
     MAGIC **mgp;
@@ -63,16 +60,16 @@ static void pe_var_start(pe_watcher *_ev, int repeat)
     SV *sv = ev->variable;
 
     if (!sv || !SvOK(sv))
-      croak("No variable specified");
+	croak("No variable specified");
     if (!ev->events)
-      croak("No events specified");
+	croak("No events specified");
     sv = SvRV(sv);
     if (SvREADONLY(sv))
-      croak("Cannot trace read-only variable");
+	croak("Cannot trace read-only variable");
     if (!SvUPGRADE(sv, SVt_PVMG))
-      croak("Trace SvUPGRADE failed");
+	croak("Trace SvUPGRADE failed");
     if (mg_find(sv, 'U'))
-      croak("Variable already being traced");
+	croak("Variable already being traced");
 
     mgp = &SvMAGIC(sv);
     while ((mg = *mgp)) {
@@ -89,15 +86,14 @@ static void pe_var_start(pe_watcher *_ev, int repeat)
     ufp->uf_set = ev->events & PE_W? tracevar_w : 0;
     ufp->uf_index = (IV) ev;
     mg->mg_ptr = (char *) ufp;
-    mg->mg_obj = (SV*) ev; /* hope not REFCNT_dec! */
+    mg->mg_obj = (SV*) ev;
 
     mg_magical(sv);
     if (!SvMAGICAL(sv))
-      croak("mg_magical didn't");
+	croak("mg_magical didn't");
 }
 
-static void pe_var_stop(pe_watcher *_ev)
-{
+static void pe_var_stop(pe_watcher *_ev) {
     MAGIC **mgp;
     MAGIC *mg;
     MAGIC *mgtmp;
@@ -105,8 +101,8 @@ static void pe_var_stop(pe_watcher *_ev)
     SV *sv = SvRV(ev->variable);
 
     if (SvTYPE(sv) < SVt_PVMG || !SvMAGIC(sv)) {
-      warn("Var unmagic'd already?");
-      return;
+	warn("Var unmagic'd already?");
+	return;
     }
 
     mgp = &SvMAGIC(sv);
@@ -117,8 +113,8 @@ static void pe_var_stop(pe_watcher *_ev)
     }
 
     if(!mg) {
-      warn("Couldn't find var magic");
-      return;
+	warn("Couldn't find var magic");
+	return;
     }
 
     *mgp = mg->mg_moremagic;
@@ -127,55 +123,47 @@ static void pe_var_stop(pe_watcher *_ev)
     safefree(mg);
 }
 
-static void _var_restart(pe_watcher *ev)
-{
-  if (!EvPOLLING(ev)) return;
-  pe_watcher_off(ev);
-  pe_watcher_on(ev, 0);
+static void _var_restart(pe_watcher *ev) {
+    if (!EvPOLLING(ev)) return;
+    pe_watcher_off(ev);
+    pe_watcher_on(ev, 0);
 }
 
-WKEYMETH(_var_events)
-{
-  pe_var *vp = (pe_var*)ev;
-  if (!nval) {
-    dSP;
-    XPUSHs(sv_2mortal(events_mask_2sv(vp->events)));
-    PUTBACK;
-  } else {
-    vp->events = sv_2events_mask(nval, PE_R|PE_W);
-    _var_restart(ev);
-  }
+WKEYMETH(_var_events) {
+    pe_var *vp = (pe_var*)ev;
+    if (!nval) {
+	dSP;
+	XPUSHs(sv_2mortal(events_mask_2sv(vp->events)));
+	PUTBACK;
+    } else {
+	vp->events = sv_2events_mask(nval, PE_R|PE_W);
+	_var_restart(ev);
+    }
 }
 
-WKEYMETH(_var_variable)
-{
-  pe_var *vp = (pe_var*)ev;
-  if (!nval) {
-    dSP;
-    XPUSHs(vp->variable);
-    PUTBACK;
-  } else {
-    SV *old = vp->variable;
-    int active = EvPOLLING(ev);
-    if (!SvROK(nval))
-      croak("Expecting a reference");
-    if (active) pe_watcher_off(ev);
-    vp->variable = SvREFCNT_inc(nval);
-    if (active) pe_watcher_on(ev, 0);
-    SvREFCNT_dec(old);
-  }
+WKEYMETH(_var_variable) {
+    pe_var *vp = (pe_var*)ev;
+    if (!nval) {
+	dSP;
+	XPUSHs(vp->variable);
+	PUTBACK;
+    } else {
+	SV *old = vp->variable;
+	int active = EvPOLLING(ev);
+	if (!SvROK(nval))
+	    croak("Expecting a reference");
+	if (active) pe_watcher_off(ev);
+	vp->variable = SvREFCNT_inc(nval);
+	if (active) pe_watcher_on(ev, 0);
+	SvREFCNT_dec(old);
+    }
 }
 
-static void boot_var()
-{
-  pe_watcher_vtbl *vt = &pe_var_vtbl;
-  memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
-  vt->keymethod = newHVhv(vt->keymethod);
-  hv_store(vt->keymethod, "e_poll", 6, newSViv((IV)_var_events), 0);
-  hv_store(vt->keymethod, "e_var", 5, newSViv((IV)_var_variable), 0);
-  vt->dtor = pe_var_dtor;
-  vt->start = pe_var_start;
-  vt->stop = pe_var_stop;
-  pe_register_vtbl(vt, gv_stashpv("Event::var",1), &ioevent_vtbl);
+static void boot_var() {
+    pe_watcher_vtbl *vt = &pe_var_vtbl;
+    memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
+    vt->dtor = pe_var_dtor;
+    vt->start = pe_var_start;
+    vt->stop = pe_var_stop;
+    pe_register_vtbl(vt, gv_stashpv("Event::var",1), &ioevent_vtbl);
 }
-

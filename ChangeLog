@@ -1,3 +1,29 @@
+1999-09-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.53.
+
+	* Fix Event::MakeMaker to pick the correct install directory.
+
+1999-09-08  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* This release is NOT binary compatible with 0.52!
+	
+	* Obscure potential typemap bugs fixed.
+
+	* Reworked the typemap to avoid the exotic 5.6 self-tied hash
+ 	mechanism.  It should now be fairly easy to backport Event to
+ 	older versions of perl.
+
+	* In the tradition of adding innovative (or at least strange)
+ 	features to Event, constructors now accept (attach_to=>$ref).
+  	This will cause the watcher to attach its information to the given
+ 	$ref instead of to a fresh anonymous hash ref.  For backwards
+ 	compatibility the default is still an anonymous hash.
+
+	* Removed a bunch of deprecated features.
+
+	* Reformatted the source to be more consistent, if not beautiful.
+
 1999-08-18  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.52.
