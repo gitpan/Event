@@ -29,6 +29,10 @@ ok $@, '/Callback/';
 	ok $run->w->desc, 'nomethod';
 	ok $err, '/object method/';
     };
+    local $SIG{__WARN__} = sub {};
+    Event::loop();
+}
+{
     my $warn='';
     local $SIG{__WARN__} = sub {
 	$warn .= $_[0];

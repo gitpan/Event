@@ -1,3 +1,15 @@
+2001-01-31  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.81.
+
+2001-01-25  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix callback.t fail without Time::HiRes.
+
+2000-12-08  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix typo in EventAPI.h.
+
 2000-12-07  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.80.

@@ -215,9 +215,9 @@ struct EventAPI {
     void *(*sv_2watcher)(SV *sv);
     SV   *(*event_2sv)(pe_event *ev);
     void *(*sv_2event)(SV *sv);
-    int (*sv_2interval)(char *label, SV *in, double *out);
-    SV (*events_mask_2sv)(int mask);
-    int (*sv_2events_mask)(SV *sv, int bits);
+    int   (*sv_2interval)(char *label, SV *in, double *out);
+    SV   *(*events_mask_2sv)(int mask);
+    int   (*sv_2events_mask)(SV *sv, int bits);
 
     /* EVERYTHING ELSE */
     void (*unloop)(SV *);
