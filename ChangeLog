@@ -1,4 +1,20 @@
+2000-02-25  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.70.
+
+2000-02-24  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix bug in select() engine spotted by perl@jochen-stenzel.de
+
+2000-02-22  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Prune demo directory.
+
+	* Add repeat.t demo. (perl@jochen-stenzel.de)
+
 2000-02-18  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Add perlqt.t demo.
 
 	* Release 0.69.
 

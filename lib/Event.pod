@@ -716,9 +716,13 @@ This list is archived at
 
 Thanks!
 
-=head1 AUTHORS
+=head1 AUTHOR
 
 Joshua N. Pritikin E<lt>F<jpritikin@pobox.com>E<gt>
+
+For my motivation, see http://why-compete.org
+
+=head1 ACKNOWLEDGMENT
 
 Initial 0.01 implementation by Graham Barr
 E<lt>F<gbarr@pobox.com>E<gt>.  Other contributors include at least

@@ -1,9 +1,16 @@
 #!./perl -w
 
 $| = 1;
-use Event;
+use Event qw(time);
 require Event::io;
 
+print "This demo echoes whatever you type.  If you don't type anything
+for as long as 2.5 seconds then it will complain.  Enter an empty line
+to exit.
+
+";
+
+my $recent = time;
 Event->io(fd      => \*STDIN,
           timeout => 2.5,
           poll    => "r",
@@ -18,8 +25,9 @@ Event->io(fd      => \*STDIN,
 		  my $len = length($buf);
 		  Event::unloop if !$len;
 		  print "read[$len]:$buf:\n";
+		  $recent = time;
 	      } else {
-		  print "nothing for ".$e->w->timeout." seconds\n";
+		  print "nothing for ".(time - $recent)." seconds\n";
 	      }
           });
 

@@ -45,8 +45,8 @@ static void _queue_io(pe_io *wa, int got) {
 }
 
 /************************************************* POLL */
-#if defined(HAS_POLL) && !PE_IO_WAIT
-#define PE_IO_WAIT 1
+#if defined(HAS_POLL) && !PE_SYS_IO
+#define PE_SYS_IO 1
 
 static struct pollfd *Pollfd=0;
 static int pollMax=0;
@@ -125,9 +125,9 @@ static void pe_sys_multiplex(double timeout) {
     }
     ev = (pe_io*) IOWatch.next->self;
     while (ev) {
+	pe_io *next_ev = (pe_io*) ev->ioring.next->self;
 	STRLEN n_a;
 	int xref = ev->xref;
-	pe_io *next_ev = (pe_io*) ev->ioring.next->self;
 	if (xref >= 0) {
 	    int got = 0;
 	    int mask = Pollfd[xref].revents;
@@ -152,8 +152,8 @@ static void pe_sys_multiplex(double timeout) {
 
 
 /************************************************* SELECT */
-#if defined(HAS_SELECT) && !PE_IO_WAIT
-#define PE_IO_WAIT 1
+#if defined(HAS_SELECT) && !PE_SYS_IO
+#define PE_SYS_IO 1
 
 static int Nfds;
 static fd_set Rfds, Wfds, Efds;
@@ -246,6 +246,7 @@ static void pe_sys_multiplex(double timeout) {
     }
     ev = IOWatch.next->self;
     while (ev) {
+	pe_io *next_ev = (pe_io*) ev->ioring.next->self;
 	int fd = ev->fd;
 	if (fd >= 0) {
 	    int got = 0;
@@ -259,7 +260,7 @@ static void pe_sys_multiplex(double timeout) {
 	      if (--ret == 0) { ev=0; continue; }
 	    */
 	}
-	ev = ev->ioring.next->self;
+	ev = next_ev;
     }
 }
 #endif /*HAS_SELECT*/
