@@ -43,20 +43,21 @@ static void pe_event_dtor(pe_event *ev) {
 
 static pe_event *pe_event_allocate(pe_watcher *wa)
 {
-  pe_event *ev;
-  assert(wa);
-  if (EvCLUMPx(wa))
-    return (pe_event*) wa->events.next->self;
-  if (PE_RING_EMPTY(&event_vtbl.freelist)) {
-    New(PE_NEWID, ev, 1, pe_event);
-    ev->vtbl = &event_vtbl;
-    PE_RING_INIT(&ev->que, ev);
-  }
-  else {
-    PE_RING_POP(&event_vtbl.freelist, ev);
-  }
-  pe_event_init(ev, wa);
-  return ev;
+    pe_event *ev;
+    assert(wa);
+    if (EvCLUMPx(wa))
+	return (pe_event*) wa->events.next->self;
+    if (PE_RING_EMPTY(&event_vtbl.freelist)) {
+	New(PE_NEWID, ev, 1, pe_event);
+	ev->vtbl = &event_vtbl;
+	PE_RING_INIT(&ev->que, ev);
+    } else {
+	pe_ring *lk = event_vtbl.freelist.prev;
+	PE_RING_DETACH(lk);
+	ev = (pe_event*) lk->self;
+    }	
+    pe_event_init(ev, wa);
+    return ev;
 }
 
 EKEYMETH(_event_hits)
@@ -83,21 +84,22 @@ EKEYMETH(_event_prio)
 
 static pe_event *pe_ioevent_allocate(pe_watcher *wa)
 {
-  pe_ioevent *ev;
-  assert(wa);
-  if (EvCLUMPx(wa))
-    return (pe_event*) wa->events.next->self;
-  if (PE_RING_EMPTY(&ioevent_vtbl.freelist)) {
-    New(PE_NEWID, ev, 1, pe_ioevent);
-    ev->base.vtbl = &ioevent_vtbl;
-    PE_RING_INIT(&ev->base.que, ev);
-  }
-  else {
-    PE_RING_POP(&ioevent_vtbl.freelist, ev);
-  }
-  pe_event_init(&ev->base, wa);
-  ev->got = 0;
-  return &ev->base;
+    pe_ioevent *ev;
+    assert(wa);
+    if (EvCLUMPx(wa))
+	return (pe_event*) wa->events.next->self;
+    if (PE_RING_EMPTY(&ioevent_vtbl.freelist)) {
+	New(PE_NEWID, ev, 1, pe_ioevent);
+	ev->base.vtbl = &ioevent_vtbl;
+	PE_RING_INIT(&ev->base.que, ev);
+    } else {
+	pe_ring *lk = ioevent_vtbl.freelist.prev;
+	PE_RING_DETACH(lk);
+	ev = (pe_ioevent*) lk->self;
+    }
+    pe_event_init(&ev->base, wa);
+    ev->got = 0;
+    return &ev->base;
 }
 
 EKEYMETH(_event_got)
@@ -121,7 +123,7 @@ static void pe_event_postCB(pe_cbframe *fp) {
 	pe_watcher_on(wa, 1);
     if (Estat.on) {
 	if (fp->stats) {
-	    Estat.abort(fp->stats, wa);
+	    Estat.scrub(fp->stats, wa);
 	    fp->stats = 0;
 	}
 	if (CurCBFrame >= 0)
@@ -243,7 +245,7 @@ static void pe_event_invoke(pe_event *ev) {
 	    PUSHMARK(SP);
 	    XPUSHs(evsv);
 	    PUTBACK;
-	    perl_call_sv(wa->callback, pcflags);
+	    perl_call_sv((SV*) wa->callback, pcflags);
 	} else {
 	    AV *av = (AV*)cb;
 	    dSP;

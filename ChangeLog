@@ -1,3 +1,13 @@
+1999-06-30  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.44 (thanks: jan.dubois@ibm.net).
+
+	* Renamed abort() to scrub() to avoid clashing with Perl's abort.
+
+	* Removed remaining dependency on gettimeofday.
+
+	* C++ clean.
+
 1999-06-22  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.43.

@@ -47,7 +47,10 @@ static void pe_watcher_init(pe_watcher *ev, HV *stash)
 static void pe_watcher_cancel_events(pe_watcher *wa) {
     pe_event *ev;
     while (!PE_RING_EMPTY(&wa->events)) {
-	PE_RING_POP(&wa->events, ev);
+	pe_ring *lk = wa->events.prev;
+	PE_RING_DETACH(lk);
+	ev = (pe_event*) lk->self;
+
 	if (!ev->mysv)
 	    (*ev->vtbl->dtor)(ev);
 	else {

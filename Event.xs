@@ -2,9 +2,17 @@
 
 #define MIN_PERL_DEFINE 1
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <EXTERN.h>
 #include <perl.h>
 #include <XSUB.h>
+
+#ifdef __cplusplus
+}
+#endif
 
 /* This is unfortunately necessary for the 5.005_0x series. */
 #include "patchlevel.h"
@@ -70,12 +78,8 @@ static void Event_croak(const char* pat, ...) {
 
 static double fallback_NVtime()
 { return time(0); }
-
 static void fallback_U2time(U32 *ret)
-{
-  ret[0]=time(0);
-  ret[1]=0;
-}
+{ ret[0]=time(0); ret[1]=0; }
 
 #include "Event.h"
 
@@ -96,6 +100,8 @@ static double (*myNVtime)();
 
 #define EvNOW(exact) NVtime() /*XXX*/
 
+static int pe_sys_fileno(SV *sv, char *context);
+
 static void queueEvent(pe_event *ev);
 static void dequeEvent(pe_event *ev);
 
@@ -107,6 +113,25 @@ static void pe_watcher_start(pe_watcher *ev, int repeat);
 static void pe_watcher_stop(pe_watcher *ev, int cancel_events);
 static void pe_watcher_on(pe_watcher *wa, int repeat);
 static void pe_watcher_off(pe_watcher *wa);
+
+/* The newHVhv in perl seems to mysteriously break in some cases.  Here
+   is a simple and safe (but maybe slow) implementation. */
+
+#ifdef newHVhv
+# undef newHVhv
+#endif
+#define newHVhv event_newHVhv
+
+static HV *event_newHVhv(HV *ohv) {
+    register HV *hv = newHV();
+    register HE *entry;
+    hv_iterinit(ohv);		/* NOTE: this resets the iterator */
+    while (entry = hv_iternext(ohv)) {
+	hv_store(hv, HeKEY(entry), HeKLEN(entry), 
+		SvREFCNT_inc(HeVAL(entry)), HeHASH(entry));
+    }
+    return hv;
+}
 
 /****************** KEY_REMAP */
 static HV *KREMAP;
@@ -132,25 +157,7 @@ static void pe_watcher_STORE_FALLBACK(pe_watcher *wa, SV *svkey, SV *nval)
     hv_store_ent(wa->FALLBACK, svkey, SvREFCNT_inc(nval), 0);
 }
 
-/* The newHVhv in perl seems to mysteriously break in some cases.  Here
-   is a simple and safe (but maybe slow) implementation. */
-
-#ifdef newHVhv
-# undef newHVhv
-#endif
-#define newHVhv event_newHVhv
-
-static HV *event_newHVhv(HV *ohv) {
-    register HV *hv = newHV();
-    register HE *entry;
-    hv_iterinit(ohv);		/* NOTE: this resets the iterator */
-    while (entry = hv_iternext(ohv)) {
-	hv_store(hv, HeKEY(entry), HeKLEN(entry), 
-		SvREFCNT_inc(HeVAL(entry)), HeHASH(entry));
-    }
-    return hv;
-}
-
+/***************** STATS */
 static int StatsInstalled=0;
 static void pe_install_stats(pe_event_stats_vtbl *esvtbl)
 {
@@ -163,6 +170,61 @@ static void pe_collect_stats(int yes)
   if (!StatsInstalled) croak("collect_stats: no event statistics are available");
   Estat.on = yes;
 }
+
+#ifdef HAS_GETTIMEOFDAY
+double null_loops_per_second(int sec)
+{
+	/*
+	  This should be more realistic.  It is used to normalize
+	  the benchmark against some theoretical perfect event loop.
+	*/
+	struct timeval start_tm, done_tm;
+	double elapse;
+	unsigned count=0;
+	int fds[2];
+	if (pipe(fds) != 0) croak("pipe");
+	gettimeofday(&start_tm, 0);
+	do {
+#ifdef HAS_POLL
+	  struct pollfd map[2];
+	  Zero(map, 2, struct pollfd);
+	  map[0].fd = fds[0];
+	  map[0].events = POLLIN | POLLOUT;
+	  map[0].revents = 0;
+	  map[1].fd = fds[1];
+	  map[1].events = POLLIN | POLLOUT;
+	  map[1].revents = 0;
+	  poll(map, 2, 0);
+#elif defined(HAS_SELECT)
+	  struct timeval null;
+	  fd_set rfds, wfds, efds;
+	  FD_ZERO(&rfds);
+	  FD_ZERO(&wfds);
+	  FD_ZERO(&efds);
+	  FD_SET(fds[0], &rfds);
+	  FD_SET(fds[0], &wfds);
+	  FD_SET(fds[1], &rfds);
+	  FD_SET(fds[1], &wfds);
+	  null.tv_sec = 0;
+	  null.tv_usec = 0;
+	  select(3,&rfds,&wfds,&efds,&null);
+#else
+#  error
+#endif
+	  ++count;
+	  gettimeofday(&done_tm, 0);
+	  elapse = (done_tm.tv_sec - start_tm.tv_sec +
+		    (done_tm.tv_usec - start_tm.tv_usec) / 1000000);
+	} while(elapse < sec);
+	close(fds[0]);
+	close(fds[1]);
+return count/sec;
+}
+#else /* !HAS_GETTIMEOFDAY */
+double null_loops_per_second(int sec)
+{ croak("sorry, gettimeofday is not available"); }
+#endif
+
 
 #include "typemap.c"
 #include "timeable.c"
@@ -278,54 +340,6 @@ sleep(tm)
 double
 null_loops_per_second(sec)
 	int sec
-	CODE:
-	/*
-	  This should be more realistic.  It is used to normalize
-	  the benchmark against some theoretical perfect event loop.
-	*/
-	struct timeval start_tm, done_tm;
-	double elapse;
-	unsigned count=0;
-	int fds[2];
-	if (pipe(fds) != 0) croak("pipe");
-	gettimeofday(&start_tm, 0);
-	do {
-#ifdef HAS_POLL
-	  struct pollfd map[2];
-	  Zero(map, 2, struct pollfd);
-	  map[0].fd = fds[0];
-	  map[0].events = POLLIN | POLLOUT;
-	  map[0].revents = 0;
-	  map[1].fd = fds[1];
-	  map[1].events = POLLIN | POLLOUT;
-	  map[1].revents = 0;
-	  poll(map, 2, 0);
-#elif defined(HAS_SELECT)
-	  struct timeval null;
-	  fd_set rfds, wfds, efds;
-	  FD_ZERO(&rfds);
-	  FD_ZERO(&wfds);
-	  FD_ZERO(&efds);
-	  FD_SET(fds[0], &rfds);
-	  FD_SET(fds[0], &wfds);
-	  FD_SET(fds[1], &rfds);
-	  FD_SET(fds[1], &wfds);
-	  null.tv_sec = 0;
-	  null.tv_usec = 0;
-	  select(3,&rfds,&wfds,&efds,&null);
-#else
-#  error
-#endif
-	  ++count;
-	  gettimeofday(&done_tm, 0);
-	  elapse = (done_tm.tv_sec - start_tm.tv_sec +
-		    (done_tm.tv_usec - start_tm.tv_usec) / 1000000);
-	} while(elapse < sec);
-	close(fds[0]);
-	close(fds[1]);
-	RETVAL = count/sec;
-	OUTPUT:
-	RETVAL
 
 void
 all_watchers()
@@ -334,10 +348,10 @@ all_watchers()
 	pe_watcher *ev;
 	if (!AllWatchers.next)
 	  return;
-	ev = AllWatchers.next->self;
+	ev = (pe_watcher*) AllWatchers.next->self;
 	while (ev) {
 	  XPUSHs(watcher_2sv(ev));
-	  ev = ev->all.next->self;
+	  ev = (pe_watcher*) ev->all.next->self;
 	}
 
 void
@@ -347,10 +361,10 @@ all_idle()
 	pe_watcher *ev;
 	if (!Idle.prev)
 	  return;
-	ev = Idle.prev->self;
+	ev = (pe_watcher*) Idle.prev->self;
 	while (ev) {
 	  XPUSHs(watcher_2sv(ev));
-	  ev = ((pe_idle*)ev)->iring.prev->self;
+	  ev = (pe_watcher*) ((pe_idle*)ev)->iring.prev->self;
 	}
 
 void
@@ -828,10 +842,10 @@ pe_watcher::max_cb_tm(...)
 MODULE = Event		PACKAGE = Event::Watcher::Tied
 
 void
-allocate(class)
-	SV *class
+allocate(clname)
+	SV *clname
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_tied_allocate(gv_stashsv(class, 1))));
+	XPUSHs(watcher_2sv(pe_tied_allocate(gv_stashsv(clname, 1))));
 
 void
 pe_watcher::hard(...)
@@ -857,10 +871,10 @@ pe_watcher::flags(...)
 MODULE = Event		PACKAGE = Event::idle
 
 void
-allocate(class)
-	SV *class;
+allocate(clname)
+	SV *clname;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_idle_allocate(gv_stashsv(class, 1))));
+	XPUSHs(watcher_2sv(pe_idle_allocate(gv_stashsv(clname, 1))));
 
 void
 pe_watcher::hard(...)
@@ -886,10 +900,10 @@ pe_watcher::min(...)
 MODULE = Event		PACKAGE = Event::timer
 
 void
-allocate(class)
-	SV *class;
+allocate(clname)
+	SV *clname;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_timer_allocate(gv_stashsv(class, 1))));
+	XPUSHs(watcher_2sv(pe_timer_allocate(gv_stashsv(clname, 1))));
 
 void
 pe_watcher::at(...)
@@ -915,10 +929,10 @@ pe_watcher::interval(...)
 MODULE = Event		PACKAGE = Event::io
 
 void
-allocate(class)
-	SV *class;
+allocate(clname)
+	SV *clname;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_io_allocate(gv_stashsv(class, 1))));
+	XPUSHs(watcher_2sv(pe_io_allocate(gv_stashsv(clname, 1))));
 
 void
 pe_watcher::poll(...)
@@ -944,10 +958,10 @@ pe_watcher::timeout(...)
 MODULE = Event		PACKAGE = Event::var
 
 void
-allocate(class)
-	SV *class;
+allocate(clname)
+	SV *clname;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_var_allocate(gv_stashsv(class, 1))));
+	XPUSHs(watcher_2sv(pe_var_allocate(gv_stashsv(clname, 1))));
 
 void
 pe_watcher::var(...)
@@ -966,10 +980,10 @@ pe_watcher::poll(...)
 MODULE = Event		PACKAGE = Event::signal
 
 void
-allocate(class)
-	SV *class;
+allocate(clname)
+	SV *clname;
 	PPCODE:
-	XPUSHs(watcher_2sv(pe_signal_allocate(gv_stashsv(class, 1))));
+	XPUSHs(watcher_2sv(pe_signal_allocate(gv_stashsv(clname, 1))));
 
 void
 pe_watcher::signal(...)

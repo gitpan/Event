@@ -38,12 +38,14 @@ STMT_START {					\
   }						\
 } STMT_END
 
+/* too bad typeof is a G++ specific extension
 #define PE_RING_POP(ALL, TO)			\
 STMT_START {					\
   pe_ring *lk = (ALL)->prev;			\
   PE_RING_DETACH(lk);				\
-  TO = lk->self;				\
+  TO = (typeof(TO)) lk->self;			\
 } STMT_END
+*/
 
 typedef struct pe_cbframe pe_cbframe;
 struct pe_cbframe {

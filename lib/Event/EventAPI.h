@@ -156,7 +156,7 @@ struct pe_event_stats_vtbl {
   void (*suspend)(void *);
   void (*resume)(void *);
   void (*commit)(void *, pe_watcher *);
-  void (*abort)(void *, pe_watcher *);
+  void (*scrub)(void *, pe_watcher *);
   void (*dtor)(void *);
 };
 

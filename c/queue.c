@@ -21,10 +21,10 @@ static void boot_queue()
 static void db_show_queue()
 {
   pe_event *ev;
-  ev = NQueue.next->self;
+  ev = (pe_event*) NQueue.next->self;
   while (ev) {
     warn("0x%x : %d\n", ev, ev->prio);
-    ev = ev->que.next->self;
+    ev = (pe_event*) ev->que.next->self;
   }
 }
 
@@ -78,10 +78,10 @@ static void queueEvent(pe_event *ev)
 }
 
 /* The caller is responsible for SAVETMPS/FREETMPS! */
-static int pe_empty_queue(maxprio)
+static int pe_empty_queue(int maxprio)
 {
   pe_event *ev;
-  ev = NQueue.next->self;
+  ev = (pe_event*) NQueue.next->self;
   if (ev && ev->prio < maxprio) {
     dequeEvent(ev);
     pe_event_invoke(ev);
@@ -108,7 +108,7 @@ static int pe_empty_queue(maxprio)
 
 static double pe_map_prepare(double tm)
 {
-  pe_qcallback *qcb = Prepare.prev->self;
+  pe_qcallback *qcb = (pe_qcallback*) Prepare.prev->self;
   while (qcb) {
     if (qcb->is_perl) {
       SV *got;
@@ -127,7 +127,7 @@ static double pe_map_prepare(double tm)
       double got = (* (double(*)(void*)) qcb->callback)(qcb->ext_data);
       if (got < tm) tm = got;
     }
-    qcb = qcb->ring.prev->self;
+    qcb = (pe_qcallback*) qcb->ring.prev->self;
   }
   return tm;
 }
@@ -178,8 +178,14 @@ static int one_event(double tm)
   while (1) {
     pe_watcher *wa;
     pe_event *ev;
+    pe_ring *lk;
+
     if (PE_RING_EMPTY(&Idle)) return 0;
-    PE_RING_POP(&Idle, wa);
+
+    lk = Idle.prev;
+    PE_RING_DETACH(lk);
+    wa = (pe_watcher*) lk->self;
+
     /* idle is not an event so CLUMP is never an option but we still need
        to create an event to pass info to the callback */
     ev = pe_event_allocate(wa);

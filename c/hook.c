@@ -49,7 +49,7 @@ static void pe_cancel_hook(pe_qcallback *qcb)
 
 static void pe_map_check(pe_ring *List)
 {
-  pe_qcallback *qcb = List->prev->self;
+  pe_qcallback *qcb = (pe_qcallback*) List->prev->self;
   while (qcb) {
     if (qcb->is_perl) {
       dSP;
@@ -60,7 +60,7 @@ static void pe_map_check(pe_ring *List)
     else { /* !is_perl */
       (* (void(*)(void*)) qcb->callback)(qcb->ext_data);
     }
-    qcb = qcb->ring.prev->self;
+    qcb = (pe_qcallback*) qcb->ring.prev->self;
   }
 }
 

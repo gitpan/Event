@@ -94,12 +94,12 @@ static void _signal_asynccheck(pe_sig_stat *st)
     if (!st->hits[xx])
       continue;
     got = st->hits[xx];
-    wa = Sigring[xx].next->self;
+    wa = (pe_watcher*) Sigring[xx].next->self;
     while (wa) {
       pe_event *ev = (*wa->vtbl->new_event)(wa);
       ev->hits += got;
       queueEvent(ev);
-      wa = ((pe_signal*)wa)->sring.next->self;
+      wa = (pe_watcher*) ((pe_signal*)wa)->sring.next->self;
     }
     st->hits[xx] = 0;
   }

@@ -1,6 +1,6 @@
 static SV *wrap_tiehash(void *ptr, HV *stash) {
     SV *tied = (SV*) newHV();
-    HvNAME(tied) = ptr;
+    HvNAME(tied) = (char*) ptr;
     /* HvARRAY(tied) = 0x12341234; /**/
     sv_magic(tied, Nullsv, 'P', 0, 0);
     return sv_bless(newRV_noinc(tied), stash);

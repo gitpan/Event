@@ -62,7 +62,7 @@ static void pe_sys_sleep(double left)
   double t0 = EvNOW(1);
   double t1 = t0 + left;
   while (1) {
-    ret = poll(0, 0, left * 1000); /* hope zeroes okay */
+    ret = poll(0, 0, (int) (left * 1000)); /* hope zeroes okay */
     if (ret < 0 && errno != EAGAIN && errno != EINTR)
       croak("poll(%.2f) got errno %d", left, errno);
     left = t1 - EvNOW(1);
@@ -89,7 +89,7 @@ static void pe_sys_multiplex(double timeout)
   if (!IOWatch_OK) {
     Nfds = 0;
     Zero(Pollfd, pollMax, struct pollfd);
-    ev = IOWatch.next->self;
+    ev = (pe_io*) IOWatch.next->self;
     while (ev) {
       int fd = ev->fd;
       ev->xref = -1;
@@ -109,7 +109,7 @@ static void pe_sys_multiplex(double timeout)
 	  ev->xref = xx;
 	}
       }
-      ev = ev->ioring.next->self;
+      ev = (pe_io*) ev->ioring.next->self;
     }
     IOWatch_OK = 1;
   }
@@ -117,7 +117,7 @@ static void pe_sys_multiplex(double timeout)
     Pollfd[xx].revents = 0; /* needed? XXX */
   if (timeout < 0)
     timeout = 0;
-  ret = poll(Pollfd, Nfds, timeout * 1000);
+  ret = poll(Pollfd, Nfds, (int) (timeout * 1000));
   
   if (ret < 0) {
     if (errno == EINTR || errno == EAGAIN)
@@ -129,7 +129,7 @@ static void pe_sys_multiplex(double timeout)
     warn("poll got errno %d", errno);
     return;
   }
-  ev = IOWatch.next->self;
+  ev = (pe_io*) IOWatch.next->self;
   while (ev) {
     int xref = ev->xref;
     if (xref >= 0) {
@@ -144,7 +144,7 @@ static void pe_sys_multiplex(double timeout)
 	  if (--ret == 0) { ev=0; continue; }
 	*/
     }
-    ev = ev->ioring.next->self;
+    ev = (pe_io*) ev->ioring.next->self;
   }
 }
 #endif /*HAS_POLL*/
