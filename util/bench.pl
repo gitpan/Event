@@ -2,13 +2,13 @@
 
 use strict;
 use Config;
-use Event 0.03;
+use Event 0.08;
 use Time::HiRes qw(time);
 use vars qw($VERSION $TestTime);
-$VERSION = '0.03';
+$VERSION = '0.04';
 $TestTime = 11;
 
-#$Event::DebugLevel = 1;
+# $Event::DebugLevel = 3;
 
 Event->timer(callback => sub { Event->exit }, after => $TestTime);
 
@@ -25,26 +25,28 @@ for (1..20) {
 
 #------------------------------ Signals
 use vars qw($SignalCount);
+$SignalCount = 0;
+if (0) {
 Event->signal(signal => 'USR1',
 	      callback => sub { ++$SignalCount; });
 Event->timer(callback => sub { kill 'USR1', $$; },
 	     interval => .5);
+}
 
 #------------------------------ IO
 use vars qw($IOCount @W);
 $IOCount = 0;
 
 use Symbol;
-use IO::Handle;
 for (1..15) {
     my ($r,$w) = (gensym,gensym);
     pipe($r,$w);
     select $w;
     $|=1; 
-    Event->io(handle => IO::Handle->new_from_fd(fileno($r),"r"),
+    Event->io(handle => $r,
 	      callback => sub {
-		  ++$IOCount;
 		  my $buf;
+		  ++$IOCount;
 		  sysread $r, $buf, 1;
 	      },
 	      events => 'r');
@@ -80,15 +82,18 @@ sub pct {
     sprintf "%.2f%%", 100*$got/$expect;
 }
 
+warn "Timing a null loop...\n";
+my $null = Event::Loop::null_loops_per_second(7);
+
 chomp(my $uname = `uname -a`);
 print "
  benchmark: $VERSION
- IO: $IO::VERSION, Time::HiRes: $Time::HiRes::VERSION, Event: $Event::VERSION
+ Time::HiRes: $Time::HiRes::VERSION, Event: $Event::VERSION
 
  perl $]
  uname=$uname
  cc='$Config{cc}', optimize='$Config{optimize}'
- ccflags ='$Config{ccflags}'
+ ccflags='$Config{ccflags}'
 
  Please mail benchmark results to perl-loop\@perl.org.  Thanks!
 
@@ -97,6 +102,7 @@ Timer/sec:       ".pct($TimerCount,$TimerExpect)." ($TimerCount total)
 Io/sec:          ".sprintf("%.3f", $IOCount/$elapse)." ($IOCount total)
 Signals/sec      ".sprintf("%.2f", $SignalCount/$elapse)."
 Events/sec       ".sprintf("%.3f", ($IdleCount+$TimerCount+$IOCount+$SignalCount)/$elapse)."
+Null/sec         $null
 
 ";
 

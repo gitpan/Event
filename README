@@ -16,7 +16,7 @@ subscribe!
 
 
 Once you successfully build this extension, please run
-./util/bench.pl.
+./util/bench.pl!!
 
 Thanks.
 

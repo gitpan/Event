@@ -1,3 +1,6 @@
+19980814 JPRIT Rewrote almost everything in C.
+
+
 Change 144 on 1998/05/31 by <gbarr@pobox.com> (Graham Barr)
 
 	Event::watchvar

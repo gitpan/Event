@@ -19,23 +19,30 @@ sub MY::libscan
  $path;
 }
 
+@Safe = (
+	 OPTIMIZE => '-g',
+	 CC => 'insure',
+	 LD => 'insure',
+	);
+
+@Safe = ();
+
 WriteMakefile(
 	      PREREQ_PM => {
-			    builtin => .01,
 			    IO => 1.19,
 			    Test => 1,
 			   },
 	      VERSION_FROM	=> "Event.pm",
 	      NAME      	=> "Event",
+	      INC => '-Ic',
+	      H => [glob("c/*"), glob("*.h")],
+	      @Safe,
  
 	'linkext' 	=> {LINKTYPE => 'dynamic' },
-	'dist'    	=> {COMPRESS => 'gzip -9f',
-			    SUFFIX   => 'gz', 
-			    DIST_DEFAULT => 'all tardist',
-			   },
  
 	'clean'   	=> {FILES => join(" ",
 					map { "$_ */$_ */*/$_" }
 					qw(*% *.html *.b[ac]k *.old *.orig))
 			   },
 );
+

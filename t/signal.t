@@ -1,7 +1,6 @@
-# signalling all -*-perl-*- programmers...
+# signal -*-perl-*-
 
-use Test;
-BEGIN { plan tests => 4 }
+use Test; plan tests => 4;
 use Event;
 
 #$Event::DebugLevel = 3;
@@ -12,10 +11,10 @@ Event->signal(
     signal => 'USR1',
     callback =>
 	sub {
-	    my($cb, $sig, $count) = @_;
+	    my $e = shift;
 
-	    ok $sig, 'USR1';
-	    ok $count, 2;
+	    ok $e->{signal}, 'USR1';
+	    ok $e->{count}, 2;
 
 	    Event->exit
 	}

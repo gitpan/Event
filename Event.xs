@@ -1,207 +1,294 @@
 #include <EXTERN.h>
 #include <perl.h>
 #include <XSUB.h>
-#if !defined(NSIG) || defined(M_UNIX) || defined(M_XENIX)
-#include <signal.h>
-#endif
-#ifdef I_SYS_WAIT
-#  include <sys/wait.h>
-#endif
 
-#define MAX_CHLD_SLOT 63
-#define CHLD_BUF_SIZE (MAX_CHLD_SLOT+1)
+#define PE_PRIO_NORMAL 4
+#define PE_PRIO_HIGH 2
 
-struct child_data {
-    int pid;
-    int status;
-};
+#define PE_NEWID ('e'+'v')  /* for New() macro */
 
-static VOL int chld_next;
-static struct child_data chld_buf[CHLD_BUF_SIZE];
-static int signal_count[NSIG];
+static SV *DebugLevel, *Eval, *Stats;
 
-static Signal_t chld_sighandler _((int sig));
+#include "Event.h"
 
 static void
-initialize()
-{
-    chld_next=0;
-    memzero(signal_count, sizeof(signal_count));
-    memzero(chld_buf, sizeof(chld_buf));
+queueEvent(pe_event *ev, int count);
 
-    (void)rsignal(SIGCHLD, chld_sighandler);
-}
+#include "typemap.c"
+#include "gettimeofday.c"  /* hack XXX */
+#include "event_vtbl.c"
+#include "idle.c"
+#include "timer.c"
+#include "io.c"
+#include "unix_io.c"
+#include "watchvar.c"
+#include "signal.c"
 
-static I32
-tracevar(ix, sv)
-IV ix;
-SV *sv;
-{
-    dXSARGS;
-    SV *obj = (SV *)ix;
-    SV **cvptr;
-    /* Taken From tkGlue.c
+/* TODO */
+#include "process.c"
 
-       We are a "magic" set processor, whether we like it or not
-       because this is the hook we use to get called.
-       So we are (I think) supposed to look at "private" flags 
-       and set the public ones if appropriate.
-       e.g. "chop" sets SvPOKp as a hint but not SvPOK
+#include "queue.c"
 
-       presumably other operators set other private bits.
 
-       Question are successive "magics" called in correct order?
+MODULE = Event		PACKAGE = Event
 
-       i.e. if we are tracing a tied variable should we call 
-       some magic list or be careful how we insert ourselves in the list?
+PROTOTYPES: DISABLE
 
-    */
+BOOT:
+  DebugLevel = SvREFCNT_inc(perl_get_sv("Event::DebugLevel", 1));
+  Eval = SvREFCNT_inc(perl_get_sv("Event::Eval", 1));
+  Stats = SvREFCNT_inc(perl_get_sv("Event::Stats", 1));
+  boot_pe_event();
+  boot_idle();
+  boot_timer();
+  boot_io();
+  boot_watchvar();
+  boot_process();
+  boot_signal();
+  boot_queue();
 
-    if (!SvPOK(sv) && SvPOKp(sv))
-	SvPOK_on(sv);
+void
+DESTROY(ref)
+	SV *ref
+	CODE:
+	SV *sv;
+	if (!SvRV(ref))
+	  croak("Expected RV");
+	sv = SvRV(ref);
+	/* will be called twice for each Event; yuk! */
+	if (SvTYPE(sv) == SVt_PVMG) {
+	  pe_event *THIS = (pe_event*) SvIV(sv);
+	  /* warn("X sv(%s)=0x%x", SvPV(THIS->desc,na), THIS); /**/
+	  --THIS->refcnt;
+	  if (EvCANDESTROY(THIS) || (THIS->refcnt == 0 && PL_in_clean_objs)) {
+	    (*THIS->vtbl->dtor)(THIS);
+	  }
+	}
 
-    if (!SvNOK(sv) && SvNOKp(sv))
-	SvNOK_on(sv);
+void
+pe_event::again()
+	CODE:
+	/* more natural if NO repeat */
+	(*THIS->vtbl->start)(THIS, 0);
 
-    if (!SvIOK(sv) && SvIOKp(sv))
-	SvIOK_on(sv);
+void
+pe_event::start()
+	CODE:
+	/* more natural if repeat */
+	(*THIS->vtbl->start)(THIS, 0);
 
-    if (cvptr = hv_fetch((HV*)SvRV(obj),"modified",8,0)) {
-	PUSHMARK(sp);
-	XPUSHs(obj);
-	XPUSHs(sv);
+void
+pe_event::suspend()
+	CODE:
+	pe_event_suspend(THIS);
+
+void
+pe_event::cancel()
+	CODE:
+	pe_event_cancel(THIS);
+
+void
+pe_event::now()
+	CODE:
+	pe_event_now(THIS);
+
+void
+pe_event::FETCH(key)
+	SV *key;
+	PPCODE:
 	PUTBACK;
-	perl_call_sv(*cvptr,0);
-    }
-    return 0; /*ignored*/
-}
+	(*THIS->vtbl->FETCH)(THIS, key);
+	SPAGAIN;
 
-static void
-var__unwatchvar(obj)
-    SV * obj;
-{
-    MAGIC **mgp;
-    MAGIC *mg;
-    MAGIC *mgtmp;
-    SV **svptr,*sv;
+void
+pe_event::STORE(key,nval)
+	SV *key
+	SV *nval
+	PPCODE:
+	PUTBACK;
+	(*THIS->vtbl->STORE)(THIS, key, nval);
+	SPAGAIN;
 
-    svptr = hv_fetch((HV*)SvRV(obj),"variable",8,0);
-    sv = SvRV(*svptr);
+void
+pe_event::DELETE(key)
+	SV *key
+	PPCODE:
+	PUTBACK;
+	(*THIS->vtbl->DELETE)(THIS, key);
+	SPAGAIN;
 
-    if(!SvROK(*svptr) || (SvTYPE(sv) < SVt_PVMG) || !SvMAGIC(sv))
-	return;
+void
+pe_event::EXISTS(key)
+	SV *key
+	PPCODE:
+	PUTBACK;
+	(*THIS->vtbl->EXISTS)(THIS, key);
+	SPAGAIN;
 
-    mgp = &SvMAGIC(sv);
-    while ((mg = *mgp)) {
-	if(mg->mg_obj == obj)
-	    break;
-	mgp = &mg->mg_moremagic;
-    }
+void
+pe_event::FIRSTKEY()
+	PPCODE:
+	PUTBACK;
+	(*THIS->vtbl->FIRSTKEY)(THIS);
+	SPAGAIN;
 
-    if(!mg)
-	return;
+void
+pe_event::NEXTKEY(prevkey)
+	SV *prevkey;
+	PPCODE:
+	PUTBACK;
+	(*THIS->vtbl->NEXTKEY)(THIS);
+	SPAGAIN;
 
-    *mgp = mg->mg_moremagic;
 
-    mgtmp = SvMAGIC(sv);
-    SvMAGIC(sv) = mg;
-    mg_free(sv);
-    SvMAGIC(sv) = mgtmp;
-}
+MODULE = Event		PACKAGE = Event::Loop
 
-static void
-var__watchvar(obj)
-    SV * obj;
-{
-#ifdef dTHR
-    dTHR;
-#endif
-    struct ufuncs *ufp;
-    MAGIC **mgp;
-    MAGIC *mg;
-    SV **svptr,*sv;
-
-    svptr = hv_fetch((HV*)SvRV(obj),"variable",8,0);
-    sv = SvRV(*svptr);
-
-    if(!SvROK(*svptr))
-	return;
-
-    if (SvTHINKFIRST(sv)) {
-	if (SvREADONLY(sv) && curcop != &compiling)
-	    croak("Cannot trace readonly variable");
-    }
-    if (!SvUPGRADE(sv, SVt_PVMG))
-	croak("Trace SvUPGRADE failed");
-
-    mgp = &SvMAGIC(sv);
-    while ((mg = *mgp)) {
-	mgp = &mg->mg_moremagic;
-    }
-
-    Newz(702, mg, 1, MAGIC);
-    mg->mg_moremagic = NULL;
-    *mgp = mg;
-
-    mg->mg_obj = SvREFCNT_inc(obj);
-    mg->mg_flags |= MGf_REFCOUNTED;
-    mg->mg_type = 'U';
-    mg->mg_len = 0;
-    mg->mg_virtual = &vtbl_uvar;
-
-    mg_magical(sv);
-    New(666, ufp, 1, struct ufuncs);
-    ufp->uf_val = 0;
-    ufp->uf_set = tracevar;
-    ufp->uf_index = (IV) obj;
-    mg->mg_ptr = (char *) ufp;
-
-    if (!SvMAGICAL(sv))
-	abort();
-
-}
-
-#ifdef WNOHANG
-# ifdef HAS_WAITPID
-#  define Wait4Any(s) waitpid(-1,(s),WNOHANG)
-# else
-#  ifdef HAS_WAIT4
-#   define Wait4Any(s) wait4(-1,(s),WNOHANG,0)
-#  endif
-# endif
-#endif
-
-static Signal_t
-chld_sighandler(sig)
-int sig;
-{
-    int pid;
-    int status;
-    int slot = chld_next++;
-
-    if(slot >= MAX_CHLD_SLOT)
-	(void)rsignal(SIGCHLD, SIG_DFL);
-
-#ifdef Wait4Any
-    pid = Wait4Any(&status);
+double
+null_loops_per_second(sec)
+	int sec
+	CODE:
+	struct timeval start_tm, done_tm;
+	double elapse;
+	unsigned count=0;
+	gettimeofday(&start_tm, 0);
+	do {
+	  /* This should be more realistic... XXX */
+#ifdef HAS_POLL
+	  struct pollfd junk;
+	  poll(&junk, 0, 0);
 #else
-    pid = wait(&status);
+#ifdef HAS_SELECT
+	  select(0,0,0,0,0);
 #endif
-    chld_buf[slot].pid = pid;
-    chld_buf[slot].status = status;
+#endif
+	  ++count;
+	  gettimeofday(&done_tm, 0);
+	  elapse = (done_tm.tv_sec - start_tm.tv_sec +
+		    (done_tm.tv_usec - start_tm.tv_usec) / 1000000);
+	} while(elapse < sec);
+	RETVAL = count/sec;
+	OUTPUT:
+	RETVAL
 
-    if(chld_next < CHLD_BUF_SIZE)
-	(void)rsignal(SIGCHLD, chld_sighandler);
-}
+void
+listQ()
+	PPCODE:
+	int xx;
+	pe_event *ev;
+	for (xx=0; xx < QUEUES; xx++) {
+	  ev = Queue[xx].prev->self;
+	  while (ev) {
+	    XPUSHs(sv_2mortal(event_2sv(ev)));
+	    ev = ev->que.prev->self;
+	  }
+	}
+	ev = Idle.prev->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  ev = ev->que.prev->self;
+	}
 
-static Signal_t
-process_sighandler(sig)
-int sig;
-{
- signal_count[sig]++;
-}
+int
+runIdle()
 
-MODULE=Event	PACKAGE=Event::process
+int
+wantIdle()
+
+void
+queueEvent(ev)
+	pe_event *ev;
+	CODE:
+	queueEvent(ev, 1);
+
+int
+emptyQueue(...)
+	PROTOTYPE: ;$
+	CODE:
+	int max = QUEUES;
+	if (items == 1)
+	  max = SvIV(ST(0));
+	RETVAL = emptyQueue(max);
+	OUTPUT:
+	RETVAL
+
+int
+doOneEvent()
+
+
+MODULE = Event		PACKAGE = Event::idle
+
+pe_event *
+allocate()
+	CODE:
+	RETVAL = pe_idle_allocate();
+	OUTPUT:
+	RETVAL
+
+
+MODULE = Event		PACKAGE = Event::timer
+
+void
+List()
+	PPCODE:
+	int xx;
+	pe_event *ev;
+	ev = Timers.next->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  ev = ev->que.next->self;
+	}
+
+void
+checkTimers()
+
+double
+timeTillTimer()
+
+pe_event *
+allocate()
+	CODE:
+	RETVAL = pe_timer_allocate();
+	OUTPUT:
+	RETVAL
+
+
+MODULE = Event		PACKAGE = Event::io
+
+pe_event *
+allocate()
+	CODE:
+	RETVAL = pe_io_allocate();
+	OUTPUT:
+	RETVAL
+
+void
+waitForEvent(timeout)
+	double timeout;
+	CODE:
+	pe_io_waitForEvent(timeout);
+
+
+MODULE = Event		PACKAGE = Event::watchvar
+
+pe_event *
+allocate()
+	CODE:
+	RETVAL = pe_watchvar_allocate();
+	OUTPUT:
+	RETVAL
+
+
+MODULE = Event		PACKAGE = Event::signal
+
+pe_event *
+allocate()
+	CODE:
+	RETVAL = pe_signal_allocate();
+	OUTPUT:
+	RETVAL
+
+
+MODULE = Event		PACKAGE = Event::process
 
 int
 _count(...)
@@ -243,82 +330,4 @@ PPCODE:
     XSRETURN(count);
 }
 
-MODULE=Event	PACKAGE=Event::watchvar	PREFIX=var_
 
-void
-var__watchvar(obj)
-    SV *	obj
-PROTOTYPE: $
-
-void
-var__unwatchvar(obj)
-    SV *	obj
-PROTOTYPE: $
-
-MODULE=Event	PACKAGE=Event::signal
-
-void
-RealSigName(sv)
-    SV * sv
-PROTOTYPE: $
-PPCODE:
-    char *s = SvPV(sv,na);
-    if(s && *s == '_') {
-	if(strNE(s,"__DIE__") && strNE(s,"__WARN__") && strNE(s,"__PARSE__"))
-	    ST(0) = &sv_undef;
-    }
-    else {
-	int sig = whichsig(s);
-	if(sig) {
-	    ST(0) = sv_newmortal();
-	    sv_setpv(ST(0),sig_name[sig]);
-	}
-	else
-	    ST(0) = &sv_undef;
-    }
-    XSRETURN(1);
-
-
-void
-_watch_signal(name)
-    char *	name
-PPCODE:
-{
-    int sig = whichsig(name);
-    if(sig && (sig != SIGCHLD))
-	rsignal(sig,process_sighandler);
-    XSRETURN(0);
-}
-
-void
-_unwatch_signal(name)
-    char *	name
-PPCODE:
-{
-    int sig = whichsig(name);
-    if(sig && (sig != SIGCHLD))
-	rsignal(sig,SIG_DFL);
-    XSRETURN(0);
-}
-
-void
-_reap()
-PPCODE:
-{
-    int i,count,val;
-    count = 0;
-    for(i = 1 ; i < NSIG ; i++) {
-	if((val = signal_count[i]) != 0) {
-	    signal_count[i] = 0;
-	    EXTEND(sp,2);
-	    count += 2;
-	    XPUSHs(sv_2mortal(newSVpv(sig_name[i],0)));
-	    XPUSHs(sv_2mortal(newSViv(val)));
-	}
-    }
-    XSRETURN(count);
-}
-
-
-BOOT:
-	initialize(); 

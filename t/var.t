@@ -1,5 +1,8 @@
+# watch -*-perl-*-
 
 use Event;
+
+# $Event::DebugLevel = 2;
 
 print "1..5\n";
 
@@ -11,9 +14,10 @@ Event->watchvar(
     -variable => \$var1,
     -callback =>
 	sub {
-	    print "ok ",${$_[1]},"\n";
+	    print "ok ",$ {shift->{'-variable'}},"\n";
 	    $var2++
-	}
+	    },
+    desc => "var1"
 );
 
 Event->watchvar(
@@ -23,7 +27,8 @@ Event->watchvar(
 	    $var3 = 3;
 	    print "ok ",$var2,"\n";
 	    Event->exit;
-	}
+	},
+		desc => "var2"
 );
 
 Event->watchvar(
@@ -32,14 +37,16 @@ Event->watchvar(
     -callback =>
 	sub {
 	    print "ok ",$var3,"\n";
-	}
+	},
+		desc => "var3"
 );
 
 Event->idle(
     -callback => sub {
 	print "ok ",$var1,"\n";
 	$var1++;
-    }
+    },
+	    desc => "idle"
 );
 
 Event->Loop;

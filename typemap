@@ -1,0 +1,13 @@
+TYPEMAP
+
+pe_event *	O_EVENT
+
+INPUT
+
+O_EVENT
+	$var = sv_2event($arg);
+
+OUTPUT
+
+O_EVENT
+	$arg = event_2sv($var);
