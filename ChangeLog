@@ -1,3 +1,12 @@
+2000-04-24  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.75.
+
+	* Attributes called in "set" mode now return the new value.
+
+	* Renamed data() to private() and added back the old data().
+	Added tests & updated the pod.
+
 2000-04-19  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.74.

@@ -374,8 +374,11 @@ When the callback was invoked most recently.
 
 =item data => $anything
 
-Use the C<data()> method to associate arbitrary data with a watcher.
-Each caller's package accesses its own private data attribute.
+The C<data()> method associates arbitrary data with a watcher.
+
+This method is not intended for implementers of watchers.  If you are
+subclassing or implementing a watcher, consider the C<private()>
+method.
 
 =item debug => $bool
 
@@ -448,6 +451,13 @@ events.
 
 Changes the watcher's priority to the given level.  Events generated
 by a watcher usually inherit the priority of the watcher.
+
+=item private => $anything
+
+Use the C<private()> method to associate arbitrary data with a
+watcher.  This method is intended for implementers of watchers or
+watcher subclasses.  Each caller's package accesses its own private
+attribute.
 
 =item reentrant => $bool
 

@@ -90,12 +90,13 @@ static void pe_timeable_adjust(double delta) {
 }
 
 WKEYMETH(_timeable_hard) { /* applies to all timers in a watcher; is ok? */
-    if (!nval) {
+    if (nval) {
+	if (sv_true(nval)) WaHARD_on(ev); else WaHARD_off(ev);
+    }
+    {
 	dSP;
 	XPUSHs(boolSV(WaHARD(ev)));
 	PUTBACK;
-    } else {
-	if (sv_true(nval)) WaHARD_on(ev); else WaHARD_off(ev);
     }
 }
 

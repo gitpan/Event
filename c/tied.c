@@ -60,25 +60,22 @@ static void pe_tied_alarm(pe_watcher *ev, pe_timeable *_ign) {
 
 WKEYMETH(_tied_at) {
     pe_tied *tp = (pe_tied*) ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
-	PUTBACK;
-    } else {
+    if (nval) {
 	pe_timeable_stop(&tp->tm);
 	if (SvOK(nval)) {
 	    tp->tm.at = SvNV(nval);
 	    pe_timeable_start(&tp->tm);
 	}
     }
+    {
+	dSP;
+	XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_tied_flags) {
-    if (!nval) {
-	dSP;
-	XPUSHs(sv_2mortal(newSViv(ev->flags & PE_VISIBLE_FLAGS)));
-	PUTBACK;
-    } else {
+    if (nval) {
 	IV nflags = SvIV(nval);
 	IV flip = nflags ^ ev->flags;
 	IV other = flip & ~(PE_CBTIME|PE_INVOKE1);
@@ -90,6 +87,11 @@ WKEYMETH(_tied_flags) {
 	}
 	if (other)
 	    warn("Other flags (0x%x) cannot be changed", other);
+    }
+    {
+	dSP;
+	XPUSHs(sv_2mortal(newSViv(ev->flags & PE_VISIBLE_FLAGS)));
+	PUTBACK;
     }
 }
 

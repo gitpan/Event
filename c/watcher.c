@@ -80,17 +80,7 @@ static void pe_watcher_dtor(pe_watcher *wa) {
 /********************************** *******************************/
 
 WKEYMETH(_watcher_callback) {
-    if (!nval) {
-	SV *ret = (WaPERLCB(ev)?
-		   (SV*) ev->callback :
-		   (ev->callback?
-		    sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
-					ev->callback, ev->ext_data)) :
-		    &PL_sv_undef));
-	dSP;
-	XPUSHs(ret);
-	PUTBACK;
-    } else {
+    if (nval) {
 	AV *av;
 	SV *sv;
 	SV *old=0;
@@ -140,6 +130,17 @@ WKEYMETH(_watcher_callback) {
 	if (old)
 	    SvREFCNT_dec(old);
     }
+    {
+	SV *ret = (WaPERLCB(ev)?
+		   (SV*) ev->callback :
+		   (ev->callback?
+		    sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
+					ev->callback, ev->ext_data)) :
+		    &PL_sv_undef));
+	dSP;
+	XPUSHs(ret);
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_watcher_cbtime) {
@@ -152,40 +153,40 @@ WKEYMETH(_watcher_cbtime) {
 }
 
 WKEYMETH(_watcher_desc) {
-    if (!nval) {
+    if (nval) {
+	sv_setsv(ev->desc, nval);
+    }
+    {
 	dSP;
 	XPUSHs(ev->desc);
 	PUTBACK;
-    } else {
-	sv_setsv(ev->desc, nval);
     }
 }
 
 WKEYMETH(_watcher_debug) {
-    if (!nval) {
+    if (nval) {
+	if (sv_true(nval)) WaDEBUG_on(ev); else WaDEBUG_off(ev);
+    }
+    {
 	dSP;
 	XPUSHs(boolSV(WaDEBUG(ev)));
 	PUTBACK;
-    } else {
-	if (sv_true(nval)) WaDEBUG_on(ev); else WaDEBUG_off(ev);
     }
 }
 
 WKEYMETH(_watcher_priority) {
-    if (!nval) {
+    if (nval) {
+	ev->prio = SvIV(nval);
+    }
+    {
 	dSP;
 	XPUSHs(sv_2mortal(newSViv(ev->prio)));
 	PUTBACK;
-    } else
-	ev->prio = SvIV(nval);
+    }
 }
 
 WKEYMETH(_watcher_reentrant) {
-    if (!nval) {
-	dSP;
-	XPUSHs(boolSV(WaREENTRANT(ev)));
-	PUTBACK;
-    } else {
+    if (nval) {
 	if (sv_true(nval))
 	    WaREENTRANT_on(ev);
 	else {
@@ -195,43 +196,51 @@ WKEYMETH(_watcher_reentrant) {
 	    WaREENTRANT_off(ev);
 	}
     }
+    {
+	dSP;
+	XPUSHs(boolSV(WaREENTRANT(ev)));
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_watcher_repeat) {
-    if (!nval) {
+    if (nval) {
+	if (sv_true(nval)) WaREPEAT_on(ev); else WaREPEAT_off(ev);
+    }
+    {
 	dSP;
 	XPUSHs(boolSV(WaREPEAT(ev)));
 	PUTBACK;
-    } else {
-	if (sv_true(nval)) WaREPEAT_on(ev); else WaREPEAT_off(ev);
     }
 }
 
 WKEYMETH(_watcher_suspend) {
-    if (!nval) {
-	dSP;
-	XPUSHs(boolSV(WaSUSPEND(ev)));
-	PUTBACK;
-    } else {
+    if (nval) {
 	if (sv_true(nval))
 	    pe_watcher_suspend(ev);
 	else
 	    pe_watcher_resume(ev);
     }
+    {
+	dSP;
+	XPUSHs(boolSV(WaSUSPEND(ev)));
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_watcher_max_cb_tm) {
-    if (!nval) {
-	dSP;
-	XPUSHs(sv_2mortal(newSViv(ev->max_cb_tm)));
-	PUTBACK;
-    } else {
+    if (nval) {
 	int tm = SvIOK(nval)? SvIV(nval) : 0;
 	if (tm < 0) {
 	    warn("e_max_cb_tm must be non-negative");
 	    tm=0;
 	}
 	ev->max_cb_tm = tm;
+    }
+    {
+	dSP;
+	XPUSHs(sv_2mortal(newSViv(ev->max_cb_tm)));
+	PUTBACK;
     }
 }
 

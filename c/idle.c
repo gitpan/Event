@@ -100,29 +100,31 @@ static void pe_idle_stop(pe_watcher *ev) {
 
 WKEYMETH(_idle_max_interval) {
     pe_idle *ip = (pe_idle*) ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(ip->max_interval);
-	PUTBACK;
-    } else {
+    if (nval) {
 	SV *old = ip->max_interval;
 	ip->max_interval = SvREFCNT_inc(nval);
 	if (old) SvREFCNT_dec(old);
 	VERIFYINTERVAL("max", ip->max_interval);
     }
+    {
+	dSP;
+	XPUSHs(ip->max_interval);
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_idle_min_interval) {
     pe_idle *ip = (pe_idle*) ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(ip->min_interval);
-	PUTBACK;
-    } else {
+    if (nval) {
 	SV *old = ip->min_interval;
 	ip->min_interval = SvREFCNT_inc(nval);
 	if (old) SvREFCNT_dec(old);
 	VERIFYINTERVAL("min", ip->min_interval);
+    }
+    {
+	dSP;
+	XPUSHs(ip->min_interval);
+	PUTBACK;
     }
 }
 

@@ -52,30 +52,32 @@ static void pe_timer_alarm(pe_watcher *wa, pe_timeable *tm) {
 
 WKEYMETH(_timer_at) {
     pe_timer *tp = (pe_timer*)ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
-	PUTBACK;
-    } else {
+    if (nval) {
 	int active = WaPOLLING(ev);
 	if (active) pe_watcher_off(ev);
 	tp->tm.at = SvNV(nval);
 	if (active) pe_watcher_on(ev, 0);
     }
+    {
+	dSP;
+	XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_timer_interval) {
     pe_timer *tp = (pe_timer*)ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(tp->interval);
-	PUTBACK;
-    } else {
+    if (nval) {
 	SV *old = tp->interval;
 	tp->interval = SvREFCNT_inc(nval);
 	SvREFCNT_dec(old);
 	VERIFYINTERVAL("timer", tp->interval);
 	/* recalc expiration XXX */
+    }
+    {
+	dSP;
+	XPUSHs(tp->interval);
+	PUTBACK;
     }
 }
 

@@ -97,13 +97,22 @@ sub configure {
     }
 }
 
-sub data {  # assumes $self is a HASH ref
+sub private {  # assumes $self is a HASH ref
     my $self = shift;
     my $pkg = caller;
     if (@_) {
 	$self->{$pkg} = shift
     } else {
 	$self->{$pkg};
+    }
+}
+
+sub data {  # assumes $self is a HASH ref
+    my $self = shift;
+    if (@_) {
+	$self->{_user_data_} = shift
+    } else {
+	$self->{_user_data_};
     }
 }
 

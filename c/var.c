@@ -134,23 +134,20 @@ static void _var_restart(pe_watcher *ev) {
 
 WKEYMETH(_var_events) {
     pe_var *vp = (pe_var*)ev;
-    if (!nval) {
+    if (nval) {
+	vp->events = sv_2events_mask(nval, PE_R|PE_W);
+	_var_restart(ev);
+    }
+    {
 	dSP;
 	XPUSHs(sv_2mortal(events_mask_2sv(vp->events)));
 	PUTBACK;
-    } else {
-	vp->events = sv_2events_mask(nval, PE_R|PE_W);
-	_var_restart(ev);
     }
 }
 
 WKEYMETH(_var_variable) {
     pe_var *vp = (pe_var*)ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(vp->variable);
-	PUTBACK;
-    } else {
+    if (nval) {
 	SV *old = vp->variable;
 	int active = WaPOLLING(ev);
 	if (!SvROK(nval))
@@ -161,6 +158,11 @@ WKEYMETH(_var_variable) {
 	vp->variable = SvREFCNT_inc(nval);
 	if (active) pe_watcher_on(ev, 0);
 	SvREFCNT_dec(old);
+    }
+    {
+	dSP;
+	XPUSHs(vp->variable);
+	PUTBACK;
     }
 }
 

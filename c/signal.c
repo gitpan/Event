@@ -69,12 +69,7 @@ static void pe_signal_stop(pe_watcher *_ev) {
 
 WKEYMETH(_signal_signal) {
     pe_signal *sg = (pe_signal*) ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(sg->signal > 0?
-	       sv_2mortal(newSVpv(PL_sig_name[sg->signal],0)) : &PL_sv_undef);
-	PUTBACK;
-    } else {
+    if (nval) {
 	STRLEN n_a;
 	int active = WaPOLLING(ev);
 	int sig = whichsig(SvPV(nval, n_a));
@@ -86,6 +81,12 @@ WKEYMETH(_signal_signal) {
 	if (active) pe_watcher_off(ev);
 	sg->signal = sig;
 	if (active) pe_watcher_on(ev, 0);
+    }
+    {
+	dSP;
+	XPUSHs(sg->signal > 0?
+	       sv_2mortal(newSVpv(PL_sig_name[sg->signal],0)) : &PL_sv_undef);
+	PUTBACK;
     }
 }
 

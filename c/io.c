@@ -127,11 +127,7 @@ static void pe_io_reset_handle(pe_watcher *ev) {  /* used by unix_io */
 
 WKEYMETH(_io_poll) {
     pe_io *io = (pe_io*)ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(sv_2mortal(events_mask_2sv(io->poll)));
-	PUTBACK;
-    } else {
+    if (nval) {
 	int nev = sv_2events_mask(nval, PE_R|PE_W|PE_E);
 	if (io->timeout) nev |=  PE_T;
 	else             nev &= ~PE_T;
@@ -140,48 +136,45 @@ WKEYMETH(_io_poll) {
 	    _io_restart(ev);
 	}
     }
+    {
+	dSP;
+	XPUSHs(sv_2mortal(events_mask_2sv(io->poll)));
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_io_handle) {
     pe_io *io = (pe_io*)ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(io->handle);
-	PUTBACK;
-    } else {
+    if (nval) {
 	SV *old = io->handle;
 	io->handle = SvREFCNT_inc(nval);
 	SvREFCNT_dec(old);
 	io->fd = -1;
 	_io_restart(ev);
     }
+    {
+	dSP;
+	XPUSHs(io->handle);
+	PUTBACK;
+    }
 }
 
 WKEYMETH(_io_timeout) {
     pe_io *io = (pe_io*)ev;
-    if (!nval) {
+    if (nval) {
+	io->timeout = SvOK(nval)? SvNV(nval) : 0;  /*undef is ok*/
+	_io_restart(ev);
+    }
+    {
 	dSP;
 	XPUSHs(sv_2mortal(newSVnv(io->timeout)));
 	PUTBACK;
-    } else {
-	io->timeout = SvOK(nval)? SvNV(nval) : 0;  /*undef is ok*/
-	_io_restart(ev);
     }
 }
 
 WKEYMETH(_io_timeout_cb) {
     pe_io *io = (pe_io*)ev;
-    if (!nval) {
-	SV *ret = (WaTMPERLCB(ev)?
-		   (SV*) io->tm_callback :
-		   (io->tm_callback?
-		    sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
-					io->tm_callback, io->tm_ext_data)) :
-		    &PL_sv_undef));
-	dSP;
-	XPUSHs(ret);
-	PUTBACK;
-    } else {
+    if (nval) {
 	AV *av;
 	SV *sv;
 	SV *old=0;
@@ -207,6 +200,17 @@ WKEYMETH(_io_timeout_cb) {
 	}
 	if (old)
 	    SvREFCNT_dec(old);
+    }
+    {
+	SV *ret = (WaTMPERLCB(ev)?
+		   (SV*) io->tm_callback :
+		   (io->tm_callback?
+		    sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
+					io->tm_callback, io->tm_ext_data)) :
+		    &PL_sv_undef));
+	dSP;
+	XPUSHs(ret);
+	PUTBACK;
     }
 }
 

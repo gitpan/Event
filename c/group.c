@@ -117,16 +117,17 @@ static void pe_group_del(pe_group *gp, pe_watcher *target) {
 
 WKEYMETH(_group_timeout) {
     pe_group *gp = (pe_group*)ev;
-    if (!nval) {
-	dSP;
-	XPUSHs(gp->timeout);
-	PUTBACK;
-    } else {
+    if (nval) {
 	SV *old = gp->timeout;
 	gp->timeout = SvREFCNT_inc(nval);
 	SvREFCNT_dec(old);
 	VERIFYINTERVAL("group", gp->timeout);
 	/* recalc expiration XXX */
+    }
+    {
+	dSP;
+	XPUSHs(gp->timeout);
+	PUTBACK;
     }
 }
 
