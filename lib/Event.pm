@@ -13,7 +13,7 @@ use Carp;
 eval { require Carp::Heavy; };  # work around perl_call_pv bug XXX
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.70';
+$VERSION = '0.71';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -117,58 +117,46 @@ sub sweep {
     }
 }
 
-use vars qw($LoopLevel $ExitLevel $Result $TopResult);
-$LoopLevel = $ExitLevel = 0;
+use vars qw($Result $TopResult);
 
 my $loop_timer;
 sub loop {
     use integer;
-    if (@_ == 1) {
+    if (@_) {
 	my $how_long = shift;
 	if (!$loop_timer) {
 	    $loop_timer = Event->timer(desc => "Event::loop timeout",
 				       after => $how_long,
-				       cb => sub { unloop($how_long) });
+				       cb => sub { unloop($how_long) },
+				       parked=>1);
 	    $loop_timer->prio(PRIO_HIGH());
 	} else {
 	    $loop_timer->at(Event::time() + $how_long),
 	}
 	$loop_timer->start;
     }
-    $TopResult = undef;
+    $TopResult = undef;    # allow re-entry of loop after unloop_all
     local $Result = undef;
-    local $LoopLevel = $LoopLevel+1;
-    ++$ExitLevel;
+    _incr_looplevel();
     my $errsv = '';
     while (1) {
 	# like G_EVAL | G_KEEPERR
 	eval { $@ = $errsv; _loop() };
 	$errsv = $@;
 	if ($@) {
-#	    if ($Event::DebugLevel >= 2) {
-#		my $e = all_running();
-#		warn "Event: '$e->{desc}' died with: $@";
-#	    }
+	    warn "Event::loop caught: $@"
+		if $Event::DebugLevel >= 4;
 	    next
 	}
 	last;
     }
+    _decr_looplevel();
     $loop_timer->stop if $loop_timer;
     my $r = $Result;
     $r = $TopResult if !defined $r;
-    warn "Event: [$LoopLevel]unloop(".(defined $r?$r:'<undef>').")\n"
+    warn "Event: unloop(".(defined $r?$r:'<undef>').")\n"
 	if $Event::DebugLevel >= 3;
     $r
-}
-
-sub unloop {
-    $Result = shift;
-    --$ExitLevel;
-}
-
-sub unloop_all {
-    $TopResult = shift;
-    $ExitLevel = 0;
 }
 
 sub add_hooks {

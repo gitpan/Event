@@ -1,3 +1,21 @@
+2000-03-03  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.71.
+
+	* Moved LoopLevel & ExitLevel from Perl to C, squeezing out some
+ 	potential bugs.
+
+	* Fixed SEGV triggered if $DebugLevel >= 4.
+
+	* Warn on unmatched unloop.
+
+2000-03-01  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Added Tutorial.pdf (by Jochen).
+
+	* Moved semaphore & msg into demo directory.  No one has ever
+	asked for them to be finished, so they aren't.
+
 2000-02-25  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.70.

@@ -248,8 +248,7 @@ static void pe_event_invoke(pe_event *ev) {
     /* SETUP */
 
     if (CurCBFrame+1 >= MAX_CB_NEST) {
-	SV *exitL = perl_get_sv("Event::ExitLevel", 1);
-	sv_setiv(exitL, 0);
+	ExitLevel = 0;
 	croak("Deep recursion detected; invoking unloop_all()\n");
     }
 

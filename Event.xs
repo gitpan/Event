@@ -118,6 +118,7 @@ static void dbg_count_memory(int id, int cnt) {
 #  define EvFree(id, ptr) safefree(ptr)
 #endif
 
+static int LoopLevel, ExitLevel;
 static int ActiveWatchers=0; /* includes WaACTIVE + queued events */
 static int WarnCounter=16; /*XXX nuke */
 static SV *DebugLevel;
@@ -261,6 +262,7 @@ MODULE = Event		PACKAGE = Event
 PROTOTYPES: DISABLE
 
 BOOT:
+  LoopLevel = ExitLevel = 0;
   DebugLevel = SvREFCNT_inc(perl_get_sv("Event::DebugLevel", 1));
   Eval = SvREFCNT_inc(perl_get_sv("Event::Eval", 1));
   Estat.on=0;
@@ -334,6 +336,31 @@ _memory_counters()
     for (xx=0; xx < MAX_MEMORYCOUNT; xx++)
 	XPUSHs(sv_2mortal(newSViv(MemoryCount[xx])));
 #endif
+}
+
+void
+_incr_looplevel()
+     PPCODE:
+     ++LoopLevel;
+     ++ExitLevel;
+
+void
+_decr_looplevel()
+     PPCODE:
+     --LoopLevel;
+
+void
+unloop(...)
+     CODE:
+     pe_unloop(items? ST(0) : &PL_sv_undef);
+
+void
+unloop_all(...)
+     CODE:
+{
+    SV *rsv = perl_get_sv("Event::TopResult", 0);
+    sv_setsv(rsv, items? ST(0) : &PL_sv_undef);
+    ExitLevel = 0;
 }
 
 bool
@@ -450,11 +477,8 @@ one_event(...)
 void
 _loop()
 	CODE:
-	SV *exitL = perl_get_sv("Event::ExitLevel", 1);
-	SV *loopL = perl_get_sv("Event::LoopLevel", 1);
 	pe_check_recovery();
-	assert(SvIOK(exitL) && SvIOK(loopL));
-	while (SvIVX(exitL) >= SvIVX(loopL) && ActiveWatchers) {
+	while (ExitLevel >= LoopLevel && ActiveWatchers) {
 	  ENTER;
 	  SAVETMPS;
 	  one_event(60);

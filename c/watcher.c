@@ -316,6 +316,7 @@ static void pe_watcher_cancel(pe_watcher *wa) {
 
 static void pe_watcher_suspend(pe_watcher *ev) {
     STRLEN n_a;
+    assert(ev);
     if (WaSUSPEND(ev))
 	return;
     if (WaDEBUGx(ev) >= 4)
@@ -327,11 +328,12 @@ static void pe_watcher_suspend(pe_watcher *ev) {
 
 static void pe_watcher_resume(pe_watcher *ev) {
     STRLEN n_a;
+    assert(ev);
     if (!WaSUSPEND(ev))
 	return;
     WaSUSPEND_off(ev);
     if (WaDEBUGx(ev) >= 4)
-	warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,n_a),
+	warn("Event: resume '%s'%s\n", SvPV(ev->desc,n_a),
 	     WaACTIVE(ev)?" ACTIVE":"");
     if (WaACTIVE(ev))
         pe_watcher_on(ev, 0);

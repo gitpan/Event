@@ -8,6 +8,7 @@ MANIFEST.SKIP
 Makefile.PL
 README
 TODO
+Tutorial.pdf
 c/ev.c
 c/group.c
 c/hook.c
@@ -29,6 +30,8 @@ demo/process.pm
 demo/rand_interval.t
 demo/readline.t
 demo/repeat.t
+demo/msg.pm
+demo/semaphore.pm
 lib/Event.pm
 lib/Event.pod
 lib/Event/EventAPI.h
@@ -38,8 +41,6 @@ lib/Event/group.pm
 lib/Event/idle.pm
 lib/Event/inactivity.pm
 lib/Event/io.pm
-lib/Event/msg.pm
-lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
 lib/Event/type.pm

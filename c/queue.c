@@ -150,7 +150,7 @@ static void pe_queue_pending() {
 
 static int one_event(double tm) {  /**INVOKE**/
     /*if (SvIVX(DebugLevel) >= 4)
-      warn("Event: ActiveWatchers=%d\n", ActiveWatchers);*/
+      warn("Event: ActiveWatchers=%d\n", ActiveWatchers); /**/
 
     pe_signal_asynccheck();
     if (!PE_RING_EMPTY(&AsyncCheck)) pe_map_check(&AsyncCheck);
@@ -205,9 +205,10 @@ static int safe_one_event(double maxtm) {
 }
 
 static void pe_unloop(SV *why) {
-    SV *exitL = perl_get_sv("Event::ExitLevel", 0);
-    SV *result = perl_get_sv("Event::Result", 0);
-    assert(exitL && result);
-    sv_setsv(result, why);
-    sv_dec(exitL);
+    SV *rsv = perl_get_sv("Event::Result", 0);
+    assert(rsv);
+    sv_setsv(rsv, why);
+    if (--ExitLevel < 0) {
+	warn("Event::unloop() to %d", ExitLevel);
+    }
 }

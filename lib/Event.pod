@@ -695,7 +695,8 @@ descriptors.
 
 =head1 ALSO SEE
 
-L<Time::HiRes>, L<NetServer::ProcessTop>, and L<Time::Warp>.
+L<Time::HiRes>, L<NetServer::ProcessTop>, L<IPC::LDT>, L<Event-tcp>,
+and L<Time::Warp>.
 
 While Tk does not yet support Event, L<PerlQt> does.
 
