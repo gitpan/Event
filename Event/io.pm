@@ -36,7 +36,8 @@ sub cancel {
 sub prepare { 3600 }
 
 sub check {
-    # have a faster mapping from file descriptor to event object? XXX
+    # OPTIMIZE
+    # have a faster mapping from file descriptor to event object XXX
 
     for my $o (@cb) {
 	next unless Event::OS::GotEvent($o->{'handle'}, $o->{'events'});

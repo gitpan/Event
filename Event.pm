@@ -11,7 +11,7 @@ package Event;
 use Carp;
 use Time::HiRes qw(time);  #can be optional? XXX
 use vars qw($VERSION $DebugLevel %Set);
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 # 0    FAST, FAST, FAST!
 # 1    COLLECT SOME STATISTICS
@@ -117,6 +117,11 @@ sub _register {
     die "$package is already loaded" if $Source{$package};
     $Source{$package} = 1;
 
+    if (! $package->isa('Event')) {
+#	carp "\@$package\::ISA must include Event";
+	push @{"$package\::ISA"}, 'Event';
+    }
+
     my $name = $package;
     $name =~ s/^.*:://;
     my $sub = \&{"$package\::new"};
@@ -150,18 +155,17 @@ package Event::Loop;
 use Carp;
 use builtin qw(min);
 use vars qw(@ISA @EXPORT_OK
-	    @Queue $queueCount @Idle $MaxSleep);
+	    @Queue $queueCount @Idle);
 @ISA = 'Exporter';
 @EXPORT_OK = qw(initQueue waitForEvents queueEvent emptyQueue
 		doOneEvent Loop exitLoop
 		QUEUES PRIO_HIGH PRIO_NORMAL);
 
-# avoid inheritance XXX
 if (eval "require Event::OS::" . $^O ) {
     #ok
 }
 elsif ($@ =~ /Can\'t locate/ ) {
-    require Event::OS::default;
+    require Event::OS::default;  #hope ok
 }
 else { die }
 
@@ -175,24 +179,18 @@ sub initQueue {
     for (0 .. QUEUES-1) { $Queue[$_] = [] }
     $queueCount = 0;
     @Idle = ();
-    $MaxSleep = 60;
 }
 initQueue();
 
 #--------------------------------------- Queue
 
-sub waitForEvents {
-    my $wait = $queueCount ? 0 : $MaxSleep;
-    $wait = min $wait, (map { $_->prepare } @Event::Sources);
-
-    warn "Event::waitForEvents: wait=$wait\n"
-	if $Event::DebugLevel >= 3;
-    Event::OS::WaitForEvent($wait);
-
-    for my $e (@Event::Sources) { $e->check }
-}
-
 sub queueEvent {
+    # OPTIMIZE (1)
+
+    # Probably can be more efficient with linked-lists implemented
+    # in C.  This may necessitate restricting each event instance
+    # to be queued at most once.
+
     my $prio = shift;
     push @{$Queue[$prio]}, @_;
     $queueCount += @_;
@@ -204,6 +202,8 @@ sub queueEvent {
 }
 
 sub emptyQueue {
+    # OPTIMIZE (1)
+
     use integer;
     my ($max) = @_;
     if (!defined $max) {
@@ -225,7 +225,25 @@ sub emptyQueue {
     0
 }
 
+sub waitForEvents {
+    # OPTIMIZE (2)
+
+    # prepare can probably be reduced to checking:
+    #   $queueCount, next timer, and @Idle
+
+    my $wait = $queueCount ? 0 : 3600;
+    $wait = min $wait, (map { $_->prepare } @Event::Sources);
+
+    warn "Event::waitForEvents: wait=$wait\n"
+	if $Event::DebugLevel >= 3;
+    Event::OS::WaitForEvent($wait);
+
+    for my $e (@Event::Sources) { $e->check }
+}
+
 sub doOneEvent {
+    # OPTIMIZE (2)
+
     for my $e (@Event::AsyncSources) { $e->check }
 
     return 1 if emptyQueue();
@@ -288,7 +306,7 @@ sub new {
     if (@_ == 1) {
 	$arg{callback} = shift;
 	carp "pls change to Event->idle(callback => \$callback)"
-	    if !$arg_warning++;
+	    if ++$arg_warning < 3;
     }
     else { %arg = @_ }
 

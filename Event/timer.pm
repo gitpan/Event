@@ -83,7 +83,8 @@ sub check {
 sub _insert {
     my $obj = shift;
 
-    # should do binary insertion sort? XXX
+    # Should do binary insertion sort?  No.  Long-term timers deserve
+    # the performance hit.  Code should be optimal for short-term timers.
 
     my $pos=0;
     if (@timer) {

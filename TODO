@@ -1,4 +1,7 @@
 freeze the design and re-implement in C!
   see util/event.h
+  envisioned is an meshing not unlike what has been done with PerlQt
 
 more time() caching?
+
+allow 'again' to be called on cancelled events?
