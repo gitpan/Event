@@ -21,6 +21,7 @@ static void pe_idle_dtor(pe_watcher *ev) {
     SvREFCNT_dec(ip->max_interval);
     SvREFCNT_dec(ip->min_interval);
     pe_watcher_dtor(ev);
+    EvFree(3, ev);
 }
 
 static void pe_idle_start(pe_watcher *ev, int repeating) {

@@ -16,6 +16,7 @@ static void pe_timer_dtor(pe_watcher *ev) {
     pe_timer *tm = (pe_timer*) ev;
     SvREFCNT_dec(tm->interval);
     pe_watcher_dtor(ev);
+    EvFree(7, ev);
 }
 
 static void pe_timer_start(pe_watcher *ev, int repeat) {

@@ -149,6 +149,9 @@ static void pe_queue_pending() {
 }
 
 static int one_event(double tm) {  /**INVOKE**/
+    /*if (SvIVX(DebugLevel) >= 4)
+      warn("Event: ActiveWatchers=%d\n", ActiveWatchers);*/
+
     pe_signal_asynccheck();
     if (!PE_RING_EMPTY(&AsyncCheck)) pe_map_check(&AsyncCheck);
 

@@ -25,8 +25,8 @@ struct pe_watcher {
     IV running; /* SAVEINT */
     U32 flags;
     SV *desc;
-    pe_ring all;
-    pe_ring events;  /* queued events */
+    pe_ring all;	/* all watchers */
+    pe_ring events;	/* this watcher's queued events */
     HV *FALLBACK;
     I16 event_counter; /* refcnt? XXX */
     I16 prio;

@@ -1,3 +1,19 @@
+2000-01-20  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.59.
+
+	* Fixed serious memory leak (isolated by
+ 	Jochen.Stenzel.gp@icn.siemens.de). Added t/leak2.t.
+
+2000-01-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Doc for timeout_cb (demanded by uri@sysarch.com :-).
+
+1999-12-15  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Added demo/variable_timer.t along with minor doc
+ 	update. (jsalmon@gw.thesalmons.org)
+
 1999-11-22  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.58.

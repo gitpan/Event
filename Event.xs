@@ -94,10 +94,12 @@ static void dbg_count_memory(int id, int cnt) {
     MemoryCount[id] += cnt;
 }
 
-#if DEBUGGING
+#if EVENT_MEMORY_DEBUG
 #  define EvNew(id, ptr, size, type) dbg_count_memory(id,1); New(0,ptr,size,type)
+#  define EvFree(id, ptr) STMT_START { dbg_count_memory(id,-1); safefree(ptr); } STMT_END
 #else
 #  define EvNew(x, ptr, size, type) New(0,ptr,size,type)
+#  define EvFree(id, ptr) safefree(ptr)
 #endif
 
 static int ActiveWatchers=0; /* includes WaACTIVE + queued events */
@@ -309,7 +311,7 @@ void
 _memory_counters()
      PPCODE:
 {
-#ifdef DEBUGGING
+#ifdef EVENT_MEMORY_DEBUG
     int xx;
     for (xx=0; xx < MAX_MEMORYCOUNT; xx++)
 	XPUSHs(sv_2mortal(newSViv(MemoryCount[xx])));

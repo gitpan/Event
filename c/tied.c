@@ -10,6 +10,11 @@ static pe_watcher *pe_tied_allocate(HV *stash, SV *temple) {
     return (pe_watcher*) ev;
 }
 
+static void pe_tied_dtor(pe_watcher *ev) {
+    pe_watcher_dtor(ev);
+    EvFree(6, ev);
+}
+
 static void pe_tied_start(pe_watcher *ev, int repeat) {
     HV *stash = SvSTASH(SvRV(ev->mysv));
     GV *gv;
@@ -92,6 +97,7 @@ static void boot_tied() {
     pe_watcher_vtbl *vt = &pe_tied_vtbl;
     memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
     vt->did_require = 1; /* otherwise tries to autoload Event::Event! */
+    vt->dtor = pe_tied_dtor;
     vt->start = pe_tied_start;
     vt->stop = pe_tied_stop;
     vt->alarm = pe_tied_alarm;

@@ -168,9 +168,9 @@ Reports whether the C<$watcher> is suspended.
 
 Extra attributes: min => $seconds, max => $seconds
 
-The callback is invoked only when no events are pending.  In the
-callback is not triggered by idling, an event will be generated at
-least every C<max> seconds and not more often than C<min> seconds.
+The callback is invoked only when no events are pending.  If there is
+never a chance to idle, an event will be generated at least every
+C<max> seconds and not more often than C<min> seconds.
 
 =item inactivity
 
@@ -204,7 +204,7 @@ calculated relative to the current time (this is the default).
 =item io
 
 Extra attributes: fd => $fd, poll => 'rwe', got => 'rwet',
-[timeout => $seconds, hard => $bool]
+[timeout => $seconds, hard => $bool, timeout_cb => \&code]
 
 The callback is invoked when the file descriptor, C<fd>, has data to
 be read, written, or pending exceptions.  C<fd> can be a GLOB, an
@@ -212,6 +212,9 @@ IO::Handle object, or a file number (file descriptor).
 
 Note that it is your option whether to have multiple watchers per file
 handle or to use a single watcher for all event conditions.
+
+If timeout_cb is set then timeouts use this alternate callback instead
+of the main callback.
 
 =item signal
 
@@ -298,7 +301,8 @@ Signals in quick succession can be clumped into a single event.
 
 =item interval => $seconds
 
-How long between repeating timeouts.
+How long between repeating timeouts.  The C<at> attribute is
+recalculated using C<interval> upon callback return.
 
 =item level => $priority
 
@@ -398,6 +402,14 @@ actually want to stop a watcher then use the C<stop> method.
 =item timeout => $seconds
 
 The number of seconds before a watcher times out.
+
+=item timeout_cb => \&code
+
+=item timeout_cb => [$class_or_object, $method_name]
+
+This is an optional attribute for use when it is desired that timeouts
+be serviced in a separate code path than normal events.  When this
+attribute is unset, timeouts are serviced by C<cb>.
 
 =item var => $ref
 

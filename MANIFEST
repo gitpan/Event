@@ -26,6 +26,7 @@ demo/inactivity.t
 demo/process.pm
 demo/readline.t
 demo/spin_io.t
+demo/variable_repeater.t
 lib/Event.pm
 lib/Event.pod
 lib/Event/EventAPI.h
@@ -51,6 +52,7 @@ t/idle.t
 t/idle2.t
 t/io.t
 t/leak.t
+t/leak2.t
 t/loop.t
 t/now.t
 t/reenter.t

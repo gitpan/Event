@@ -14,6 +14,14 @@ optimization
     queue events from both sides?
   try to hoist system calls from the inner loop
 
+mjtg@cus.cam.ac.uk signal discussion:
+  The API rsignal overrides the current signal handler.  If the signal
+  watcher is cancelled (or otherwise disabled) then rsignal is reset to
+  SIG_DFL.  You bring up a good point here.  Maybe the original handler
+  should be restored.  On the other hand, assignment to %SIG will mess
+  up Event watchers so maybe Event should refuse to watch a signal if a
+  handler is already installed.
+
 loop
   StarvePrio?
 

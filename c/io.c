@@ -29,6 +29,7 @@ static void pe_io_dtor(pe_watcher *_ev) {
     PE_RING_DETACH(&ev->ioring);
     SvREFCNT_dec(ev->handle);
     pe_watcher_dtor(_ev);
+    EvFree(4, _ev);
 }
 
 static void pe_io_start(pe_watcher *_ev, int repeat) {

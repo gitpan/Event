@@ -75,7 +75,7 @@ static void pe_sys_multiplex(double timeout) {
     int ret;
     if (pollMax < IOWatchCount) {
 	if (Pollfd)
-	    safefree(Pollfd);
+	    EvFree(9, Pollfd);
 	pollMax = IOWatchCount+5;
 	EvNew(9, Pollfd, pollMax, struct pollfd);
 	IOWatch_OK = 0;

@@ -16,6 +16,7 @@ static void pe_var_dtor(pe_watcher *ev) {
     pe_var *wv = (pe_var *)ev;
     SvREFCNT_dec(wv->variable);
     pe_watcher_dtor(ev);
+    EvFree(10, ev);
 }
 
 static void pe_tracevar(pe_watcher *wa, SV *sv, int got) {
@@ -81,7 +82,7 @@ static void pe_var_start(pe_watcher *_ev, int repeat) {
     mg->mg_virtual = &PL_vtbl_uvar;
     *mgp = mg;
     
-    EvNew(12, ufp, 1, struct ufuncs);
+    EvNew(8, ufp, 1, struct ufuncs);
     ufp->uf_val = ev->events & PE_R? tracevar_r : 0;
     ufp->uf_set = ev->events & PE_W? tracevar_w : 0;
     ufp->uf_index = (IV) ev;
@@ -119,8 +120,8 @@ static void pe_var_stop(pe_watcher *_ev) {
 
     *mgp = mg->mg_moremagic;
 
-    safefree(mg->mg_ptr);
-    safefree(mg);
+    EvFree(8, mg->mg_ptr);
+    EvFree(11, mg);
 }
 
 static void _var_restart(pe_watcher *ev) {

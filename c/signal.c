@@ -41,6 +41,11 @@ static pe_watcher *pe_signal_allocate(HV *stash, SV *temple) {
     return (pe_watcher*) ev;
 }
 
+static void pe_signal_dtor(pe_watcher *ev) {
+    pe_watcher_dtor(ev);
+    EvFree(5, ev);
+}
+
 static void pe_signal_start(pe_watcher *_ev, int repeat) {
     pe_signal *ev = (pe_signal*) _ev;
     int sig = ev->signal;
@@ -138,6 +143,7 @@ static void boot_signal() {
 	++sigp;
     }
     memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
+    vt->dtor = pe_signal_dtor;
     vt->start = pe_signal_start;
     vt->stop = pe_signal_stop;
     pe_register_vtbl(vt, gv_stashpv("Event::signal",1), &event_vtbl);

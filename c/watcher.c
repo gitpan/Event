@@ -49,8 +49,8 @@ static void pe_watcher_cancel_events(pe_watcher *wa) {
     pe_event *ev;
     while (!PE_RING_EMPTY(&wa->events)) {
 	pe_ring *lk = wa->events.prev;
-	PE_RING_DETACH(lk);
 	ev = (pe_event*) lk->self;
+	dequeEvent(ev);
 	pe_event_release(ev);
     }
 }
@@ -74,7 +74,7 @@ static void pe_watcher_dtor(pe_watcher *wa) {
 	SvREFCNT_dec(wa->desc);
     if (wa->stats)
 	Estat.dtor(wa->stats);
-    safefree(wa);
+    /* safefree(wa); do it yourself */
 }
 
 /********************************** *******************************/
@@ -243,7 +243,7 @@ static void boot_pe_watcher() {
     vt = &pe_watcher_base_vtbl;
     vt->stash = 0;
     vt->did_require = 0;
-    vt->dtor = pe_watcher_dtor;
+    vt->dtor = 0;
     vt->start = pe_watcher_nostart;
     vt->stop = pe_watcher_nostop;
     vt->alarm = pe_watcher_alarm;

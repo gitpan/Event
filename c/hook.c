@@ -44,7 +44,7 @@ static void pe_cancel_hook(pe_qcallback *qcb)
   if (qcb->is_perl)
     SvREFCNT_dec((SV*)qcb->callback);
   PE_RING_DETACH(&qcb->ring);
-  safefree(qcb);
+  EvFree(2, qcb);
 }
 
 static void pe_map_check(pe_ring *List)
