@@ -125,13 +125,13 @@ static void pe_io_FETCH(pe_event *_ev, SV *svkey)
   switch (key[0]) {
   case 'e':
     if (len == 6 && memEQ(key, "events", 6)) {
-      ret = sv_2mortal(io_events_2sv(ev->events));
+      ret = sv_2mortal(events_mask_2sv(ev->events));
       break;
     }
     break;
   case 'g':
     if (len == 3 && memEQ(key, "got", 3)) {
-      ret = sv_2mortal(io_events_2sv(ev->got));
+      ret = sv_2mortal(events_mask_2sv(ev->got));
       break;
     }
     break;
@@ -233,7 +233,6 @@ static void pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
   }
   if (ok) {
     if (EvACTIVE(ev)) {
-      /* will deque if queued? XXX */
       pe_io_stop(_ev);
       pe_io_start(_ev, 0);
     }

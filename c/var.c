@@ -6,7 +6,9 @@ static pe_event *pe_var_allocate()
   New(PE_NEWID, ev, 1, pe_var);
   ev->base.vtbl = &pe_var_vtbl;
   pe_event_init((pe_event*) ev);
-  ev->variable = 0;
+  ev->variable = &sv_undef;
+  ev->events = PE_W;
+  ev->got = 0;
   EvREPEAT_on(ev);
   EvINVOKE1_off(ev);
   return (pe_event*) ev;
@@ -15,18 +17,13 @@ static pe_event *pe_var_allocate()
 static void pe_var_dtor(pe_event *ev)
 {
   pe_var *wv = (pe_var *)ev;
-  if (wv->variable)
-    SvREFCNT_dec(wv->variable);
+  SvREFCNT_dec(wv->variable);
   (*ev->vtbl->up->dtor)(ev);
 }
 
-static I32 tracevar(ix, sv)
-IV ix;
-SV *sv;
+static void pe_tracevar(pe_event *ev, SV *sv)
 {
-/*    dXSARGS;*/
-    pe_event *ev = (pe_event *)ix;
-    /* Taken From tkGlue.c
+    /* Adapted from tkGlue.c
 
        We are a "magic" set processor.
        So we are (I think) supposed to look at "private" flags 
@@ -41,17 +38,25 @@ SV *sv;
        some magic list or be careful how we insert ourselves in the list?
     */
 
-    if (!SvPOK(sv) && SvPOKp(sv))
-	SvPOK_on(sv);
-
-    if (!SvNOK(sv) && SvNOKp(sv))
-	SvNOK_on(sv);
-
-    if (!SvIOK(sv) && SvIOKp(sv))
-	SvIOK_on(sv);
+    if (SvPOKp(sv)) SvPOK_on(sv);
+    if (SvNOKp(sv)) SvNOK_on(sv);
+    if (SvIOKp(sv)) SvIOK_on(sv);
 
     queueEvent(ev, 1);
+}
 
+static I32 tracevar_r(IV ix, SV *sv)
+{
+    pe_event *ev = (pe_event *)ix;
+    ((pe_var*)ev)->got |= PE_R;
+    pe_tracevar(ev, sv);
+    return 0; /*ignored*/
+}
+static I32 tracevar_w(IV ix, SV *sv)
+{
+    pe_event *ev = (pe_event *)ix;
+    ((pe_var*)ev)->got |= PE_W;
+    pe_tracevar(ev, sv);
     return 0; /*ignored*/
 }
 
@@ -64,8 +69,10 @@ static void pe_var_start(pe_event *_ev, int repeat)
     pe_var *ev = (pe_var*) _ev;
     SV *sv = ev->variable;
 
-    if (!sv)
+    if (!sv || !SvOK(sv))
       croak("No variable specified");
+    if (!ev->events)
+      croak("No events specified");
     sv = SvRV(sv);
     if (SvREADONLY(sv))
       croak("Cannot trace readonly variable");
@@ -85,10 +92,11 @@ static void pe_var_start(pe_event *_ev, int repeat)
     *mgp = mg;
 
     New(PE_NEWID, ufp, 1, struct ufuncs);
-    ufp->uf_val = 0;
-    ufp->uf_set = tracevar;
+    ufp->uf_val = ev->events & PE_R? tracevar_r : 0;
+    ufp->uf_set = ev->events & PE_W? tracevar_w : 0;
     ufp->uf_index = (IV) ev;
     mg->mg_ptr = (char *) ufp;
+    mg->mg_obj = (SV*) ev; /* hope not REFCNT_dec! */
 
     mg_magical(sv);
     if (!SvMAGICAL(sv))
@@ -103,8 +111,10 @@ static void pe_var_stop(pe_event *_ev)
     pe_var *ev = (pe_var*) _ev;
     SV *sv = SvRV(ev->variable);
 
-    if (SvTYPE(sv) < SVt_PVMG || !SvMAGIC(sv))
-        return;
+    if (SvTYPE(sv) < SVt_PVMG || !SvMAGIC(sv)) {
+      warn("Var unmagic'd already?");
+      return;
+    }
 
     mgp = &SvMAGIC(sv);
     while ((mg = *mgp)) {
@@ -113,13 +123,21 @@ static void pe_var_stop(pe_event *_ev)
 	mgp = &mg->mg_moremagic;
     }
 
-    if(!mg)
-	return;
+    if(!mg) {
+      warn("Couldn't find var magic");
+      return;
+    }
 
     *mgp = mg->mg_moremagic;
 
     safefree(mg->mg_ptr);
     safefree(mg);
+}
+
+static void pe_var_postCB(pe_cbframe *fp)
+{
+  ((pe_var*) fp->ev)->got = 0;
+  pe_event_postCB(fp);
 }
 
 static void pe_var_FETCH(pe_event *_ev, SV *svkey)
@@ -131,6 +149,18 @@ static void pe_var_FETCH(pe_event *_ev, SV *svkey)
   if (len && key[0] == '-') { ++key; --len; }
   if (!len) return;
   switch (key[0]) {
+  case 'e':
+    if (len == 6 && memEQ(key, "events", 6)) {
+      ret = sv_2mortal(events_mask_2sv(ev->events));
+      break;
+    }
+    break;
+  case 'g':
+    if (len == 3 && memEQ(key, "got", 3)) {
+      ret = sv_2mortal(events_mask_2sv(ev->got));
+      break;
+    }
+    break;
   case 'v':
     if (len == 8 && memEQ(key, "variable", 8)) {
       ret = ev->variable;
@@ -156,19 +186,32 @@ static void pe_var_STORE(pe_event *_ev, SV *svkey, SV *nval)
   if (len && key[0] == '-') { ++key; --len; }
   if (!len) return;
   switch (key[0]) {
+  case 'e':
+    if (len == 6 && memEQ(key, "events", 6)) {
+      ok=1;
+      ev->events = sv_2events_mask(nval, PE_R|PE_W);
+      if (EvACTIVE(ev)) {
+	pe_event_stop(_ev);
+	pe_event_start(_ev, 0);
+      }
+      break;
+    }
+    break;
+  case 'g':
+    if (len == 3 && memEQ(key, "got", 3))
+      croak("'got' is read-only");
+    break;
   case 'v':
     if (len == 8 && memEQ(key, "variable", 8)) {
+      SV *old = ev->variable;
       int active = EvACTIVE(ev);
       if (!SvROK(nval))
 	croak("Expecting a reference");
       ok=1;
-      if (active)
-	pe_event_stop(_ev);
-      if (ev->variable)
-	SvREFCNT_dec(ev->variable);
+      if (active)	pe_event_stop(_ev);
       ev->variable = SvREFCNT_inc(nval);
-      if (active)
-	pe_event_start(_ev, 0);
+      SvREFCNT_dec(old);
+      if (active)	pe_event_start(_ev, 0);
       break;
     }
     break;
@@ -179,7 +222,9 @@ static void pe_var_STORE(pe_event *_ev, SV *svkey, SV *nval)
 static void boot_var()
 {
   static char *keylist[] = {
-    "variable"
+    "variable",
+    "events",
+    "got"
   };
   pe_event_vtbl *vt = &pe_var_vtbl;
   memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
@@ -192,6 +237,7 @@ static void boot_var()
   vt->STORE = pe_var_STORE;
   vt->start = pe_var_start;
   vt->stop = pe_var_stop;
+  vt->postCB = pe_var_postCB;
   pe_register_vtbl(vt);
 }
 

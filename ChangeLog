@@ -1,9 +1,28 @@
+1998-10-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Rename inactive to inactivity.
+
+	* Use new self-tie to wrap watcher objects.  Leak test now passes
+ 	for almost all watcher types.
+
+1998-10-04  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Slight improvements to gettimeofday.c.
+
+	* Merged c_callback & perl_callback into one pointer slot.
+
 1998-10-03  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Added timeable methods to the public API.
+
+	* Var watchers weren't working very well.  Set up events/got mask
+ 	stuff mirroring io watchers.  Added tests.  Does anyone really
+ 	want timeouts?
 
 	* Release 0.19.
 
 	* Put in code for tailpoll, but I can't tell if it works because
- 	it the tail-f behavior seems to already happen automatically.
+ 	the tail-f behavior seems to already happen automatically.
   	Comments?  See demo/tail.t.
 
 	* Added inactive watchers (& tests).
@@ -20,7 +39,7 @@
 
 	* Dashes depreciated.
 
-	* Added -timeout to process watchers.
+	* Added -timeout to process watchers.  Might be useful.
 
 	* Fixed typo induced polling in one_event.
 

@@ -1,5 +1,10 @@
 # This -*- perl -*- script makes the Makefile
 
+warn "
+  ** WARNING ** REQUIRES NEW SELF-TIE PATCH ** WARNING **
+
+";
+
 require 5.00405;
 use ExtUtils::MakeMaker;
 

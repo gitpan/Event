@@ -31,8 +31,9 @@ Event->idle(repeat => 1, callback => sub { Event::sleep $Min; ++$sleeps });
 
 loop();
 
+my $epsilon = .025;
 ok $sleeps > 1; #did we test anything?
-ok $min >= $Min;
-ok $max < $Max;
+ok $min >= $Min-$epsilon;
+ok $max < $Max+$epsilon;
 ok $sum/$cnt >= $min;
 ok $sum/$cnt <= $max;

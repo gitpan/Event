@@ -326,7 +326,7 @@ See L<Event::MakeMaker>.
 
 =head1 ALSO SEE
 
-L<NetServer::ProcessTop>
+L<NetServer::ProcessTop> and L<Time::HiRes>
 
 =head1 SUPPORT
 

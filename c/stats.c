@@ -140,7 +140,7 @@ static void pe_stat_restart()
     EvREPEAT_on(ev);
     sv_setpv(ev->desc, "Event::Stats");
     ev->priority = PE_PRIO_NORMAL + 1;
-    ev->c_callback = pe_stat_roll_cb;
+    ev->callback = (void*) pe_stat_roll_cb;
     gettimeofday(&total_tm, 0);
     pe_event_start(ev, 0);
   }

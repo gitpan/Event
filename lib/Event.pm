@@ -13,7 +13,7 @@ use base 'Exporter';
 use vars qw($VERSION @EXPORT_OK @EXPORT_FAIL
 	    $API $DebugLevel $Eval $DIED $Now
 	    @Prepare @Check @AsyncCheck);
-$VERSION = '0.19';
+$VERSION = '0.20';
 BOOT_XS: {
     # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;

@@ -38,34 +38,20 @@ gettimeofday (struct timeval *tp, void *nothing)
 }
 #endif
 
-/* Yet another hard to maintain API in the name of performance!! */
-
 static SV *NowSV;
-static double NowDouble;
-static int pe_now_valid;
+static double *NowDouble;
+static int pe_now_valid; /*?*/
 
-/*
-  Make virtual method for:
-  - alternate time encodings
-  - changing speed of time
-  - for year 2000 testing :-)
-*/
 static double pe_cache_now()
 {
   struct timeval now_tm;
   gettimeofday(&now_tm, 0);
-  NowDouble = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
-  if (!SvNOK(NowSV)) {
-    sv_setnv(NowSV, NowDouble);
-    SvREADONLY_on(NowSV);
-  }
-  else
-    SvNVX(NowSV) = NowDouble;
+  *NowDouble = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
   /*  pe_now_valid = 1; XXX */
-  return NowDouble;
+  return *NowDouble;
 }
 
-static void pe_invalidate_now_cache()
+static void pe_invalidate_now_cache() /* NUKE? */
 {
   pe_now_valid = 0;
 }
@@ -73,8 +59,11 @@ static void pe_invalidate_now_cache()
 static void boot_gettimeofday()
 {
   NowSV = perl_get_sv("Event::Now", 1);
+  sv_setnv(NowSV, 0);
+  SvREADONLY_on(NowSV);
+  NowDouble = &SvNVX(NowSV);
   pe_now_valid = 0;
   pe_cache_now();
 }
 
-#define EvNOW(exact) ((!exact || pe_now_valid)? NowDouble : pe_cache_now())
+#define EvNOW(exact) (!exact? *NowDouble : pe_cache_now())

@@ -166,7 +166,7 @@ static void pe_idle_STORE(pe_event *_ev, SV *svkey, SV *nval)
   }
   if (ok) {
     if (old) SvREFCNT_dec(old);
-    /* WILL ADAPT NEXT TIME THROUGH XXX?
+    /* WILL ADAPT NEXT TIME THROUGH!
     if (EvACTIVE(ev)) {
       pe_idle_stop(_ev);
       pe_idle_start(_ev, 0);

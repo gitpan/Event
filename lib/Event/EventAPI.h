@@ -27,25 +27,22 @@ typedef struct pe_ring pe_ring;
 
 struct pe_ring { void *self; pe_ring *next, *prev; };
 
-struct pe_event {  /* 96 bytes; easy come easy go... */
+struct pe_event {
   pe_event_vtbl *vtbl;
   HV *stash;
-  pe_ring all, que;
-  int iter;
-  HV *FALLBACK;
-  int id;
-  int refcnt;
-  int flags;
-  int priority;
+  U32 flags;
+  I32 refcnt;
   SV *desc;
-
-  int running;
+  pe_ring all, que;
+  HV *FALLBACK;
+  I16 iter;
+  I16 id;
+  I16 priority;
+  IV running; /* SAVEINT */
   double cbtime;
-  int count;
-  SV *perl_callback[2];
-  void (*c_callback)();
+  I32 count;
+  void *callback;
   void *ext_data;
-
   pe_stat *stats;
 };
 
@@ -61,10 +58,10 @@ struct pe_timeable {
 #define PE_INTERVAL_EPSILON 0.00001
 
 /* PUBLIC FLAGS */
-#define PE_DEBUG	0x100
-#define PE_REPEAT	0x200
-#define PE_INVOKE1	0x400
-#define PE_CBTIME	0x800
+#define PE_DEBUG	0x0100
+#define PE_REPEAT	0x0200
+#define PE_INVOKE1	0x0400
+#define PE_CBTIME	0x0800
 
 #define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 2:0) /*arthimetical*/
 #define EvDEBUG_on(ev)		(EvFLAGS(ev) |= PE_DEBUG)
@@ -110,8 +107,8 @@ struct pe_io {
   SV *handle;
   float timeout;
   float tailpoll;
-  int events;
-  int got;
+  U16 events;
+  U16 got;
 /* ifdef UNIX */
   int fd;
   int xref;  /*private: for poll*/
@@ -123,7 +120,7 @@ typedef struct pe_signal pe_signal;
 struct pe_signal {
   pe_event base;
   pe_ring sring;
-  int signal;
+  IV signal;
 };
 
 typedef struct pe_timer pe_timer;
@@ -136,21 +133,26 @@ struct pe_timer {
 typedef struct pe_var pe_var;
 struct pe_var {
   pe_event base;
-  pe_timeable tm;
   SV *variable;
+  U16 events;
+  U16 got;
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 6
+#define EventAPI_VERSION 8
   I32 Ver;
 
-  /* PUBLIC API */
+  /* EVENTS */
   void (*start)(pe_event *ev, int repeat);
   void (*queue)(pe_event *ev, int count);
   void (*now)(pe_event *ev);
   void (*suspend)(pe_event *ev);
   void (*resume)(pe_event *ev);
   void (*cancel)(pe_event *ev);
+
+  /* TIMEABLE */
+  void (*tstart)(pe_timeable *);
+  void (*tstop)(pe_timeable *);
 
   pe_idle     *(*new_idle)();
   pe_timer    *(*new_timer)();

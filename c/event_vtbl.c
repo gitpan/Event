@@ -36,9 +36,7 @@ static void pe_event_init(pe_event *ev)
   ev->cbtime = 0;
   ev->count = 0;
   ev->priority = PE_QUEUES;
-  ev->perl_callback[0] = 0;  /* store ARRAY? XXX */
-  ev->perl_callback[1] = 0;
-  ev->c_callback = 0;
+  ev->callback = 0;
   ev->ext_data = 0;
   ev->stats = 0;
 }
@@ -54,10 +52,8 @@ static void pe_event_dtor(pe_event *ev)
     SvREFCNT_dec(ev->FALLBACK);
   if (ev->desc)
     SvREFCNT_dec(ev->desc);
-  for (xx=0; xx < 2; xx++) {
-    if (ev->perl_callback[xx])
-      SvREFCNT_dec(ev->perl_callback[xx]);
-  }
+  if (EvPERLCB(ev))
+    SvREFCNT_dec(ev->callback);
   safefree(ev);
 }
 
@@ -74,20 +70,11 @@ static void pe_event_FETCH(pe_event *ev, SV *svkey)
   switch (key[0]) {
   case 'c':
     if (len == 8 && memEQ(key, "callback", 8)) {
-      if (ev->perl_callback[0]) {
-	if (!ev->perl_callback[1]) {
-	  ret = ev->perl_callback[0];
-	} else {
-	  int xx;
-	  AV *av = newAV();
-	  for (xx=0; xx < 2; xx++) {
-	    av_store(av, xx, SvREFCNT_inc(ev->perl_callback[xx]));
-	  }
-	  ret = sv_2mortal(newRV_noinc((SV*)av));
-	}
-      } else if (ev->c_callback) {
-	ret = sv_2mortal(newSVpvf("<CFUNC=0x%x EXT=0x%x>",
-				  ev->c_callback, ev->ext_data));
+      if (EvPERLCB(ev)) {
+	ret = (SV*) ev->callback;
+      } else {
+	ret = sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
+				  ev->callback, ev->ext_data));
       }
       break;
     }
@@ -159,30 +146,22 @@ static void pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
   if (!len) return;
   switch (key[0]) {
   case 'c':
-    if (len == 8 && memEQ(key, "callback", 8)) { ok=1;
-    /* move after REFCNT_inc XXX */
-      for (xx=0; xx < 2; xx++) {
-	if (ev->perl_callback[xx]) {
-	  SvREFCNT_dec(ev->perl_callback[xx]);
-	  ev->perl_callback[xx] = 0;
-	}
+    if (len == 8 && memEQ(key, "callback", 8)) {
+      SV *sv;
+      SV *old=0;
+      ok=1;
+      if (EvPERLCB(ev))
+	old = (SV*) ev->callback;
+      EvPERLCB_on(ev);
+      if (!SvROK(nval) ||
+	  (SvTYPE(sv=SvRV(nval)) != SVt_PVCV &&
+	   (SvTYPE(sv) != SVt_PVAV || av_len((AV*)sv) != 1))) {
+	sv_dump(sv);
+	croak("Callback must be a code ref or two element array ref");
       }
-      if (!SvOK(nval)) {
-	/*ok*/
-      } else if (SvROK(nval) && SvTYPE(SvRV(nval)) == SVt_PVAV) {
-	AV *av = (AV*)SvRV(nval);
-	if (av_len(av) != 1) croak("Expecting [$class,$method]");
-	for (xx=0; xx < 2; xx++) {
-	  SV **tmp = av_fetch(av,xx,0);
-	  if (!tmp || !SvOK(*tmp)) {
-	    if (tmp) sv_dump(*tmp);
-	    croak("Bad arg at %d", xx);
-	  }
-	  ev->perl_callback[xx] = SvREFCNT_inc(*tmp);
-	}
-      } else {
-	ev->perl_callback[0] = SvREFCNT_inc(nval);
-      }
+      ev->callback = SvREFCNT_inc(nval);
+      if (old)
+	SvREFCNT_dec(old);
       break;
     }
     if (len == 5 && memEQ(key, "count", 5))
@@ -365,7 +344,7 @@ static void pe_check_recovery()
     else {
       if (EvREPEAT(ev) && !EvSUSPEND(ev)) {
 	/* temporarily suspend non-reentrant watcher until callback is
-	   finished -- is this too insane? XXX */
+	   finished! */
 	pe_event_suspend(ev);
 	fp->resume = 1;
       }
@@ -420,28 +399,31 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
     croak("deep recursion detected; invoking unloop_all()\n");
   }
 
-  if (ev->perl_callback[0]) {
+  if (EvPERLCB(ev)) {
+    SV *cb = SvRV((SV*)ev->callback);
     int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
     dSP;
     SAVETMPS;
-    if (!ev->perl_callback[1]) {
+    if (SvTYPE(cb) == SVt_PVCV) {
       PUSHMARK(SP);
       XPUSHs(sv_2mortal(event_2sv(ev)));
       PUTBACK;
-      perl_call_sv(ev->perl_callback[0], pcflags);
+      perl_call_sv(ev->callback, pcflags);
     } else {
+      AV *av = (AV*)cb;
       dSP;
+      assert(SvTYPE(cb) == SVt_PVAV);
       PUSHMARK(SP);
-      XPUSHs(ev->perl_callback[0]);
+      XPUSHs(*av_fetch(av, 0, 0));
       XPUSHs(sv_2mortal(event_2sv(ev)));
       PUTBACK;
-      perl_call_method(SvPV(ev->perl_callback[1],na), pcflags);
+      perl_call_method(SvPV(*av_fetch(av, 1, 0),na), pcflags);
     }
     if ((pcflags & G_EVAL) && SvTRUE(ERRSV))
       pe_event_died(ev);
     FREETMPS;
-  } else if (ev->c_callback) {
-    (*ev->c_callback)(ev->ext_data);
+  } else if (ev->callback) {
+    (* (void(*)(void*)) ev->callback)(ev->ext_data);
   } else {
     croak("No callback for event '%s'", SvPV(ev->desc,na));
   }

@@ -88,6 +88,8 @@ BOOT:
     api->suspend = pe_event_suspend;
     api->resume = pe_event_resume;
     api->cancel = pe_event_cancel;
+    api->tstart = pe_timeable_start;
+    api->tstop  = pe_timeable_stop;
     api->new_idle =     (pe_idle*(*)())         pe_idle_allocate;
     api->new_timer =    (pe_timer*(*)())       pe_timer_allocate;
     api->new_io =       (pe_io*(*)())             pe_io_allocate;
@@ -264,12 +266,12 @@ DESTROY(ref)
 	if (!SvRV(ref))
 	  croak("Expected RV");
 	sv = SvRV(ref);
-	/* warn("DESTROY %x", ref);/**/
+	/*	warn("DESTROY %x", ref);/**/
 	/* will be called twice for each Event; yuk! */
 	if (SvTYPE(sv) == SVt_PVMG) {
 	  pe_event *THIS = (pe_event*) SvIV(sv);
 	  --THIS->refcnt;
-	  /*warn("id=%d --refcnt=%d flags=0x%x",
+	/*  warn("id=%d --refcnt=%d flags=0x%x",
 		 THIS->id, THIS->refcnt,THIS->flags); /**/
 	  if (EvCANDESTROY(THIS) || (THIS->refcnt == 0 && PL_in_clean_objs)) {
 	    (*THIS->vtbl->dtor)(THIS);

@@ -12,7 +12,7 @@ sub new {
 
     my $o = allocate();
 
-    $o->init(['variable'], \%arg);
+    $o->init(['variable', 'events'], \%arg);
     $o->start;
     $o;
 }

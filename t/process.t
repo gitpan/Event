@@ -4,8 +4,8 @@ use strict;
 use Test; plan tests => 6;
 use Event qw(loop unloop);
 
-# If this test doesn't terminate, try uncommenting the following lines
-# and post the output of a test runtime to the perl-loop mailing list.
+# If this test doesn't terminate, try uncommenting the following line
+# and post the output of a test run to the perl-loop mailing list.
 # Thanks!
 
 # $Event::DebugLevel = 4;

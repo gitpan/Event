@@ -1,6 +1,10 @@
-var watcher
-  -timeout!
-  specify r/w/t flags!
+comp.lang.perl.announce prerequisites
+  make subclassing work as well as possible
+&
+  finish -priority => -nice migration (in a few weeks)
+  finish leading dashes phase-out
+  io_STORE - switch over to standard events_mask typemap
+  portability?
 
 croak should route through Carp!
 
@@ -8,20 +12,16 @@ documentation
   how to design new event types
   how to use $Event::API
 
-Event::Watcher
-  finish -priority => -nice migration (in a few weeks)
-  finish leading dashes phase-out
-
 optimization
   update io event-mask without invalidating cache
   use fancy profiler tricks to figure out how to improve performance!
 
 time
+  figure out caching policy
   CORE::time?
-  make relative to $^T
   alternate time encodings
-  changing speed of time
-  for year 2000 testing :-)
+    make relative to $^T
+  change speed of time for regression testing
 
 loop
   StarvePrio?

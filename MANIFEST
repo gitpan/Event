@@ -28,7 +28,7 @@ lib/Event.pod
 lib/Event/EventAPI.h
 lib/Event/MakeMaker.pm
 lib/Event/idle.pm
-lib/Event/inactive.pm
+lib/Event/inactivity.pm
 lib/Event/io.pm
 lib/Event/msg.pm
 lib/Event/process.pm
@@ -41,7 +41,7 @@ t/bored.t
 t/eval.t
 t/idle.t
 t/idle2.t
-t/inactive.t
+t/inactivity.t
 t/io.t
 t/leak.t
 t/loop.t

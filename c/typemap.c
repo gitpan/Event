@@ -5,12 +5,8 @@ static pe_event *sv_2event(SV *sv)
       sv = SvRV(sv);
       assert(sv);
       if (SvOBJECT(sv)) {
-
-	  /* We need two cases here because normal method calls cannot
-	     be the same as 'tie' method calls.  This will change! */
-
 	  if (SvTYPE(sv) == SVt_PVHV) {
-	      MAGIC *magic = mg_find(sv, 'P');
+	      MAGIC *magic = mg_find(sv, '~');
 	      SV *ref;
 	      assert(magic);
 	      ref = magic->mg_obj;
@@ -18,9 +14,6 @@ static pe_event *sv_2event(SV *sv)
 	      if (SvROK(ref) && SvTYPE(SvRV(ref)) == SVt_PVMG) {
 		  ret = (pe_event*) SvIV((SV*)SvRV(ref));
 	      }
-
-	  } else if (SvTYPE(sv) == SVt_PVMG) {
-	      ret = (pe_event*) SvIV(sv);
 	  }
       }
   }
@@ -37,12 +30,19 @@ static SV *event_2sv(pe_event *ev)
   HV *stash = ev->stash;
   SV *obj = sv_setref_pv(newSV(0), 0, (void*)ev);
   sv_bless(obj, stash);
+
   tied = (SV*) newHV();
-  sv_magic(tied, obj, 'P', 0, 0);
+
+  sv_magic(tied, obj, '~', Nullch, 0);		/* magic tied, '~', $mgobj */
+  --SvREFCNT(obj);				/* make like ref_noinc */
+
+  sv_magic(tied, Nullsv, 'P', 0, 0);
+
   ret = newRV_noinc(tied);
   sv_bless(ret, stash);
+
   ++ev->refcnt;
-  --SvREFCNT(obj);
+
   /*warn("id=%d ++refcnt=%d", ev->id, ev->refcnt); /**/
   return ret;
 }
@@ -69,7 +69,7 @@ static int sv_2interval(SV *in, double *out)
   return 0;
 }
 
-static SV* io_events_2sv(int mask)
+static SV* events_mask_2sv(int mask)
 {
   STRLEN len;
   SV *ret = newSV(0);
@@ -84,3 +84,31 @@ static SV* io_events_2sv(int mask)
   return ret;
 }
 
+static int sv_2events_mask(SV *sv, int bits)
+{
+  if (SvPOK(sv)) {
+    UV got=0;
+    int xx;
+    STRLEN el;
+    char *ep = SvPV(sv,el);
+    for (xx=0; xx < el; xx++) {
+      switch (ep[xx]) {
+      case 'r': if (bits & PE_R) { got |= PE_R; continue; }
+      case 'w': if (bits & PE_W) { got |= PE_W; continue; }
+      case 'e': if (bits & PE_E) { got |= PE_E; continue; }
+      case 't': if (bits & PE_T) { got |= PE_T; continue; }
+      }
+      warn("ignored '%c'", ep[xx]);
+    }
+    return got;
+  }
+  else if (SvIOK(sv)) {
+    UV extra = SvIV(sv) & ~bits;
+    if (extra) warn("ignored extra bits 0x%x", extra);
+    return SvIVX(sv) & bits;
+  }
+  else {
+    sv_dump(sv);
+    croak("Must be a string /[rwet]/ or bit mask");
+  }
+}

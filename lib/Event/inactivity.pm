@@ -1,5 +1,5 @@
 use strict;
-package Event::inactive;
+package Event::inactivity;
 use Carp;
 use Event qw(PRIO_HIGH PRIO_NORMAL time $Now queue);
 use base 'Event::Watcher';
@@ -9,9 +9,13 @@ $DefaultPriority = PRIO_NORMAL() + 1;
 'Event::Watcher'->register();
 
 sub new {
-    shift if @_ & 1;
+    my $class = 'Event::inactivity';
+    if (@_ & 1) {
+	my $pk = shift;
+	$class = $pk if $pk ne 'Event';
+    }
     my %arg = @_;
-    my $o = 'Event::inactive'->allocate();
+    my $o = $class->allocate();
     $o->{repeat} = 1;
     $o->init([qw(interval level)], \%arg);
     $o->{interval} = 10 if !exists $o->{interval};
