@@ -1,3 +1,19 @@
+1998-10-17  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.22.
+
+	* Include copy of self-tie patch with dist.
+
+	* Documentation for Event::MakeMaker
+
+	* tailpoll fix
+
+	* MIN_PERL_DEFINE clean
+
+1998-10-15  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Improve sv_2interval typemap.
+
 1998-10-08  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.21.

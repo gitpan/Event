@@ -22,7 +22,6 @@ c/typemap.c
 c/unix_io.c
 c/var.c
 demo/in.pl
-demo/tail.t
 lib/Event.pm
 lib/Event.pod
 lib/Event/EventAPI.h
@@ -36,6 +35,7 @@ lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
 lib/Event/var.pm
+patches/leak.fix
 t/0load.t
 t/bored.t
 t/eval.t
@@ -50,6 +50,7 @@ t/process.t
 t/reenter.t
 t/signal.t
 t/stats.t
+t/tail.t
 t/timer.t
 t/var.t
 typemap

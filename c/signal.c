@@ -75,7 +75,7 @@ static void pe_signal_FETCH(pe_event *_ev, SV *svkey)
   case 's':
     if (len == 6 && memEQ(key, "signal", 6)) {
       ret = ev->signal > 0? sv_2mortal(newSVpv(Perl_sig_name[ev->signal],0))
-	: &sv_undef;
+	: &PL_sv_undef;
       break;
     }
     break;
@@ -101,13 +101,13 @@ static void pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
   case 's':
     if (len == 6 && memEQ(key, "signal", 6)) {
       int active = EvACTIVE(ev);
-      int sig = Perl_whichsig(SvPV(nval,na));
+      int sig = Perl_whichsig(SvPV(nval,PL_na));
       /*warn("whichsig(%s) = %d", SvPV(nval,na), sig); /**/
       ok=1;
       if (sig == 0)
-	croak("Unrecognized signal '%s'", SvPV(nval,na));
+	croak("Unrecognized signal '%s'", SvPV(nval,PL_na));
       if (!PE_SIGVALID(sig))
-	croak("Signal '%s' cannot be caught", SvPV(nval,na));
+	croak("Signal '%s' cannot be caught", SvPV(nval,PL_na));
       if (active)
 	pe_event_stop(_ev);
       ev->signal = sig;

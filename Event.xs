@@ -1,5 +1,7 @@
 /* -*- /C/ -*- sometimes */
 
+#define MIN_PERL_DEFINE 1
+
 #include <EXTERN.h>
 #include <perl.h>
 #include <XSUB.h>
@@ -276,7 +278,7 @@ queue_time(prio)
 		prio, PE_QUEUES-1);
 	for (xx=0; xx <= prio; xx++)
 	  if (max < QueueTime[xx]) max = QueueTime[xx];
-	XPUSHs(max? sv_2mortal(newSVnv(max)) : &sv_undef);
+	XPUSHs(max? sv_2mortal(newSVnv(max)) : &PL_sv_undef);
 
 
 MODULE = Event		PACKAGE = Event::Watcher

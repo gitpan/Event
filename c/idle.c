@@ -12,7 +12,7 @@ static pe_event *pe_idle_allocate()
   pe_event_init((pe_event*) ev);
   PE_RING_INIT(&ev->tm.ring, ev);
   PE_RING_INIT(&ev->iring, ev);
-  ev->max_interval = &sv_undef;
+  ev->max_interval = &PL_sv_undef;
   ev->min_interval = newSVnv(.01);
   return (pe_event*) ev;
 }

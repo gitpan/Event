@@ -45,7 +45,7 @@ static void pe_event_dtor(pe_event *ev)
 {
   int xx;
   if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
-    warn("dtor '%s'", SvPV(ev->desc,na));
+    warn("dtor '%s'", SvPV(ev->desc,PL_na));
   PE_RING_DETACH(&ev->all);
   PE_RING_DETACH(&ev->que);
   if (ev->FALLBACK)
@@ -225,7 +225,7 @@ static void pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
 
 static void pe_event_DELETE(pe_event *ev, SV *svkey)
 {
-  char *key = SvPV(svkey, na);
+  char *key = SvPV(svkey, PL_na);
   SV *ret;
   pe_event_vtbl *vt = ev->vtbl;
   int at = 0;
@@ -251,7 +251,7 @@ static void pe_event_DELETE(pe_event *ev, SV *svkey)
 
 static int pe_event_EXISTS(pe_event *ev, SV *svkey)
 {
-  char *key = SvPV(svkey, na);
+  char *key = SvPV(svkey, PL_na);
   pe_event_vtbl *vt = ev->vtbl;
   int at = 0;
   while (vt) {
@@ -308,7 +308,8 @@ static void pe_event_died(pe_event *ev)
   SV *err = sv_true(ERRSV)? sv_mortalcopy(ERRSV) : sv_2mortal(newSVpv("?",0));
   dSP;
   if (EvDEBUGx(ev) >= 3)
-    warn("Event: '%s' died with: %s\n", SvPV(ev->desc,na), SvPV(ERRSV,na));
+    warn("Event: '%s' died with: %s\n",
+	 SvPV(ev->desc,PL_na), SvPV(ERRSV,PL_na));
   PUSHMARK(SP);
   XPUSHs(sv_2mortal(event_2sv(ev)));
   XPUSHs(err);
@@ -316,7 +317,7 @@ static void pe_event_died(pe_event *ev)
   perl_call_sv(eval, G_EVAL|G_DISCARD);
   if (sv_true(ERRSV)) {
     warn("Event: '%s' died and then $Event::DIED died with: %s\n",
-	 SvPV(ev->desc,na), SvPV(ERRSV,na));
+	 SvPV(ev->desc,PL_na), SvPV(ERRSV,PL_na));
     sv_setpv(ERRSV, "");
   }
 }
@@ -351,7 +352,7 @@ static void pe_check_recovery()
     }
     if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
       warn("Event: [%d] '%s' okay (resume=%d)\n", CurCBFrame,
-	   SvPV(ev->desc,na), fp->resume);
+	   SvPV(ev->desc,PL_na), fp->resume);
     return;
   }
 
@@ -417,7 +418,7 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
       XPUSHs(*av_fetch(av, 0, 0));
       XPUSHs(sv_2mortal(event_2sv(ev)));
       PUTBACK;
-      perl_call_method(SvPV(*av_fetch(av, 1, 0),na), pcflags);
+      perl_call_method(SvPV(*av_fetch(av, 1, 0),PL_na), pcflags);
     }
     if ((pcflags & G_EVAL) && SvTRUE(ERRSV))
       pe_event_died(ev);
@@ -425,7 +426,7 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
   } else if (ev->callback) {
     (* (void(*)(void*)) ev->callback)(ev->ext_data);
   } else {
-    croak("No callback for event '%s'", SvPV(ev->desc,na));
+    croak("No callback for event '%s'", SvPV(ev->desc,PL_na));
   }
 
   /* clean up */
@@ -447,7 +448,7 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
   }
 
   if (EvDEBUGx(ev) >= 3)
-    warn("Event: completed '%s'\n", SvPV(ev->desc, na));
+    warn("Event: completed '%s'\n", SvPV(ev->desc, PL_na));
   if (EvCANDESTROY(ev))
     (*ev->vtbl->dtor)(ev);
 }
@@ -462,7 +463,7 @@ static void pe_event_postCB(pe_cbframe *fp)
 
   if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
     warn("Event: '%s' callback reset; resume=%d\n",
-	 SvPV(ev->desc, na), fp->resume);
+	 SvPV(ev->desc, PL_na), fp->resume);
 
   if (fp->resume)
     pe_event_resume(ev);
@@ -569,7 +570,7 @@ static void pe_event_suspend(pe_event *ev)
   active = EvACTIVE(ev);
   queued = EvQUEUED(ev);
   if (EvDEBUGx(ev) >= 4)
-    warn("Event: suspend '%s'%s%s\n", SvPV(ev->desc,na),
+    warn("Event: suspend '%s'%s%s\n", SvPV(ev->desc,PL_na),
 	 active?" ACTIVE":"", queued?" QUEUED":"");
   if (active)
     pe_event_stop(ev);
@@ -590,7 +591,7 @@ static void pe_event_resume(pe_event *ev)
   active = EvACTIVE(ev);
   queued = EvQUEUED(ev);
   if (EvDEBUGx(ev) >= 4)
-    warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,na),
+    warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,PL_na),
 	 active?" ACTIVE":"", queued?" QUEUED":"");
   EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE|PE_QUEUED);
   if (active)
@@ -604,7 +605,7 @@ static void pe_event_start(pe_event *ev, int repeat)
   if (EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   if (EvDEBUGx(ev) >= 4)
-    warn("Event: active ON '%s'\n", SvPV(ev->desc,na));
+    warn("Event: active ON '%s'\n", SvPV(ev->desc,PL_na));
   EvACTIVE_on(ev); /* must happen nowhere else!! */
   (*ev->vtbl->start)(ev, repeat);
   ++ActiveWatchers;
@@ -615,7 +616,7 @@ static void pe_event_stop(pe_event *ev)
   if (!EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   if (EvDEBUGx(ev) >= 4)
-    warn("Event: active OFF '%s'\n", SvPV(ev->desc,na));
+    warn("Event: active OFF '%s'\n", SvPV(ev->desc,PL_na));
   EvACTIVE_off(ev); /* must happen nowhere else!! */
   (*ev->vtbl->stop)(ev);
   --ActiveWatchers;

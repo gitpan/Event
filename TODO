@@ -1,8 +1,13 @@
+tailpoll -- do something special for truncation?
+
+C-API for prepare/check/asynccheck?
+
 comp.lang.perl.announce prerequisites
+  portability?  wait for Win32?
+&
   finish -priority => -nice migration (in a few weeks)
   finish leading dashes phase-out
   io_STORE - switch over to standard events_mask typemap
-  portability?
 
 Some way to assert that a watcher is deleted?  Why still seeing lots
 of zombies?
@@ -10,8 +15,8 @@ of zombies?
 croak should route through Carp!
 
 documentation
-  how to design new event types
-  how to use $Event::API
+  how to design new event types (in perl)
+  how to design new event types (in C)??
 
 optimization
   update io event-mask without invalidating cache

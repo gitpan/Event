@@ -51,7 +51,7 @@ static void prepare_event(pe_event *ev)
   if (!EvACTIVE(ev)) {
     if (!EvRUNNOW(ev))
       croak("Event: attempt to run callback for !ACTIVE watcher '%s'",
-	    SvPV(ev->desc,na));
+	    SvPV(ev->desc,PL_na));
   }
   else {
     /* this cannot be done any later because the callback might want to
@@ -72,7 +72,7 @@ static void queueEvent(pe_event *ev, int count)
   if (ev->priority < 0) {  /* invoke the event immediately! */
     ev->priority = -1;
     if (EvDEBUGx(ev) >= 2)
-      warn("Event: invoking %s (async)\n", SvPV(ev->desc,na));
+      warn("Event: invoking %s (async)\n", SvPV(ev->desc,PL_na));
     pe_event_invoke(ev);
     return;
   }
@@ -82,7 +82,7 @@ static void queueEvent(pe_event *ev, int count)
   if (ev->priority >= PE_QUEUES)
     ev->priority = PE_QUEUES-1;
   if (EvDEBUGx(ev) >= 3)
-    warn("Event: queue '%s' prio=%d\n", SvPV(ev->desc,na), ev->priority);
+    warn("Event: queue '%s' prio=%d\n", SvPV(ev->desc,PL_na), ev->priority);
   QueueTime[ev->priority] = EvNOW(0);
   {
     /* queue in reverse direction? XXX */ 
@@ -149,7 +149,7 @@ static int pe_empty_queue(maxprio)
     dequeEvent(ev);
     if (EvDEBUGx(ev) >= 2)
       warn("Event: invoking '%s' (prio %d)\n",
-	   SvPV(ev->desc, na), ev->priority);
+	   SvPV(ev->desc, PL_na), ev->priority);
     pe_event_invoke(ev);
     return 1;
   }
@@ -226,7 +226,7 @@ static int one_event(double tm)
     /* can't queueEvent because we are already beyond that */
     ++ev->count;
     if (EvDEBUGx(ev) >= 2)
-      warn("Event: invoking '%s' (idle)\n", SvPV(ev->desc, na));
+      warn("Event: invoking '%s' (idle)\n", SvPV(ev->desc, PL_na));
     pe_event_invoke(ev);
     return 1;
   }

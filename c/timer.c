@@ -8,7 +8,7 @@ static pe_event *pe_timer_allocate()
   ev->base.vtbl = &pe_timer_vtbl;
   PE_RING_INIT(&ev->tm.ring, ev);
   ev->tm.at = 0;
-  ev->interval = &sv_undef;
+  ev->interval = &PL_sv_undef;
   pe_event_init((pe_event*) ev);
   return (pe_event*) ev;
 }

@@ -1,10 +1,10 @@
 # -*-perl-*-
 
 use strict;
-use Test; plan test => 2;
+use Test; plan test => 3;
 use Symbol;
 use Fatal qw(open);
-use Event qw(loop);
+use Event qw(loop unloop);
 
 my $name = "./tail-test";
 my ($r,$w) = (gensym,gensym);
@@ -15,16 +15,21 @@ close $w;
 
 open $r, $name;
 
-Event->io(handle => $r, events => 'r',# tailpoll => 2,
+my $hit=0;
+my $io = Event->io(handle => $r, events => 'r', tailpoll => .05,
 	  callback => sub {
 	      my ($e) = @_;
+	      ++$hit;
 	      while (my $l = <$r>) {
-		  warn $l;
+		  # ignore
 	      }
 	  });
+ok $io->{size}, 0;
 
 my $c=0;
-Event->timer(interval => .25, callback => sub {
+Event->timer(interval => .2, callback => sub {
+		 # without tailpoll this gets called repeatedly -- busy wait
+		 unloop() if $c == 4;
 		 open $w, ">>$name";
 		 print $w $c++."\n";
 		 close $w;
@@ -32,4 +37,7 @@ Event->timer(interval => .25, callback => sub {
 
 loop();
 
-#END { unlink $name }
+ok $hit, 4;
+ok $io->{size}, 8;
+
+END { unlink $name }

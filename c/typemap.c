@@ -64,6 +64,10 @@ static int sv_2interval(SV *in, double *out)
     *out = SvIVX(sv);
     return 1;
   }
+  if (looks_like_number(sv)) {
+    *out = SvNV(sv);
+    return 1;
+  }
   sv_dump(in);
   croak("Interval must be a number of reference to a number");
   return 0;

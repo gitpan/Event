@@ -76,7 +76,7 @@ static void pe_sys_multiplex(double timeout)
       ev->xref = -1;
       if (fd >= 0) {
 	int bits=0;
-	if (ev->events & PE_R) bits |= (POLLIN | POLLRDNORM);
+	if (ev->events & PE_R && !ev->tailpoll) bits |= (POLLIN | POLLRDNORM);
 	if (ev->events & PE_W) bits |= (POLLOUT | POLLWRNORM | POLLWRBAND);
 	if (ev->events & PE_E) bits |= (POLLRDBAND | POLLPRI);
 	if (bits) {
@@ -177,7 +177,7 @@ static void pe_sys_multiplex(double timeout)
       int fd = ev->fd;
       if (fd >= 0) {
 	int bits=0;
-	if (ev->events & PE_R) { FD_SET(fd, &Rfds); ++bits; }
+	if (ev->events & PE_R && !ev->tailpoll) { FD_SET(fd, &Rfds); ++bits; }
 	if (ev->events & PE_W) { FD_SET(fd, &Wfds); ++bits; }
 	if (ev->events & PE_E) { FD_SET(fd, &Efds); ++bits; }
 	if (bits && fd > Nfds) Nfds = fd;

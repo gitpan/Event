@@ -35,28 +35,29 @@ static void pe_io_dtor(pe_event *_ev)
 
 static void pe_io_start(pe_event *_ev, int repeat)
 {
+  struct stat sbuf;
+  int statret;
   pe_io *ev = (pe_io*) _ev;
   ev->fd = pe_sys_fileno(ev);
   PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
   ++IOWatchCount;
   IOWatch_OK = 0;
+
+ retry:
+  statret = fstat(ev->fd, &sbuf);
+  if (statret && errno == EINTR) goto retry;
+
+  if (!ev->tailpoll && ev->events & PE_R && S_ISREG(sbuf.st_mode))
+    ev->tailpoll = 1;  /* hope okay to auto-detect */
   if (ev->tailpoll) {
-    struct stat sbuf;
-    int ret;
-    if (!(ev->events & PE_R))
-      croak("'tailpoll' causes read events but '%s' does not care about read",
-	    SvPV(_ev->desc,na));
-  retry:
-    ret = fstat(ev->fd, &sbuf);
-    if (ret) {
-      if (errno == EINTR) goto retry;
-      croak("Event '%s': fstat(%d) failed with %d", SvPV(_ev->desc,na),
+    if (statret)
+      croak("Event '%s': fstat(%d) failed with %d", SvPV(_ev->desc,PL_na),
 	    ev->fd, errno);
-    }
     ev->size = sbuf.st_size;
     ev->ttm.at = EvNOW(0) + ev->tailpoll;
     pe_timeable_start(&ev->ttm);
   }
+
   if (ev->timeout) {
     EvCBTIME_on(ev);
     ev->events |= PE_T;
@@ -101,7 +102,7 @@ static void pe_io_alarm(pe_event *_ev, pe_timeable *hit)
     ret = fstat(ev->fd, &sbuf);
     if (ret) {
       if (errno == EINTR) goto retry;
-      croak("Event '%s': fstat(%d) failed with %d", SvPV(_ev->desc,na),
+      croak("Event '%s': fstat(%d) failed with %d", SvPV(_ev->desc,PL_na),
 	    ev->fd, errno);
     }
     if (sbuf.st_size != ev->size) {
@@ -137,7 +138,13 @@ static void pe_io_FETCH(pe_event *_ev, SV *svkey)
     break;
   case 'h':
     if (len == 6 && memEQ(key, "handle", 6)) {
-      ret = ev->handle? ev->handle : &sv_undef;
+      ret = ev->handle? ev->handle : &PL_sv_undef;
+      break;
+    }
+    break;
+  case 's':
+    if (len == 4 && memEQ(key, "size", 4)) {
+      ret = sv_2mortal(newSViv(ev->size));
       break;
     }
     break;
@@ -175,17 +182,7 @@ static void pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
       ok=1;
       ev->events = ev->timeout? PE_T : 0;
       if (SvPOK(nval)) {  /* can fall thru to SvIOK? XXX */
-	int xx;
-	STRLEN el;
-	char *ep = SvPV(nval,el);
-	for (xx=0; xx < el; xx++) {
-	  switch (ep[xx]) {
-	  case 'r': ev->events |= PE_R; break;
-	  case 'w': ev->events |= PE_W; break;
-	  case 'e': ev->events |= PE_E; break;
-	  default: warn("ignored '%c'", ep[xx]);
-	  }
-	}
+	ev->events |= sv_2events_mask(nval, PE_R|PE_W|PE_E);
 #ifdef HAS_POLL
       } else if (SvIOK(nval)) {
 	int mask;
@@ -204,6 +201,8 @@ static void pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
 	croak("Event::io::STORE('events'): expecting a string");
       break;
     }
+    if (!(ev->events & PE_R))
+      ev->tailpoll = 0;
     break;
   case 'g':
     if (len == 3 && memEQ(key, "got", 3))
@@ -218,6 +217,10 @@ static void pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
       break;
     }
     break;
+  case 's':
+    if (len == 4 && memEQ(key, "size", 4))
+      croak("'size' is read-only");
+    break;
   case 't':
     if (len == 7 && memEQ(key, "timeout", 7)) {
       ok=1;
@@ -227,6 +230,7 @@ static void pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
     if (len == 8 && memEQ(key, "tailpoll", 8)) {
       ok=1;
       ev->tailpoll = SvNV(nval);
+      ev->events |= PE_R;
       break;
     }
     break;
@@ -255,7 +259,8 @@ static void boot_io()
     "events",
     "got",
     "timeout",
-    "tailpoll"
+    "tailpoll",
+    "size"
   };
   HV *stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::io",1));
   pe_event_vtbl *vt = &pe_io_vtbl;

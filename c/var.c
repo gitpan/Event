@@ -6,7 +6,7 @@ static pe_event *pe_var_allocate()
   New(PE_NEWID, ev, 1, pe_var);
   ev->base.vtbl = &pe_var_vtbl;
   pe_event_init((pe_event*) ev);
-  ev->variable = &sv_undef;
+  ev->variable = &PL_sv_undef;
   ev->events = PE_W;
   ev->got = 0;
   EvREPEAT_on(ev);
