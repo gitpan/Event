@@ -1,3 +1,11 @@
+2000-02-18  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.69.
+
+2000-02-17  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Tweak documentation.
+
 2000-02-15  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.68.
@@ -5,20 +13,20 @@
 2000-02-14  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* More careful checking of
- 	intervals. (suggested by Jochen.Stenzel.gp@icn.siemens.de)
+ 	intervals. (suggested by perl@jochen-stenzel.de)
 
 2000-02-10  Joshua Pritikin  <joshua.pritikin@db.com>
 
-	* Fix yet another typemap bug. (Jochen.Stenzel.gp@icn.siemens.de)
+	* Fix yet another typemap bug. (perl@jochen-stenzel.de)
 
 	* Make io default to poll=r; more stringent start test;
- 	fix demo/stdin.t (suggested by Jochen.Stenzel.gp@icn.siemens.de)
+ 	fix demo/stdin.t (suggested by perl@jochen-stenzel.de)
 
 2000-02-09  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.67.  Hopefully this release will prove stable.
 
-	* Fix bomb in group watchers. (Jochen.Stenzel.gp@icn.siemens.de)
+	* Fix bomb in group watchers. (perl@jochen-stenzel.de)
 
 	* Fixed another bug introduced in 0.61.  (Insure++)
 
@@ -35,7 +43,7 @@
 	* Eliminate (hopefully all) silent failures.
 
 	* Restrict var watchers to
- 	scalars. (Jochen.Stenzel.gp@icn.siemens.de is too creative)
+ 	scalars. (perl@jochen-stenzel.de is too creative)
 
 2000-02-07  Joshua Pritikin  <joshua.pritikin@db.com>
 
@@ -44,7 +52,7 @@
 	* Group watchers for watching watchers.  See demo/group.t
 
 	* Fix got() documentation, spotted by
- 	Jochen.Stenzel.gp@icn.siemens.de
+ 	perl@jochen-stenzel.de
 
 	* Make callback a prerequisite for starting watchers.
 
@@ -71,7 +79,7 @@
 	* Deprecated AUTOLOAD of Event->$type.  (Nick & Graham)
 
 	* Reworked priority documentation based on comments from
-	Jochen.Stenzel.gp@icn.siemens.de.
+	perl@jochen-stenzel.de.
 
 2000-02-01  Joshua Pritikin  <joshua.pritikin@db.com>
 
@@ -85,17 +93,17 @@
 	* Release 0.61.
 
 	* is_cancelled() method (requested by
- 	Jochen.Stenzel.gp@icn.siemens.de)
+ 	perl@jochen-stenzel.de)
 
 	* Doc updates.
 
 	* Prevent starting unconfigured or badly configured
- 	watchers. Added tests. (Jochen.Stenzel.gp@icn.siemens.de)
+ 	watchers. Added tests. (perl@jochen-stenzel.de)
  	
 	XXX DANGER! THIS CHANGE CAN BREAK EXISTING CODE !DANGER XXX
 
 	* Refuse to start cancelled watchers.  Added test & updated doc.
-	(Jochen.Stenzel.gp@icn.siemens.de).
+	(perl@jochen-stenzel.de).
 
 2000-01-26  Joshua Pritikin  <joshua.pritikin@db.com>
 
@@ -115,7 +123,7 @@
 	* Release 0.59.
 
 	* Fixed serious memory leak (isolated by
- 	Jochen.Stenzel.gp@icn.siemens.de). Added t/leak2.t.
+ 	perl@jochen-stenzel.de). Added t/leak2.t.
 
 2000-01-19  Joshua Pritikin  <joshua.pritikin@db.com>
 
@@ -159,7 +167,7 @@
 
 1999-09-23  Joshua Pritikin  <joshua.pritikin@db.com>
 
-	* Document is_active/is_suspended. (Jochen.Stenzel.gp@icn.siemens.de)
+	* Document is_active/is_suspended. (perl@jochen-stenzel.de)
 
 1999-09-22  Joshua Pritikin  <joshua.pritikin@db.com>
 
@@ -323,7 +331,7 @@
 
 1999-05-04  Joshua Pritikin  <joshua.pritikin@db.com>
 
-	* Doc fixes catalyzed by Jochen.Stenzel.gp@icn.siemens.de.
+	* Doc fixes catalyzed by perl@jochen-stenzel.de.
 
 1999-04-27  Joshua Pritikin  <joshua.pritikin@db.com>
 

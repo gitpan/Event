@@ -6,6 +6,8 @@ use base 'Event::Watcher::Tied';
 use vars qw($DefaultPriority);
 $DefaultPriority = PRIO_NORMAL + 1;
 
+warn "Event::inactivity is deprecated";
+
 'Event::Watcher'->register();
 
 sub new {

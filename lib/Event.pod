@@ -7,7 +7,7 @@ Event - Event loop processing
  use Event qw(loop unloop);
  
  # initialize application
- Event->type(attribute => value, ...);
+ Event->flavor(attribute => value, ...);
     
  my $ret = loop();
     
@@ -54,14 +54,46 @@ Queue all pending events and dispatch any with priority strictly less
 than $max_prio (the highest priority is 0).  The default is to process
 all events except idle events.  (While idle B<events> are ignored by
 sweep, idle watchers are B<not> ignored.  If you want to avoid
-triggering an idle watcher then set C<max> to C<undef> or suspend it.)
+triggering an idle watcher then set C<max> to C<undef> or C<stop()> it.)
 
 =item one_event([$timeout])
 
 If any events are outstanding then invoke the corresponding callback
 of the highest priority event.  If there are no events available,
 block forever or until $timeout.  Use of this API is not recommended
-because it is not efficient and does not trap exceptions.
+because it is not efficient and does not trap exceptions.  However,
+you might wish to understand how it works:
+
+=over 4
+
+=item 1
+
+Queue asyncronous events (signals, etc).
+
+=item 2
+
+If there are any events with priority 5 or less (see StarvePrio) then
+service the next one and return.
+
+=item 3
+
+Calculate the maximum wait time (minimum time till the next timer
+expiration) and pass control to the poll/select system call.  Upon
+return, queue all pending events.
+
+=item 4
+
+Queue asyncronous events again.
+
+=item 5
+
+If there are any events then service the next one and return.
+
+=item 6
+
+Service the next idle watcher.
+
+=back
 
 =item all_watchers()
 
@@ -85,15 +117,14 @@ its C<max> wait time is exceeded.
 
 All watchers are constructed in one of the following ways:
 
-  $w = Event->type( [attr1 => $value,]... );
+  $w = Event->flavor( [attr1 => $value,]... );
  
-or
- 
-  use Event::type;
-  $w = Event::type( [attr1 => $value,]...);
+  $w = Event::flavor($Class, [attr1 => $value,]...);
 
-Where I<type> is substituted with the kind of watcher.  Built-in types
-include idle, io, signal, timer, and var.
+  $w = Event::flavor->new([attr1 => $value,]...);
+
+Where I<flavor> is substituted with the kind of watcher.  Built-in
+types include idle, io, signal, timer, and var.
 
 New watchers (hopefully) have reasonable defaults and can also be
 customized by passing extra attributes to the constructor.  When
@@ -114,10 +145,10 @@ For example:
    warn $event->w->desc.": ".$event->hits." events happened; Wow!";
 
 All watchers support the following attributes: cb, cbtime, debug,
-desc, prio, max_cb_tm, reentrant, repeat, and running.  Watcher
-constructors accept the preceding and additionally: async and nice.
-All events support: hits, prio, and w.  Moreover, watchers also offer
-extra attributes according to their specialty.
+desc, prio, max_cb_tm, reentrant, and repeat.  Watcher constructors
+accept the preceding and additionally: async and nice.  All events
+support: hits, prio, and w.  Moreover, watchers also offer extra
+attributes according to their specialty.
 
 =head2 Shared Watcher Methods
 
@@ -166,7 +197,7 @@ them of the ability to generate events.  For instance:
 
 Stop and destroy C<$watcher>.  Running events are allowed to complete
 but pending events are cancelled.  Cancelled watchers are no longer
-valid except for read-only type operations.  For example, prio() can
+valid except for read-only operations.  For example, prio() can
 return the watcher's priority, but start() will fail.
 
 =item $watcher->is_cancelled
@@ -177,6 +208,13 @@ Reports whether the C<$watcher> has been cancelled.
 
 Reports whether the C<$watcher> has been started.  The return value is
 not affected by suspend.
+
+=item $watcher->is_running
+
+Zero if the callback is not running.  Otherwise, the number of levels
+that the callback has been entered.  This can be greater than one if a
+C<reentrant> callback invokes C<loop> (or C<sweep>, with lesser
+probability).
 
 =item $watcher->is_suspended
 
@@ -200,17 +238,6 @@ Extra attributes: min => $seconds, max => $seconds
 The callback is invoked only when no events are pending.  If there is
 never a chance to idle, an event will be generated at least every
 C<max> seconds and not more often than C<min> seconds.
-
-=item inactivity (EXPERIMENTAL)
-
-Extra attributes: level => $level, timeout => $seconds
-
-Inactivity watchers are similar to idle watchers.  The difference is
-that they judge idleness by whether there have been any events with
-priority higher than the threshold C<$level>.
-
-If you find these useful, then send email to the mailing list.
-Otherwise, they might be deprecated.
 
 =item var
 
@@ -335,6 +362,9 @@ C<parked=>1>.
 
 =item at => $time
 
+The expiration time in the same units as the system clock.  For a
+timer, C<at> will usually be in the future.
+
 =item cb => \&code
 
 =item cb => [$class_or_object, $method_name]
@@ -366,10 +396,8 @@ constructed.
 
 =item fd => $filehandle
 
-=item flags => $bits
- 
-The C<flag> attribute encodes information about the state of an
-event.  [XXX Fill in exact bits] [DEPRECATED?]
+This attribute can accept either a perl-esque filehandle or a system
+call derived file descriptor number.
 
 =item hard => $bool
 
@@ -382,10 +410,6 @@ this can make a significant difference.
 
 How long between repeating timeouts.  The C<at> attribute is
 recalculated using C<interval> upon callback return.
-
-=item level => $priority
-
-For inactivity - EXPERIMENTAL.
 
 =item max => $seconds
 
@@ -445,12 +469,6 @@ one-shot or continue waiting for new events.  The default setting
 depends on the type of watcher.  I<io>, I<signal>, and I<var> default
 to true.
 
-=item running => $int
-
-Zero if the callback is not running.  Otherwise, the number of levels
-that the callback has been entered.  This can be greater than one if
-a C<reentrant> callback invokes C<loop> (or to a lesser extent C<sweep>).
-
 =item signal => $str
 
 The callback will be invoked when the specified signal is received.
@@ -459,10 +477,13 @@ the documentation for C<%SIG>.
 
 =item suspend => $bool
 
-Don't look for events any more.  Running events are allowed to
-complete but queued events are cancelled and subsequent pending events
-are ignored.  Suspend should be considered a debugging tool.  If you
-actually want to stop a watcher then use the C<stop> method.
+Stop looking for events.  Running events are allowed to complete, but
+queued events are cancelled.
+
+Suspend is for debugging.  If you suspend all watchers in an
+application then you can examine the complete state unchanged for as
+long as you like without worrying about timer expirations.  If you
+actually wish to stop a watcher then use the C<stop()> method.
 
 =item timeout => $seconds
 
@@ -513,10 +534,6 @@ This method return the event's watcher.  It is read-only.
 
 =head2 Customization and Exceptions
 
-The bulk of Event's implementation is in C for B<maximum>
-performance. However, a broad range of customization hooks are
-available.
-
 =over 4
 
 =item * $Event::DebugLevel
@@ -524,31 +541,37 @@ available.
 Enables progressively more debugging output.  Meaningful levels range
 from 1 (least output) to 5 (most output). Also see C<debug>.
 
-=item * $Event::Eval
-
-Strictly for debugging.  Do not enable this unless you know what you
-are doing.
-
 =item * $Event::DIED
 
 When C<loop> or C<sweep> is called, an exception context is
 established for the duration of event processing. If an exception is
-detected then C<$Event::DIED> is invoked:
- 
-  $Event::DIED->($event, $@);
- 
-The default hook uses C<warn> to print the exception.  After the DIED
-handler returns, event processing continues as if nothing happened.
-If you'd like to see more detailed output you can use the verbose
-handler (below) or write your own.
+detected then C<$Event::DIED> is invoked.  The default hook uses
+C<warn> to output the exception.  After the DIED handler completes,
+event processing continues as if nothing happened.
+
+If you'd like more detailed output you can install the verbose
+handler:
 
   $Event::DIED = \&Event::verbose_exception_handler;
 
+Or you can write your own.  The handler is invoked like this:
+
+  $Event::DIED->($event, $@);
+
+If you do not want to continue looping after an error, you can do
+something like this:
+
+  $Event::DIED = sub { die &Event::verbose_exception_handler(@_) };
+
 =item * Event->add_hooks(key => sub { ... }, ...);
 
-The C<add_hooks> method allows customization at key points in the
-optimized event processing core.  Currently support hooks are detailed
-below:
+The bulk of Event's implementation is in C for B<maximum> performance.
+The C<add_hooks> method allows insertion of perl code at key points in
+the optimized event processing core.  While flexible, this can hurt
+performance *significantly*.  If you want customization *and*
+performance, please see the C API.
+
+Currently support hooks are detailed as follows:
 
   hook          purpose
   ------------- ----------------------------------------------
@@ -591,8 +614,8 @@ rendered and to process subsequent incoming bytes.
 Threads can either substitute for an event loop or complement it.
 Threads are similar to processes in that the operating system manages
 task switching for you.  However, the difference is that all threads
-share the same address space.  This is good and bad.  Much higher
-performance can be acheived but since data is shared between threads
+share the same address space.  This is good and bad.  Higher
+performance can be acheived but since data is shared between threads,
 extreme care must be taken to access or modify global data.  The
 operating system can switch threads at any moment or can execute
 multiple threads simultaineously.  I hope this sounds dangerous!  It
@@ -620,9 +643,9 @@ features you need.  It is likely that all platforms will have a solid
 implementation soon but at this point in history it is best to double
 check.
 
-=head1 WHAT ABOUT NON-PREEMPTIVE THREADS?
+Many suggestions by Mark Mielke <Mark.Mielke.markm@nt.com>
 
-(Contributed by artur@vogon-solutions.com 12 Jul 1999.)
+=head1 WHAT ABOUT NON-PREEMPTIVE THREADS?
 
 The Java language is oriented to use non-preemptive threads, yet even
 Java uses an event-loop for Swing (AFAIK). That is one of the reasons
@@ -635,18 +658,46 @@ like working with a state machine.  I find it leads to more stable and
 better code. It also has the benefit of abstracting away how
 concurrency is achieved.
 
+Contributed by artur@vogon-solutions.com, 12 Jul 1999.
+
 =head1 BUGS
 
 The meaning of $io->timeout(0) might change.  Use C<undef> to unset
 the timeout.
 
+There seems to be some sort of bug in the global destruction phase:
+
+  Attempt to free unreferenced scalar during global destruction.
+  Use of uninitialized value during global destruction.
+  Explicit blessing to '' (assuming package main) during global
+  destruction.
+
 =head2 WHY MICROSOFT WINDOWS MIGHT BE FASTER THAN UNIX
+
+B<A scalable and explicit event delivery mechanism for UNIX>
+
+I<Abstract:> UNIX applications not wishing to block when doing I/O often
+use the select() system call, to wait for events on multiple file
+descriptors. The select() mechanism works well for small-scale
+applications, but scales poorly as the number of file descriptors
+increases. Many modern applications, such as Internet servers, use
+hundreds or thousands of file descriptors, and suffer greatly from the
+poor scalability of select(). Previous work has shown that while the
+traditional implementation of select() can be improved, the poor
+scalability is inherent in the design. We present a new event-delivery
+mechanism, which allows the application to register interest in one or
+more sources of events, and to efficiently dequeue new events. We show
+that this mechanism, which requires only minor changes to
+applications, performs independently of the number of file
+descriptors.
 
   http://www.usenix.org/events/usenix99/full_papers/banga/banga_html/index.html
 
 =head1 ALSO SEE
 
 L<Time::HiRes>, L<NetServer::ProcessTop>, and L<Time::Warp>.
+
+While Tk does not yet support Event, L<PerlQt> does.
 
 =head1 SUPPORT
 
@@ -667,20 +718,17 @@ Thanks!
 
 =head1 AUTHORS
 
-Joshua N. Pritikin E<lt>F<bitset@mindspring.com>E<gt>
+Joshua N. Pritikin E<lt>F<jpritikin@pobox.com>E<gt>
 
 Initial 0.01 implementation by Graham Barr
 E<lt>F<gbarr@pobox.com>E<gt>.  Other contributors include at least
 those lists below and folks mentioned in the ChangeLog.
 
- Gisle Aas E<lt>F<gisle@aas.no>E<gt>
- E<lt>F<jan.dubois@ibm.net>E<gt> (Win32)
- E<lt>F<Matija.Grabnar@arnes.si>E<gt> (File::Tail)
- Uri Guttman E<lt>F<uri@sysarch.com>E<gt>
- Nick Ing-Simmons E<lt>F<nick@ni-s.u-net.com>E<gt> (Tk)
- Mark Mielke E<lt>F<Mark.Mielke.markm@nt.com>E<gt>
- Sarathy E<lt>F<gsar@engin.umich.edu>E<gt>
- E<lt>F<Jochen.Stenzel.gp@icn.siemens.de>E<gt>
+ Gisle Aas <gisle@aas.no>
+ Uri Guttman <uri@sysarch.com>
+ Nick Ing-Simmons <nick@ni-s.u-net.com> (Tk)
+ Sarathy <gsar@engin.umich.edu>
+ Jochen Stenzel <perl@jochen-stenzel.de>
 
 =head1 COPYRIGHT
 
