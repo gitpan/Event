@@ -1,3 +1,9 @@
+1999-06-22  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.43.
+
+	* Tweaks for threaded compile (dfavor@austin.ibm.com).
+
 1999-06-19  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.42.

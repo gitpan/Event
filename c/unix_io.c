@@ -36,9 +36,11 @@ static void _queue_io(pe_io *wa, int got)
   pe_ioevent *ev;
   got &= wa->poll;
   if (!got) {
-    if (EvDEBUGx(wa) >= 3)
-      warn("Event: io '%s' queued nothing", SvPV(wa->base.desc,PL_na));
-    return;
+      if (EvDEBUGx(wa) >= 3) {
+	  STRLEN n_a;
+	  warn("Event: io '%s' queued nothing", SvPV(wa->base.desc, n_a));
+      }
+      return;
   }
   ev = (pe_ioevent*) (*wa->base.vtbl->new_event)((pe_watcher*) wa);
   ++ev->base.hits;

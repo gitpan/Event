@@ -12,7 +12,7 @@ use base 'Exporter';
 use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.42';
+$VERSION = '0.43';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
