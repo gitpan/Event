@@ -48,14 +48,18 @@ static void prepare_event(pe_event *ev)
 {
   assert(!EvSUSPEND(ev));
   assert(EvREENTRANT(ev) || !ev->running);
-  if (!EvACTIVE(ev))
-    croak("Event: attempt to run callback for !ACTIVE watcher '%s'",
-	  SvPV(ev->desc,na));
-
-  /* this cannot be done any later because the callback might want to
+  if (!EvACTIVE(ev)) {
+    if (!EvRUNNOW(ev))
+      croak("Event: attempt to run callback for !ACTIVE watcher '%s'",
+	    SvPV(ev->desc,na));
+  }
+  else {
+    /* this cannot be done any later because the callback might want to
      again() or whatever */
-  if (EvINVOKE1(ev) || (!EvINVOKE1(ev) && !EvREPEAT(ev)))
-    pe_event_stop(ev);
+    if (EvINVOKE1(ev) || (!EvINVOKE1(ev) && !EvREPEAT(ev)))
+      pe_event_stop(ev);
+  }
+  EvRUNNOW_off(ev);
 }
 
 static void queueEvent(pe_event *ev, int count)

@@ -1,4 +1,16 @@
+1998-10-08  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.21.
+
+	* Try to normalize benchmark.
+
+	* 'now' was broken for inactive events.  Fixed & added test.
+
+	* Fixed infinite loop triggered by botched exception recovery.
+
 1998-10-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.20.
 
 	* Rename inactive to inactivity.
 

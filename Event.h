@@ -107,6 +107,7 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define PE_REENTRANT	0x10
 #define PE_HARD		0x20
 #define PE_PERLCB	0x40
+#define PE_RUNNOW	0x80
 
 #define PE_VISIBLE_FLAGS \
 (PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
@@ -138,6 +139,10 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define EvPERLCB(ev)		(EvFLAGS(ev) & PE_PERLCB)
 #define EvPERLCB_on(ev)		(EvFLAGS(ev) |= PE_PERLCB)
 #define EvPERLCB_off(ev)	(EvFLAGS(ev) &= ~PE_PERLCB)
+
+#define EvRUNNOW(ev)		(EvFLAGS(ev) & PE_RUNNOW)
+#define EvRUNNOW_on(ev)		(EvFLAGS(ev) |= PE_RUNNOW)
+#define EvRUNNOW_off(ev)	(EvFLAGS(ev) &= ~PE_RUNNOW)
 
 #define EvCANDESTROY(ev)					\
  (ev->refcnt == 0 && ev->running == 0 &&			\

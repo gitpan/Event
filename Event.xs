@@ -38,6 +38,7 @@ static SV *Eval;
 static void queueEvent(pe_event *ev, int count);
 static void dequeEvent(pe_event *ev);
 
+static int pe_sys_fileno(pe_io *ev);
 static void pe_event_cancel(pe_event *ev);
 static void pe_event_suspend(pe_event *ev);
 static void pe_event_resume(pe_event *ev);
@@ -125,20 +126,40 @@ double
 null_loops_per_second(sec)
 	int sec
 	CODE:
+	/*
+	  This should be more realistic.  It is used to normalize
+	  the benchmark against some theoretical perfect event loop.
+	*/
 	struct timeval start_tm, done_tm;
 	double elapse;
 	unsigned count=0;
+	int fds[2];
+	if (pipe(fds) != 0) croak("pipe");
 	gettimeofday(&start_tm, 0);
 	do {
-	  /* This should be more realistic... XXX */
 #ifdef HAS_POLL
-	  struct pollfd junk;
-	  poll(&junk, 0, 0);
+	  struct pollfd map[2];
+	  Zero(map, 2, struct pollfd);
+	  map[0].fd = fds[0];
+	  map[0].events = POLLIN | POLLOUT;
+	  map[0].revents = 0;
+	  map[1].fd = fds[1];
+	  map[1].events = POLLIN | POLLOUT;
+	  map[1].revents = 0;
+	  poll(map, 2, 0);
 #elif defined(HAS_SELECT)
 	  struct timeval null;
+	  fd_set rfds, wfds, efds;
+	  FD_ZERO(&rfds);
+	  FD_ZERO(&wfds);
+	  FD_ZERO(&efds);
+	  FD_SET(fds[0], &rfds);
+	  FD_SET(fds[0], &wfds);
+	  FD_SET(fds[1], &rfds);
+	  FD_SET(fds[1], &wfds);
 	  null.tv_sec = 0;
 	  null.tv_usec = 0;
-	  select(0,0,0,0,&null);
+	  select(3,&rfds,&wfds,&efds,&null);
 #else
 #  error
 #endif
@@ -147,6 +168,8 @@ null_loops_per_second(sec)
 	  elapse = (done_tm.tv_sec - start_tm.tv_sec +
 		    (done_tm.tv_usec - start_tm.tv_usec) / 1000000);
 	} while(elapse < sec);
+	close(fds[0]);
+	close(fds[1]);
 	RETVAL = count/sec;
 	OUTPUT:
 	RETVAL

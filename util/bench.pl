@@ -4,7 +4,7 @@ use strict;
 use Config;
 use Event qw(time loop unloop);
 use vars qw($VERSION $TestTime);
-$VERSION = '0.06';
+$VERSION = '0.07';
 $TestTime = 11;
 
 eval q[ use NetServer::ProcessTop; warn '[Top @ '.(7000+$$%1000)."]\n"; ];
@@ -87,6 +87,8 @@ sub pct {
 warn "Timing a null loop...\n";
 my $null = Event::null_loops_per_second(7);
 
+my $e_per_sec = ($IdleCount+$TimerCount+$IOCount+$SignalCount)/$elapse;
+
 chomp(my $uname = `uname -a`);
 print "
  benchmark: $VERSION
@@ -103,12 +105,32 @@ Elapse Time:     ".pct($elapse,$TestTime)." of $TestTime seconds
 Timer/sec:       ".pct($TimerCount,$TimerExpect)." ($TimerCount total)
 Io/sec:          ".sprintf("%.3f", $IOCount/$elapse)." ($IOCount total)
 Signals/sec      ".sprintf("%.2f", $SignalCount/$elapse)."
-Events/sec       ".sprintf("%.3f", ($IdleCount+$TimerCount+$IOCount+$SignalCount)/$elapse)."
+Events/sec       ".sprintf("%.3f", $e_per_sec)."
 Null/sec         $null
+Event/Null       ".sprintf("%.2f", 100* $e_per_sec / $null)."\%
 
 ";
 
 __END__
+
+-------------------------------------
+
+ benchmark: 0.06
+ Event: 0.20
+ 
+ perl 5.00552
+ uname=Linux furu.g.aas.no 2.0.31 #1 Mon Oct 13 12:20:11 MET DST 1997 i586
+ cc='cc', optimize='-g'
+ ccflags='-Dbool=char -DHAS_BOOL -DDEBUGGING -I/usr/local/include'
+ 
+ Please mail benchmark results to perl-loop@perl.org.  Thanks!
+ 
+Elapse Time:     97.61% of 11 seconds
+Timer/sec:       96.80% (772 total)
+Io/sec:          1518.486 (16304 total)
+Signals/sec      1.96
+Events/sec       1687.248
+Null/sec         50928
 
 -------------------------------------
 

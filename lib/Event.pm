@@ -13,7 +13,7 @@ use base 'Exporter';
 use vars qw($VERSION @EXPORT_OK @EXPORT_FAIL
 	    $API $DebugLevel $Eval $DIED $Now
 	    @Prepare @Check @AsyncCheck);
-$VERSION = '0.20';
+$VERSION = '0.21';
 BOOT_XS: {
     # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -108,12 +108,12 @@ sub sweep {
     my $errsv = '';
     while (1) {
 	eval { $@ = $errsv; _empty_queue($prio) };
+	$errsv = $@;
 	if ($@) {
 #	    if ($Event::DebugLevel >= 2) {
 #		my $e = all_running();
 #		warn "Event: '$e->{desc}' died with: $@";
 #	    }
-	    $errsv = $@;
 	    next
 	}
 	last;
@@ -140,12 +140,12 @@ sub loop {
     while (1) {
 	# like G_EVAL | G_KEEPERR
 	eval { $@ = $errsv; _loop() };
+	$errsv = $@;
 	if ($@) {
 #	    if ($Event::DebugLevel >= 2) {
 #		my $e = all_running();
 #		warn "Event: '$e->{desc}' died with: $@";
 #	    }
-	    $errsv = $@;
 	    next
 	}
 	last;

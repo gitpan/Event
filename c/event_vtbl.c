@@ -307,7 +307,7 @@ static void pe_event_died(pe_event *ev)
   SV *eval = perl_get_sv("Event::DIED", 1);
   SV *err = sv_true(ERRSV)? sv_mortalcopy(ERRSV) : sv_2mortal(newSVpv("?",0));
   dSP;
-  if (EvDEBUGx(ev))
+  if (EvDEBUGx(ev) >= 3)
     warn("Event: '%s' died with: %s\n", SvPV(ev->desc,na), SvPV(ERRSV,na));
   PUSHMARK(SP);
   XPUSHs(sv_2mortal(event_2sv(ev)));
@@ -538,6 +538,7 @@ static void pe_register_vtbl(pe_event_vtbl *vt)
 static void pe_event_now(pe_event *ev)
 {
   if (EvSUSPEND(ev)) return;
+  EvRUNNOW_on(ev);
   queueEvent(ev, 1);
 }
 
