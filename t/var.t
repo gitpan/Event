@@ -11,18 +11,18 @@ my $var2 = 3;
 my $var3 = 0;
 
 Event->var(
-    -variable => \$var1,
-    -callback =>
+    variable => \$var1,
+    callback =>
 	sub {
-	    print "ok ",$ {shift->{'-variable'}},"\n";
+	    print "ok ",$ {shift->{'variable'}},"\n";
 	    $var2++
 	    },
     desc => "var1"
 );
 
 Event->var(
-    -variable => \$var2,
-    -callback =>
+    variable => \$var2,
+    callback =>
 	sub {
 	    $var3 = 3;
 	    print "ok ",$var2,"\n";
@@ -32,9 +32,9 @@ Event->var(
 );
 
 Event->var(
-    -variable => \$var3,
-    nice    => -10,
-    -callback =>
+    variable => \$var3,
+    async => 1,
+    callback =>
 	sub {
 	    print "ok ",$var3,"\n";
 	},
@@ -42,7 +42,7 @@ Event->var(
 );
 
 Event->idle(
-    -callback => sub {
+    callback => sub {
 	print "ok ",$var1,"\n";
 	$var1++;
     },

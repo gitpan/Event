@@ -33,7 +33,7 @@ whole:
 
 =over 4
 
-=item $result = loop()
+=item $result = loop([$timeout])
 
 Will enter a loop that calls one_event() until unloop() is called.
 The argument passed to unloop() is the return value of loop().  Loops
@@ -49,28 +49,35 @@ Cause all pending loop()s to return immediately.  This is not
 implemented with an exception.  It works by effectly calling
 C<unloop(undef)> for each pending loop.
 
+=item sweep([$max_prio])
+
+Queue all pending events and process the ones with priority higher
+than $max_prio.  The default is to process all events except idle
+events.  (Idle events are ignored by sweep.)
+
 =item one_event([$timeout])
 
 If any events have happened, invoke the corresponding callback of the
 highest priority event.  If no event has happened yet, block until
-forever or until $timeout.
+forever or until $timeout.  Using this API is not recommended because
+it doesn't trap exceptions.
 
 =item all_events()
 
-Return a list of all events created (including cancelled events).
+Returns a list of all event watchers (including cancelled events).
 
 =item all_running()
 
-Return a list of all events running inside its callback at the moment.
-This can be more than one event!
+Returns a list of all event watchers with active callbacks.  The
+watchers are returned in order of most recent to least recent.
 
 =item all_queued()
 
-Return all events queued in order of priority.
+Returns all queued event watchers in order of priority.
 
 =item all_idle()
 
-Return all events in the idle queue.
+Returns all event watchers in the idle queue.
 
 =back
 
@@ -78,12 +85,12 @@ Return all events in the idle queue.
 
 All watchers are constructed in one of the following ways:
 
-  $w = Event->type( [-attr1 => $value,]... );
+  $w = Event->type( [attr1 => $value,]... );
  
 or
  
   use Event::type;
-  $w = Event::type( [-attr1 => $value,]...);
+  $w = Event::type( [attr1 => $value,]...);
 
 Where I<type> is substituted with the kind of watcher.  Built in types
 include: idle, io, timer, watchvar, signal, and process.
@@ -100,37 +107,50 @@ This is a fancy way of saying that a watcher object works like hash
 reference.  For example:
 
    $watcher->{callback} = \&some_code;
-   $watcher->{-callback} = \&some_code;  # same thing
 
-   print "$watcher->{-count} events happened; Wow!\n";
+   print "$watcher->{count} events happened; Wow!\n";
 
-The key's dash (-) prefix is optional.
- 
 The following attributes are supported by all types of watchers.  Most
 watchers types also offer additional attributes.
 
 =over 4
 
-=item -id => $int
+=item id => $int
 
 An integer that identifies this event.  This attribute is read-only.
+You should use this to test for equality (until the equality test for
+tied objects is fixed).
 
-=item -callback => \&code
+=item callback => \&code
 
-=item -callback => [$class_or_object, $method]
+=item callback => [$class_or_object, $method]
 
 The function or method to call when an event happens.  The callback is
-invoked with a reference to the $event as its only additional
-argument.
+invoked with a reference to the $event as its only argument.
 
-=item -count => $int
+Perhaps you are wondering what happens if something goes wrong and an
+untrapped C<die> occurs within your callback?  $Event::DIED is just
+for this purpose.  When you call C<loop> or C<sweep>, an exception
+context is established that lasts throughout event processing. If an
+exception is detected, C<$Event::DIED> is invoked like this:
+ 
+  $Event::DIED->($watcher, $@);
+ 
+The default hook uses C<warn> to print the exception.  After C<DIED>
+returns, event processing continues as if nothing happened.  If you'd
+like to see more detailed output you can use the verbose handler
+(below) or write your own.
+
+  $Event::DIED = \&Event::verbose_exception_handler;
+
+=item count => $int
 
 The number of times this event has happened since last time the
 callback was invoked.  This attribute is read-only.  It is reset to
 zero when the callback completes or as soon as you call one_event(),
 loop(), or now() within the callback.
 
-=item -priority => $int
+=item priority => $int
 
 The priority is used to order events queued for processing.  Available
 priorities range from -1 to 6, inclusive.  Lower numbers are higher
@@ -147,29 +167,37 @@ The -priority passed as argument to the event constructor is treated
 differently.  It is an offset from the default priority of the event
 type.
 
-=item -desc => $string
+=item desc => $string
 
 Some identifying name.  If not passed to the constructor it will be
 initialized with some string that attempts to identify the location in
 the source code where the event object was constructed.
 
-=item -flags => $bits
+=item flags => $bits
  
 The flag attribute encodes some information about the state of an
 event.  [XXX Fill in exact bits]
 
-=item -repeat => $bool
+=item repeat => $bool
 
 The repeat flag controls if callback should be one-shot or if the
 watcher should continue waiting for new events of this kind occur.
 The default depends on the type of watcher.  It defaults to TRUE for
 the I<io>, I<signal>, I<watchvar> types.
 
-=item -debug => $bool
+=item debug => $bool
 
 Debugging can be activated per watcher.  When debugging is enabled,
-$Event::DebugLevel is treated as one level higher for this watcher.  A
-level of 1, 2, or 3 give progressively more noise on STDERR.
+$Event::DebugLevel is treated as two levels higher for this watcher.  A
+level of 1, 2, 3, or 4 give progressively more noise on STDERR.
+
+=item reentrant => $bool
+
+By default, callbacks are allowed to invoke C<sweep> or C<loop> which
+in turn may invoke the same callback again recursively.  This can be
+useful but can also be confusing.  Turn off this feature by setting
+reentrant to false.  This will cause an active watcher to be suspended
+during recursive calls to C<sweep> or C<loop>.
 
 =back
 
@@ -204,8 +232,8 @@ may not be run immediately depending upon its priority.
 
 Return statistics for the last $sec seconds of operation.  Two numbers
 are returned: the number of times the callback has been invoked and
-the number of seconds spent within the callback.  Also see
-L<NetServer::ProcessTop>.
+the number of seconds spent within the callback.  Statistics must have
+been enabled.  Also see L<NetServer::ProcessTop>.
 
 =back
 
@@ -219,13 +247,13 @@ The callback is invoked only if no other event is pending.
 
 =item watchvar
 
-Extra attribute: -variable => \$var
+Extra attribute: variable => \$var
 
 Triggered when the value of C<$var> is changed.
 
 =item timer
 
-Extra attributes: -at => $time, -interval => $sec, -hard => $bool
+Extra attributes: at => $time, interval => $sec, hard => $bool
 
 The callback in invoked at the specified (-at) point in time.  The
 $time and $sec arguments can be fractional seconds.
@@ -243,8 +271,8 @@ the -at attribute.
 
 =item io
 
-Extra attributes: -handle => $fh, -events => "rwe", -got => "rwet",
-[-timeout => 10]
+Extra attributes: handle => $fh, events => "rwe", got => "rwet",
+[timeout => $seconds]
 
 The callback is invoked when the filehandle has data to be read,
 written, or pending exceptions.  The -handle attribute specifies which
@@ -258,14 +286,14 @@ has pending exceptions.
 When the callback is invoked, then the -got attribute tell you which
 -events triggered.  The -got attribute is read-only.  If you think
 that testing for letters is too slow, you can also use -got as a bit
-mask.  The bit constants are available in Event::io.
+mask.  The bit constants can be exported from Event.
 
 Note that it is your choice whether to have multiple watchers per
 filehandle or a single watcher that handles all event flavors.
 
 =item signal
 
-Extra attribute: -signal => $str
+Extra attribute: signal => $str
 
 The callback will be invoked when the specified signal has been
 received by this process.  The $str is a string like "INT", "QUIT",...
@@ -275,7 +303,7 @@ also use the C<process> watcher type.
 
 =item process
 
-Extra attribute: -pid => $int
+Extra attribute: pid => $int, [timeout => $seconds]
 
 Callback is invoked when the process with the given PID exits.  If no
 pid is given then callback will be invoked when any child process
@@ -291,13 +319,18 @@ Not implemented.
 
 =back
     
-=head1 SUPPORT
+=head1 C API
 
-This extension is discussed on the perl-loop@perl.org mailing list.
+Event also has a direct C API for performance critical applications.
+See L<Event::MakeMaker>.
 
 =head1 ALSO SEE
 
-L<Event::Advanced> (to be written) and L<NetServer::ProcessTop>
+L<NetServer::ProcessTop>
+
+=head1 SUPPORT
+
+This extension is discussed on the perl-loop@perl.org mailing list.
 
 =head1 AUTHORS
 

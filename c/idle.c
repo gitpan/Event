@@ -38,7 +38,7 @@ static void pe_idle_start(pe_event *ev, int repeating)
   now = EvHARD(ev)? ev->cbtime : EvNOW(1);
   if (sv_2interval(ip->min_interval, &min)) {
     ip->tm.at = min + now;
-    pe_timeable_start(ev);
+    pe_timeable_start(&ip->tm);
     D_IDLE(warn("min %.2f setup '%s'\n", min, SvPV(ev->desc,na)));
   }
   else {
@@ -47,22 +47,22 @@ static void pe_idle_start(pe_event *ev, int repeating)
     if (sv_2interval(ip->max_interval, &max)) {
       D_IDLE(warn("max %.2f setup '%s'\n", max, SvPV(ev->desc,na)));
       ip->tm.at = max + now;
-      pe_timeable_start(ev);
+      pe_timeable_start(&ip->tm);
     }
   }
 }
 
-static void pe_idle_alarm(pe_event *ev)
+static void pe_idle_alarm(pe_event *ev, pe_timeable *_ignore)
 {
   double now = EvNOW(1);
   double min,max,left;
   pe_idle *ip = (pe_idle*) ev;
-  pe_timeable_stop(ev);
+  pe_timeable_stop(&ip->tm);
   if (sv_2interval(ip->min_interval, &min)) {
     left = ev->cbtime + min - now;
     if (left > PE_INTERVAL_EPSILON) {
       ip->tm.at = now + left;
-      pe_timeable_start(ev);
+      pe_timeable_start(&ip->tm);
       D_IDLE(warn("min %.2f '%s'\n", left, SvPV(ev->desc,na)));
       return;
     }
@@ -82,7 +82,7 @@ static void pe_idle_alarm(pe_event *ev)
     else {
       ip->tm.at = now + left;
       D_IDLE(warn("max %.2f '%s'\n", left, SvPV(ev->desc,na)));
-      pe_timeable_start(ev);
+      pe_timeable_start(&ip->tm);
     }
   }
 }
@@ -91,7 +91,7 @@ static void pe_idle_stop(pe_event *ev)
 {
   pe_idle *ip = (pe_idle*) ev;
   PE_RING_DETACH(&ip->iring);
-  pe_timeable_stop(ev);
+  pe_timeable_stop(&ip->tm);
 }
 
 static void pe_idle_FETCH(pe_event *_ev, SV *svkey)

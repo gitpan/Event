@@ -72,14 +72,13 @@ static void pe_sys_multiplex(double timeout)
     Zero(Pollfd, pollMax, struct pollfd);
     ev = IOWatch.next->self;
     while (ev) {
-      int fd = pe_sys_fileno(ev);
+      int fd = ev->fd;
       ev->xref = -1;
-      ev->fd = fd;
       if (fd >= 0) {
 	int bits=0;
-	if (ev->events & PE_IO_R) bits |= (POLLIN | POLLRDNORM);
-	if (ev->events & PE_IO_W) bits |= (POLLOUT | POLLWRNORM | POLLWRBAND);
-	if (ev->events & PE_IO_E) bits |= (POLLRDBAND | POLLPRI);
+	if (ev->events & PE_R) bits |= (POLLIN | POLLRDNORM);
+	if (ev->events & PE_W) bits |= (POLLOUT | POLLWRNORM | POLLWRBAND);
+	if (ev->events & PE_E) bits |= (POLLRDBAND | POLLPRI);
 	if (bits) {
 	  int ok=0;;
 	  for (xx = 0; xx < Nfds; xx++) {
@@ -117,9 +116,9 @@ static void pe_sys_multiplex(double timeout)
     if (xref >= 0) {
       int got = 0;
       int mask = Pollfd[xref].revents;
-      if (mask & (POLLIN | POLLRDNORM)) got |= PE_IO_R;
-      if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_IO_W;
-      if (mask & (POLLRDBAND | POLLPRI)) got |= PE_IO_E;
+      if (mask & (POLLIN | POLLRDNORM)) got |= PE_R;
+      if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_W;
+      if (mask & (POLLRDBAND | POLLPRI)) got |= PE_E;
       if (got) {
 	/* must use | since watcher can trigger more than once
 	   before it is serviced */
@@ -175,13 +174,12 @@ static void pe_sys_multiplex(double timeout)
     FD_ZERO(&Efds);
     ev = IOWatch.next->self;
     while (ev) {
-      int fd = pe_sys_fileno(ev);
-      ev->fd = fd;
+      int fd = ev->fd;
       if (fd >= 0) {
 	int bits=0;
-	if (ev->events & PE_IO_R) { FD_SET(fd, &Rfds); ++bits; }
-	if (ev->events & PE_IO_W) { FD_SET(fd, &Wfds); ++bits; }
-	if (ev->events & PE_IO_E) { FD_SET(fd, &Efds); ++bits; }
+	if (ev->events & PE_R) { FD_SET(fd, &Rfds); ++bits; }
+	if (ev->events & PE_W) { FD_SET(fd, &Wfds); ++bits; }
+	if (ev->events & PE_E) { FD_SET(fd, &Efds); ++bits; }
 	if (bits && fd > Nfds) Nfds = fd;
       }
       ev = ev->ioring.next->self;
@@ -232,9 +230,9 @@ static void pe_sys_multiplex(double timeout)
     int fd = ev->fd;
     if (fd >= 0) {
       int got = 0;
-      if (FD_ISSET(fd, &rfds)) got |= PE_IO_R;
-      if (FD_ISSET(fd, &wfds)) got |= PE_IO_W;
-      if (FD_ISSET(fd, &efds)) got |= PE_IO_E;
+      if (FD_ISSET(fd, &rfds)) got |= PE_R;
+      if (FD_ISSET(fd, &wfds)) got |= PE_W;
+      if (FD_ISSET(fd, &efds)) got |= PE_E;
       if (got) {
 	/* must use |= since watcher can trigger more than once
 	   before it is serviced */

@@ -1,10 +1,11 @@
 use strict;
 package Event::process;
+use Carp;
+use Event qw(time);
 use base 'Event::Watcher';
 use vars qw($DefaultPriority);
 $DefaultPriority = Event::PRIO_HIGH();
 
-# BEGIN { 'Event::Watcher'->import(qw()); }
 'Event::Watcher'->register();
 
 sub new {
@@ -13,7 +14,7 @@ sub new {
     shift if @_ & 1;
     my %arg = @_;
     my $o = 'Event::process'->allocate();
-    $o->init([qw(pid)], \%arg);
+    $o->init([qw(pid timeout)], \%arg);
     $o->{any} = 1 if !exists $o->{pid};
     $o->start();
     $o;
@@ -36,7 +37,7 @@ Event->signal(signal => 'CHLD',  #CLD? XXX
 		      for my $e (@$cbq) {
 			  $e->{pid} = $pid;
 			  $e->{status} = $status;
-			  Event::queueEvent($e)
+			  Event::queue($e);
 		      }
 		  }
 	      },
@@ -46,14 +47,32 @@ sub _start {
     my ($o, $repeat) = @_;
     my $key = exists $o->{any}? 'any' : $o->{pid};
     push @{$cb{ $key } ||= []}, $o;
+    if (exists $o->{timeout}) {
+	croak "Timeout for all child processes?" if $o->{any};
+	$o->{at} = time + $o->{timeout};
+    }
 }
 
 sub _stop {
     my $o = shift;
     my $key = exists $o->{any}? 'any' : $o->{pid};
-    $cb{ $key } = [grep { $_ != $o } @{$cb{ $key }} ];
+    $cb{ $key } = [grep { $_->{id} != $o->{id} } @{$cb{ $key }} ];
     delete $cb{ $key } if
 	@{ $cb{ $key }} == 0;
+}
+
+sub _alarm {
+    my $o = shift;
+    delete $o->{status};
+    Event::queue($o);
+}
+
+sub _postCB {
+    my $o = shift;
+    if (exists $o->{timeout}) {
+	delete $o->{timeout};
+	$o->again;
+    }
 }
 
 1;

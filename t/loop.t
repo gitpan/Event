@@ -1,8 +1,8 @@
-# dreams of -*-perl-*-
+# -*-perl-*-
 
 use strict;
 use Test; plan tests => 2;
-use Event qw(loop unloop sleep);
+use Event qw(loop unloop);
 
 #$Event::DebugLevel = 3;
 
@@ -14,8 +14,10 @@ my $early = Event->idle(repeat => 1, callback => sub {
 			    unloop 'early';
 			});
 Event->idle(repeat => 1, callback => sub {
+		my $e = shift;
+		$e->{reentrant} = 0;
 		$sleeping = 1;
-		my $ret = sleep $sleep;
+		my $ret = loop($sleep);
 		if (!exists $got{$ret}) {
 		    $got{$ret} = 1;
 		    if ($ret eq 'early') {
@@ -25,6 +27,7 @@ Event->idle(repeat => 1, callback => sub {
 			ok 1;
 		    }
 		}
+		$e->{reentrant} = 1;
 		$sleeping = 0;
 		unloop if keys %got == 2;
 	    });

@@ -41,6 +41,7 @@ gettimeofday (struct timeval *tp, void *nothing)
 /* Yet another hard to maintain API in the name of performance!! */
 
 static SV *NowSV;
+static double NowDouble;
 static int pe_now_valid;
 
 /*
@@ -51,18 +52,17 @@ static int pe_now_valid;
 */
 static double pe_cache_now()
 {
-  double got;
   struct timeval now_tm;
   gettimeofday(&now_tm, 0);
-  got = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
+  NowDouble = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
   if (!SvNOK(NowSV)) {
-    sv_setnv(NowSV, got);
+    sv_setnv(NowSV, NowDouble);
     SvREADONLY_on(NowSV);
   }
   else
-    SvNVX(NowSV) = got;
+    SvNVX(NowSV) = NowDouble;
   /*  pe_now_valid = 1; XXX */
-  return got;
+  return NowDouble;
 }
 
 static void pe_invalidate_now_cache()
@@ -77,4 +77,4 @@ static void boot_gettimeofday()
   pe_cache_now();
 }
 
-#define EvNOW(exact) ((!exact || pe_now_valid)? SvNVX(NowSV) : pe_cache_now())
+#define EvNOW(exact) ((!exact || pe_now_valid)? NowDouble : pe_cache_now())

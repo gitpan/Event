@@ -13,7 +13,7 @@ use base 'Exporter';
 use vars qw($VERSION @EXPORT_OK @EXPORT_FAIL
 	    $API $DebugLevel $Eval $DIED $Now
 	    @Prepare @Check @AsyncCheck);
-$VERSION = '0.18';
+$VERSION = '0.19';
 BOOT_XS: {
     # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -33,8 +33,8 @@ $Eval = 0;		# should avoid because c_callback is exempt
 $DIED = \&default_exception_handler;
 
 @EXPORT_OK = qw(time $Now all_events all_running all_queued all_idle
-		one_event loop unloop unloop_all sleep
-		QUEUES PRIO_NORMAL PRIO_HIGH);
+		one_event sweep loop unloop unloop_all sleep queue
+		QUEUES PRIO_NORMAL PRIO_HIGH R W E T);
 
 sub export_fail {
     # Doesn't even get called!  Patch needed for Exporter.pm. XXX
@@ -68,36 +68,56 @@ sub AUTOLOAD {
 }
 
 sub default_exception_handler {
-    my $run = shift;
+    my ($run,$err) = @_;
     my $desc = $run? $run->{desc} : '?';
-    my $m = "Event: trapped error in '$desc': $@";
+    my $m = "Event: trapped error in '$desc': $err";
     $m .= "\n" if $m !~ m/\n$/;
     warn $m;
     #Carp::cluck "Event: fatal error trapped in '$desc'";
 }
 
 sub verbose_exception_handler {
-    my $run = shift;
+    my ($run,$err) = @_;
 
-    my $m = "Event: trapped error: $@";
+    my $m = "Event: trapped error: $err";
     $m .= "\n" if $m !~ m/\n$/;
     return warn $m if !$run;
 
-    $m .= "$run:\n";
+    $m .= " in $run --\n";
     for my $k (sort keys %$run) {
 	$m .= sprintf "%18s: ", $k;
 	eval {
 	    my $v = $run->{$k};
 	    if (!defined $v) {
-		$m .= 'undef';
+		$m .= '<undef>';
+	    } elsif ($v =~ /^-?\d+(\.\d+)?$/) {
+		$m .= $v;
 	    } else {
 		$m .= "'$v'";
 	    }
 	};
-	if ($@) { $m .= "[$@]" }
+	if ($@) { $m .= "[$@]"; $@=''; }
 	$m .= "\n";
     }
     warn $m;
+}
+
+sub sweep {
+    my $prio = @_ ? shift : QUEUES();
+    _queue_pending();
+    my $errsv = '';
+    while (1) {
+	eval { $@ = $errsv; _empty_queue($prio) };
+	if ($@) {
+#	    if ($Event::DebugLevel >= 2) {
+#		my $e = all_running();
+#		warn "Event: '$e->{desc}' died with: $@";
+#	    }
+	    $errsv = $@;
+	    next
+	}
+	last;
+    }
 }
 
 use vars qw($LoopLevel $ExitLevel $Result);
@@ -105,6 +125,14 @@ $LoopLevel = $ExitLevel = 0;
 
 sub loop {
     use integer;
+    my $timeout;
+    if (@_ == 1) {
+	my $how_long = shift;
+	$timeout = Event->timer(desc => "Event::loop timeout",
+				after => $how_long,
+				callback => sub { unloop($how_long) });
+	$timeout->{priority} = PRIO_HIGH();
+    }
     local $Result = undef;
     local $LoopLevel = $LoopLevel+1;
     ++$ExitLevel;
@@ -113,15 +141,16 @@ sub loop {
 	# like G_EVAL | G_KEEPERR
 	eval { $@ = $errsv; _loop() };
 	if ($@) {
-	    if ($Event::DebugLevel >= 2) {
-		my $e = all_running();
-		warn "Event: '$e->{desc}' died with: $@";
-	    }
+#	    if ($Event::DebugLevel >= 2) {
+#		my $e = all_running();
+#		warn "Event: '$e->{desc}' died with: $@";
+#	    }
 	    $errsv = $@;
 	    next
 	}
 	last;
     }
+    $timeout->cancel if $timeout;
     $Result;
 }
 
@@ -156,8 +185,14 @@ sub add_hooks {
 my $backward_noise = 20;
 
 if (1) {
-    # Do you feel like you need mouthwash?  Have some of this!
+    # Do you feel like you need an entwash?  Have some of this!
     no strict 'refs';
+
+    # Event 0.18
+    *Event::queueEvent = sub {
+	carp "queueEvent renamed to queue" if --$backward_noise > 0;
+	&queue;
+    };
 
     # Event 0.12
     for my $m (qw(QUEUES PRIO_HIGH PRIO_NORMAL queueEvent)) {
@@ -219,6 +254,7 @@ sub register {
     &Event::add_hooks if @_;
 }
 
+my $annoy = 10;
 sub init {
     croak "Event::Watcher::init wants 3 args" if @_ != 3;
     local $Carp::CarpLevel = $Carp::CarpLevel + 2;
@@ -233,8 +269,9 @@ sub init {
 	last;
     }
 
-    for (@$keys, qw(repeat desc callback debug)) {
+    for (@$keys, qw(repeat reentrant desc callback debug)) {
 	if (exists $arg->{"-$_"}) {
+	    carp "Please remove leading dashes" if --$annoy > 0;
 	    $o->{$_} = $arg->{"-$_"} 
 	} elsif (exists $arg->{$_}) {
 	    $o->{$_} = $arg->{$_};
@@ -269,26 +306,5 @@ use vars qw(@EXPORT_OK);
 @EXPORT_OK = qw(MAXTIME);
 
 # restart & DESTROY methods are implemented in XS
-
-package Event::idle;
-use Carp;
-use base 'Event::Watcher';
-
-'Event::Watcher'->register;
-
-sub new {
-#    lock %Event::;
-
-    shift if @_ & 1;
-    my %arg = @_;
-
-    my $o = allocate();
-    $o->init([qw(min_interval max_interval hard)], \%arg);
-    $o->{repeat} = 1 if (!exists $arg{repeat} and
-			 (defined $o->{min_interval} or
-			  defined $o->{max_interval}));
-    $o->start;
-    $o;
-}
 
 1;

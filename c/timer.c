@@ -1,7 +1,6 @@
 static struct pe_event_vtbl pe_timer_vtbl;
 
-static pe_event *
-pe_timer_allocate()
+static pe_event *pe_timer_allocate()
 {
   pe_timer *ev;
   New(PE_NEWID, ev, 1, pe_timer);
@@ -39,13 +38,13 @@ static void pe_timer_start(pe_event *ev, int repeat)
   if (!tm->tm.at)
     croak("Timer unset");
 
-  pe_timeable_start(ev);
+  pe_timeable_start(&tm->tm);
 }
 
 static void pe_timer_stop(pe_event *ev)
-{ pe_timeable_stop(ev); }
+{ pe_timeable_stop(&((pe_timer*)ev)->tm); }
 
-static void pe_timer_alarm(pe_event *ev)
+static void pe_timer_alarm(pe_event *ev, pe_timeable *tm)
 { queueEvent(ev, 1); }
 
 static void pe_timer_FETCH(pe_event *_ev, SV *svkey)

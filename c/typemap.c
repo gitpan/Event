@@ -1,6 +1,4 @@
-
-static pe_event *
-sv_2event(SV *sv)
+static pe_event *sv_2event(SV *sv)
 {
   pe_event *ret = 0;
   if (sv && SvROK(sv)) {
@@ -33,8 +31,7 @@ sv_2event(SV *sv)
   return ret;
 }
 
-static SV *
-event_2sv(pe_event *ev)
+static SV *event_2sv(pe_event *ev)
 {
   SV *tied, *ret;
   HV *stash = ev->stash;
@@ -71,3 +68,19 @@ static int sv_2interval(SV *in, double *out)
   croak("Interval must be a number of reference to a number");
   return 0;
 }
+
+static SV* io_events_2sv(int mask)
+{
+  STRLEN len;
+  SV *ret = newSV(0);
+  SvUPGRADE(ret, SVt_PVIV);
+  sv_setpvn(ret, "", 0);
+  if (mask & PE_R) sv_catpv(ret, "r");
+  if (mask & PE_W) sv_catpv(ret, "w");
+  if (mask & PE_E) sv_catpv(ret, "e");
+  if (mask & PE_T) sv_catpv(ret, "t");
+  SvIVX(ret) = mask;
+  SvIOK_on(ret);
+  return ret;
+}
+

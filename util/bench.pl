@@ -112,6 +112,27 @@ __END__
 
 -------------------------------------
 
+ benchmark: 0.06
+ Event: 0.18
+ 
+ perl 5.00551
+ uname=IRIX64 clobber 6.2 03131016 IP25 mips
+ cc='cc -n32', optimize='-O3'
+ ccflags='-D_BSD_TYPES -D_BSD_TIME -woff 1009,1110,1184 -OPT:Olimit=0
+-I/usr/local/
+include -DLANGUAGE_C'
+ 
+ Please mail benchmark results to perl-loop@perl.org.  Thanks!
+ 
+Elapse Time:     99.63% of 11 seconds
+Timer/sec:       98.18% (720 total)
+Io/sec:          6541.408 (71690 total)
+Signals/sec      1.92
+Events/sec       7017.893
+Null/sec         74469
+
+-------------------------------------
+
  benchmark: 0.05
  Event: 0.13
  

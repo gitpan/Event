@@ -1,16 +1,14 @@
 # process -*-perl-*-
 
-use Test; plan tests => 5;
+use strict;
+use Test; plan tests => 6;
 use Event qw(loop unloop);
 
 # If this test doesn't terminate, try uncommenting the following lines
 # and post the output of a test runtime to the perl-loop mailing list.
 # Thanks!
 
-#$Event::Eval = 1;
-#$Event::DebugLevel = 2;
-
-my $sleep=2;
+# $Event::DebugLevel = 4;
 
 sub myexit {
     my $st = shift;
@@ -23,7 +21,7 @@ my $got=0;
 sub maybe_done { unloop if ++$got >= 2 }
 
 my $child1;
-unless($child1 = fork) { sleep $sleep; myexit 5 }
+unless($child1 = fork) { sleep 2; myexit 5 }
 Event->process(callback => sub {
 		   my $o = shift;
 		   ok $o->{status}, 5 << 8; #unix only XXX?
@@ -33,10 +31,16 @@ Event->process(callback => sub {
 	       });
 
 my $child2;
-unless ($child2 = fork) { sleep $sleep; myexit 6 }
-Event->process(pid => $child2, callback => sub {
+unless ($child2 = fork) { sleep 10000; myexit 6 }
+Event->process(pid => $child2, timeout => 2.5, callback => sub {
 		   my $o = shift;
-		   ok $o->{status}, 6 << 8;
+		   if (!exists $o->{status}) {
+		       warn "[killing $o->{pid}]\n" if $Event::DebugLevel;
+		       ok 1;
+		       kill 9, $o->{pid};  # 9 always kill? XXX
+		       return;
+		   }
+		   ok $o->{status}, 9;
 		   ok $o->{pid} == $child2;
 
 		   maybe_done();

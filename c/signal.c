@@ -23,23 +23,20 @@ static pe_ring Sigring[NSIG];
 
 /* /GLOBALS */
 
-static Signal_t
-process_sighandler(sig)
-int sig;
+static Signal_t process_sighandler(int sig)
 {
   pe_sig_stat *st = &Sigstat[Sigslot];
   ++st->Hits;
   ++st->hits[sig];
 }
 
-static pe_event *
-pe_signal_allocate()
+static pe_event *pe_signal_allocate()
 {
   pe_signal *ev;
   New(PE_NEWID, ev, 1, pe_signal);
   ev->base.vtbl = &pe_signal_vtbl;
   PE_RING_INIT(&ev->sring, ev);
-  ev->sig = 0;
+  ev->signal = 0;
   pe_event_init((pe_event*) ev);
   EvREPEAT_on(ev);
   EvINVOKE1_off(ev);
@@ -49,7 +46,7 @@ pe_signal_allocate()
 static void pe_signal_start(pe_event *_ev, int repeat)
 {
   pe_signal *ev = (pe_signal*) _ev;
-  int sig = ev->sig;
+  int sig = ev->signal;
   if (sig == 0)
     croak("No signal");
   if (PE_RING_EMPTY(&Sigring[sig]))
@@ -60,7 +57,7 @@ static void pe_signal_start(pe_event *_ev, int repeat)
 static void pe_signal_stop(pe_event *_ev)
 {
   pe_signal *ev = (pe_signal*) _ev;
-  int sig = ev->sig;
+  int sig = ev->signal;
   PE_RING_DETACH(&ev->sring);
   if (PE_RING_EMPTY(&Sigring[sig]))
     rsignal(sig, SIG_DFL);
@@ -77,7 +74,7 @@ static void pe_signal_FETCH(pe_event *_ev, SV *svkey)
   switch (key[0]) {
   case 's':
     if (len == 6 && memEQ(key, "signal", 6)) {
-      ret = ev->sig > 0? sv_2mortal(newSVpv(Perl_sig_name[ev->sig],0))
+      ret = ev->signal > 0? sv_2mortal(newSVpv(Perl_sig_name[ev->signal],0))
 	: &sv_undef;
       break;
     }
@@ -113,7 +110,7 @@ static void pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
 	croak("Signal '%s' cannot be caught", SvPV(nval,na));
       if (active)
 	pe_event_stop(_ev);
-      ev->sig = sig;
+      ev->signal = sig;
       if (active)
 	pe_event_start(_ev, 0);
       break;

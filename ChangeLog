@@ -1,4 +1,41 @@
+1998-10-03  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.19.
+
+	* Put in code for tailpoll, but I can't tell if it works because
+ 	it the tail-f behavior seems to already happen automatically.
+  	Comments?  See demo/tail.t.
+
+	* Added inactive watchers (& tests).
+
+	* timeable API changes to allow multiple timers per watcher.
+
+	* Fixed non-ANSI function declaration in c/signal.c
+
+	* Reduced C API.
+
+	* Renamed queueEvent to queue.
+
+	* Fixed refcnt problem in DELETE.
+
+	* Dashes depreciated.
+
+	* Added -timeout to process watchers.
+
+	* Fixed typo induced polling in one_event.
+
+	* Moved R/W/E/T flags to Event from Event::io.
+
+	* Changed the arguments to $Event::DIED in order to cope with
+ 	$Event::DIED dieing.  Fixed sweep exception handling.  Added test.
+
 1998-10-02  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Watchers created with the C API now should require their perl
+ 	support code automatically.  Moved idle support to an autoloaded
+ 	pm.
+
+	* Added sweep & loop($timeout).  Fixed sleep.
 
 	* Release 0.18.
 

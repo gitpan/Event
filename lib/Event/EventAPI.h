@@ -57,7 +57,7 @@ struct pe_timeable {
   double at;
 };
 /* close enough to zero -- this needs to be bigger if you turn
-   on lots of debugging? XXX */
+   on lots of debugging?  Can determine clock resolution on the fly? XXX */
 #define PE_INTERVAL_EPSILON 0.00001
 
 /* PUBLIC FLAGS */
@@ -87,6 +87,12 @@ struct pe_timeable {
 #define PE_PRIO_HIGH	2
 #define PE_PRIO_NORMAL	4
 
+/* io-ish flags */
+#define PE_R 0x1
+#define PE_W 0x2
+#define PE_E 0x4
+#define PE_T 0x8
+
 typedef struct pe_idle pe_idle;
 struct pe_idle {
   pe_event base;
@@ -95,24 +101,21 @@ struct pe_idle {
   SV *max_interval, *min_interval;
 };
 
-/* flags for pe_io::events -- maybe not IO specific...? */
-#define PE_IO_R 0x1
-#define PE_IO_W 0x2
-#define PE_IO_E 0x4
-#define PE_IO_T 0x8
-
 typedef struct pe_io pe_io;
 struct pe_io {
   pe_event base;
-  pe_timeable tm;
+  pe_timeable tm; /*timeout*/
+  pe_timeable ttm; /*tailpoll*/
   pe_ring ioring;
   SV *handle;
-  double timeout;
+  float timeout;
+  float tailpoll;
   int events;
   int got;
 /* ifdef UNIX */
   int fd;
   int xref;  /*private: for poll*/
+  off_t size;
 /* endif */
 };
 
@@ -120,7 +123,7 @@ typedef struct pe_signal pe_signal;
 struct pe_signal {
   pe_event base;
   pe_ring sring;
-  int sig;
+  int signal;
 };
 
 typedef struct pe_timer pe_timer;
@@ -133,18 +136,15 @@ struct pe_timer {
 typedef struct pe_var pe_var;
 struct pe_var {
   pe_event base;
+  pe_timeable tm;
   SV *variable;
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 4
+#define EventAPI_VERSION 6
   I32 Ver;
 
   /* PUBLIC API */
-  int (*one_event)(double block_tm);
-  void (*unloop)(SV *result);
-  SV *(*sleep)(SV *howlong);
-  
   void (*start)(pe_event *ev, int repeat);
   void (*queue)(pe_event *ev, int count);
   void (*now)(pe_event *ev);

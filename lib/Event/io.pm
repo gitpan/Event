@@ -13,9 +13,20 @@ sub new {
     my %arg = @_;
 
     my $o = allocate();
-    $o->init([qw(timeout handle events)], \%arg);
+    $o->init([qw(timeout handle events timeout tailpoll)], \%arg);
     $o->start;
     $o;
+}
+
+{
+    no strict 'refs';
+    my $warn = 5;
+    for my $f (qw(R W E T)) {
+	*{$f} = sub {
+	    Carp::carp "Please use Event::$f instead" if --$warn >= 0;
+	    &{"Event::$f"};
+	};
+    }
 }
 
 1;

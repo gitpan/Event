@@ -30,6 +30,7 @@
 #include "Event.h"
 
 static int ActiveWatchers=0; /* includes EvACTIVE & EvQUEUED */
+static int WarnCounter=10;
 static int Stats=0;
 static SV *DebugLevel;
 static SV *Eval;
@@ -81,9 +82,6 @@ BOOT:
     SV *apisv;
     New(PE_NEWID, api, 1, struct EventAPI);
     api->Ver = EventAPI_VERSION;
-    api->one_event = safe_one_event;
-    api->unloop = pe_unloop;
-    api->sleep = pe_sleep;
     api->start = pe_event_start;
     api->queue = queueEvent;
     api->now = pe_event_now;
@@ -113,6 +111,13 @@ time()
 	PPCODE:
 	pe_cache_now();
 	XPUSHs(NowSV);
+
+void
+sleep(tm)
+	double tm;
+	PROTOTYPE: $
+	CODE:
+	pe_sys_sleep(tm);
 
 double
 null_loops_per_second(sec)
@@ -189,7 +194,7 @@ all_idle()
 	}
 
 void
-pe_event::queueEvent(...)
+pe_event::queue(...)
 	PROTOTYPE: $;$
 	PREINIT:
 	int cnt = 1;
@@ -208,8 +213,8 @@ one_event(...)
 	RETVAL
 
 void
-_loop()
-	PROTOTYPE:
+_loop(...)
+	PROTOTYPE: ;$
 	CODE:
 	SV *exitL = perl_get_sv("Event::ExitLevel", 1);
 	SV *loopL = perl_get_sv("Event::LoopLevel", 1);
@@ -219,21 +224,34 @@ _loop()
 	  one_event(60);
 
 void
-sleep(tm)
-	SV *tm;
-	PROTOTYPE: $
-	PPCODE:
-	SV *ret;
-	PUTBACK;
-	ret = pe_sleep(tm);
-	/* ret REFCNT ok? */
-	SPAGAIN;
-	XPUSHs(ret);
+_queue_pending()
+	CODE:
+	pe_queue_pending();
+
+int
+_empty_queue(prio)
+	int prio
+	CODE:
+	pe_check_recovery();
+	while (pe_empty_queue(prio));
 
 void
 _check_recovery()
 	CODE:
 	pe_check_recovery();
+
+void
+queue_time(prio)
+	int prio
+	PPCODE:
+	double max=0;
+	int xx;
+	if (prio < 0 || prio >= PE_QUEUES)
+	  croak("queue_time(%d) out of domain [0..%d]",
+		prio, PE_QUEUES-1);
+	for (xx=0; xx <= prio; xx++)
+	  if (max < QueueTime[xx]) max = QueueTime[xx];
+	XPUSHs(max? sv_2mortal(newSVnv(max)) : &sv_undef);
 
 
 MODULE = Event		PACKAGE = Event::Watcher

@@ -9,13 +9,17 @@ static int CurCBFrame = -1;
 
 static void pe_event_init(pe_event *ev)
 {
-  SV *sv;
-  SV *tmp = newSV(40);
-  SAVEFREESV(tmp);
   assert(ev);
   assert(ev->vtbl);
   if (!ev->vtbl->stash)
     croak("sub-class VTBL must have a stash (doesn't)");
+  if (!ev->vtbl->did_require) {
+    char *name = HvNAME(ev->vtbl->stash);
+    if (memEQ(name, "Event::", 7))
+      name += 7;
+    ++ev->vtbl->did_require;
+    gv_fetchmethod(gv_stashpv("Event", 1), name);
+  }
   ev->stash = ev->vtbl->stash;
   PE_RING_INIT(&ev->all, ev);
   PE_RING_UNSHIFT(&ev->all, &AllEvents);
@@ -62,7 +66,10 @@ static void pe_event_FETCH(pe_event *ev, SV *svkey)
   SV *ret=0;
   STRLEN len;
   char *key = SvPV(svkey, len);
-  if (len && key[0] == '-') { ++key; --len; }
+  if (len && key[0] == '-') {
+    if (--WarnCounter >= 0) warn("Please remove leading dash '%s'", key);
+    ++key; --len;
+  }
   if (!len) return;
   switch (key[0]) {
   case 'c':
@@ -145,7 +152,10 @@ static void pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
   STRLEN len;
   char *key = SvPV(svkey, len);
   int ok=0;
-  if (len && key[0] == '-') { ++key; --len; }
+  if (len && key[0] == '-') {
+    if (--WarnCounter >= 0) warn("Please remove leading dash '%s'", key);
+    ++key; --len;
+  }
   if (!len) return;
   switch (key[0]) {
   case 'c':
@@ -201,21 +211,20 @@ static void pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
   case 'p':
     if (len == 8 && memEQ(key, "priority",8)) {
       ok=1;
-      if (ev->priority != SvIV(nval)) {
-	int qued = EvQUEUED(ev);
-	if (qued) dequeEvent(ev);
-	ev->priority = SvIV(nval);
-	if (qued) queueEvent(ev, 0);
-      }
+      ev->priority = SvIV(nval);
       break;
     }
     break;
   case 'r':
     if (len == 9 && memEQ(key, "reentrant", 9)) {
       ok=1;
-      if (ev->running)
-	croak("'reentrant' cannot be changed if the event is running");
-      if (sv_true(nval)) EvREENTRANT_on(ev); else EvREENTRANT_off(ev);
+      if (sv_true(nval))
+	EvREENTRANT_on(ev);
+      else {
+	if (ev->running > 1)
+	  croak("'reentrant' cannot be turned off while the callback is nested %d times", ev->running);
+	EvREENTRANT_off(ev);
+      }
       break;
     }
     if (len == 6 && memEQ(key, "repeat",6)) {
@@ -254,9 +263,9 @@ static void pe_event_DELETE(pe_event *ev, SV *svkey)
   if (!ev->FALLBACK)
     return;
   ret = hv_delete_ent(ev->FALLBACK, svkey, 0, 0);
-  if (ret) {
+  if (ret && GIMME_V != G_VOID) {
     dSP;
-    XPUSHs(sv_2mortal(ret));
+    XPUSHs(sv_2mortal(SvREFCNT_inc(ret)));
     PUTBACK;
   }
 }
@@ -316,17 +325,21 @@ static void pe_event_NEXTKEY(pe_event *ev)
 
 static void pe_event_died(pe_event *ev)
 {
-  int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
   SV *eval = perl_get_sv("Event::DIED", 1);
+  SV *err = sv_true(ERRSV)? sv_mortalcopy(ERRSV) : sv_2mortal(newSVpv("?",0));
   dSP;
-  if (debug) {
-    /* avoid adding extra \n XXX */
+  if (EvDEBUGx(ev))
     warn("Event: '%s' died with: %s\n", SvPV(ev->desc,na), SvPV(ERRSV,na));
-  }
   PUSHMARK(SP);
   XPUSHs(sv_2mortal(event_2sv(ev)));
+  XPUSHs(err);
   PUTBACK;
-  perl_call_sv(eval, G_EVAL|G_KEEPERR|G_DISCARD);
+  perl_call_sv(eval, G_EVAL|G_DISCARD);
+  if (sv_true(ERRSV)) {
+    warn("Event: '%s' died and then $Event::DIED died with: %s\n",
+	 SvPV(ev->desc,na), SvPV(ERRSV,na));
+    sv_setpv(ERRSV, "");
+  }
 }
 
 static void pe_check_recovery()
@@ -337,7 +350,7 @@ static void pe_check_recovery()
   struct pe_cbframe *fp;
   if (CurCBFrame < 0) {
     if (SvIVX(DebugLevel) >= 3)
-      warn("Event: no callback running\n");
+      warn("Event: (no nested callback running)\n");
     return;
   }
 
@@ -365,8 +378,6 @@ static void pe_check_recovery()
 
   /* exception detected; alert the militia! */
   alert=0;
-  if (!SvTRUEx(ERRSV))
-    warn("Event: ERRSV should be true?");
   while (CurCBFrame >= 0) {
     fp = CBFrame + CurCBFrame;
     if (fp->ev->running == fp->run_id)
@@ -488,7 +499,7 @@ static void pe_event_nostart(pe_event *ev, int repeat)
 { pe_event_nomethod(ev,"start"); }
 static void pe_event_nostop(pe_event *ev)
 { pe_event_nomethod(ev,"stop"); }
-static void pe_event_alarm(pe_event *ev)
+static void pe_event_alarm(pe_event *ev, pe_timeable *tm)
 { pe_event_nomethod(ev,"alarm"); }
 
 static void boot_pe_event()
@@ -511,6 +522,7 @@ static void boot_pe_event()
   vt = &pe_event_base_vtbl;
   vt->up = 0;
   vt->stash = 0;
+  vt->did_require = 0;
   vt->dtor = pe_event_dtor;
   vt->FETCH = pe_event_FETCH;
   vt->STORE = pe_event_STORE;
@@ -528,6 +540,10 @@ static void boot_pe_event()
   newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
   newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));
   newCONSTSUB(stash, "RUNNING", newSViv(PE_RUNNING));
+  newCONSTSUB(stash, "R", newSViv(PE_R));
+  newCONSTSUB(stash, "W", newSViv(PE_W));
+  newCONSTSUB(stash, "E", newSViv(PE_E));
+  newCONSTSUB(stash, "T", newSViv(PE_T));
 }
 
 static void pe_register_vtbl(pe_event_vtbl *vt)

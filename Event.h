@@ -53,8 +53,8 @@ struct pe_cbframe {
   int resume;
 };
 
-typedef struct pe_tmevent pe_tmevent;
-struct pe_tmevent {
+typedef struct pe_tied pe_tied;
+struct pe_tied {
   pe_event base;
   pe_timeable tm;
 };
@@ -64,6 +64,7 @@ struct pe_event_vtbl {
   /* only used for DELETE, EXISTS, FIRSTKEY, & NEXTKEY */
   struct pe_event_vtbl *up;
 
+  int did_require;
   HV *stash;
   int keys;
   char **keylist;
@@ -76,7 +77,7 @@ struct pe_event_vtbl {
   void (*NEXTKEY)(pe_event *); /* never overridden? XXX */
   void (*start)(pe_event *, int);
   void (*stop)(pe_event *);
-  void (*alarm)(pe_event *);
+  void (*alarm)(pe_event *, pe_timeable *);
   void (*postCB)(pe_cbframe *);
 };
 
