@@ -1,3 +1,14 @@
+1999-09-22  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.56.
+
+	* Fixed detection of EOF.  Added test. (Gisle Aas)
+
+1999-09-14  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Figured out the strange pipe symantics on AIX and modified the
+ 	io.t test to cope. (dfavor@austin.ibm.com)
+
 1999-09-13  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.55.

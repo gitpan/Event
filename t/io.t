@@ -33,24 +33,33 @@ $SIG{__WARN__} = sub {
 
 sub new_pipe {
     my ($cnt) = @_;
-    my ($p1,$p2) = (gensym, gensym);
-    pipe($p1,$p2);
+    my ($r,$w) = (gensym, gensym);
+    pipe($r,$w);
 
-    for my $p ($p1,$p2) {
-	my $io = Event->io(poll => 'rw', cb => sub {
-			       my $e = shift;
-			       my $w=$e->w;
-			       if ($e->got & R) {
-				   my $buf;
-				   sysread $w->fd, $buf, 1;
-				   ++$$cnt;
-			       }
-			       if ($e->got & W) {
-				   syswrite $w->fd, '.', 1;
-			       }
-			   }, desc => "pair $p");
-	$io->fd($p);
-    }
+    Event->io(desc => "r", poll => 'r', fd => $r, cb => sub {
+		  my $e = shift;
+		  my $w=$e->w;
+		  if ($e->got & R) {
+		      my $buf;
+		      my $got = sysread $w->fd, $buf, 1;
+		      die "sysread: $!"
+			  if !defined $got;
+		      die "sysread: pipe closed?"
+			  if $got == 0;
+		      ++$$cnt;
+		  }
+	      });
+    Event->io(desc => 'w', poll => 'w', fd => $w, cb => sub {
+		  my $e = shift;
+		  my $w=$e->w;
+		  if ($e->got & W) {
+		      my $got = syswrite $w->fd, '.', 1;
+		      die "syswrite: $!"
+			  if !defined $got;
+		      die "syswrite: pipe closed?"
+			  if $got == 0;
+		  }
+	      });
 }
 
 my $count = 0;

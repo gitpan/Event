@@ -89,7 +89,7 @@ static void pe_sys_multiplex(double timeout) {
 	    ev->xref = -1;
 	    if (fd >= 0) {
 		int bits=0;
-		if (ev->poll & PE_R) bits |= (POLLIN | POLLRDNORM);
+		if (ev->poll & PE_R) bits |= (POLLIN | POLLRDNORM | POLLHUP);
 		if (ev->poll & PE_W) bits |= (POLLOUT |POLLWRNORM |POLLWRBAND);
 		if (ev->poll & PE_E) bits |= (POLLRDBAND | POLLPRI);
 		if (bits) {
@@ -131,7 +131,7 @@ static void pe_sys_multiplex(double timeout) {
 	if (xref >= 0) {
 	    int got = 0;
 	    int mask = Pollfd[xref].revents;
-	    if (mask & (POLLIN | POLLRDNORM)) got |= PE_R;
+	    if (mask & (POLLIN | POLLRDNORM | POLLHUP)) got |= PE_R;
 	    if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_W;
 	    if (mask & (POLLRDBAND | POLLPRI)) got |= PE_E;
 	    if (mask & POLLNVAL) {

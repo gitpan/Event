@@ -44,6 +44,7 @@ t/callback.t
 t/delete.t
 t/eval.t
 t/hook.t
+t/hup.t
 t/idle.t
 t/idle2.t
 t/io.t

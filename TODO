@@ -1,4 +1,6 @@
-rethink EvNOW
+rethink
+  EvNOW
+  pe_check_recovery & ENTER/LEAVE points
 
 find owner for Win32 port
 
