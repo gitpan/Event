@@ -310,8 +310,11 @@ static void pe_watcher_resume(pe_watcher *ev) {
     if (WaDEBUGx(ev) >= 4)
 	warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,n_a),
 	     WaACTIVE(ev)?" ACTIVE":"");
-    if (WaACTIVE(ev))
-	pe_watcher_on(ev, 0);  /* ignore failure */
+    if (WaACTIVE(ev)) {
+	char *excuse = pe_watcher_on(ev, 0);
+	if (excuse)
+	    warn("Event: can't resume '%s' %s", SvPV(ev->desc,n_a), excuse);
+    }
 }
 
 static char *pe_watcher_on(pe_watcher *wa, int repeat) {
@@ -323,7 +326,9 @@ static char *pe_watcher_on(pe_watcher *wa, int repeat) {
 	      SvPV(wa->desc,n_a));
     }
     excuse = (*wa->vtbl->start)(wa, repeat);
-    if (!excuse)
+    if (excuse)
+	pe_watcher_stop(wa, 1); /* update flags! */
+    else
 	WaPOLLING_on(wa); /* must happen nowhere else!! */
     return excuse;
 }

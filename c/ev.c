@@ -148,8 +148,13 @@ static void pe_event_postCB(pe_cbframe *fp) {
     pe_event *ev = fp->ev;
     pe_watcher *wa = ev->up;
     --CurCBFrame;
-    if (WaACTIVE(wa) && WaINVOKE1(wa) && WaREPEAT(wa))
-	pe_watcher_on(wa, 1);
+    if (WaACTIVE(wa) && WaINVOKE1(wa) && WaREPEAT(wa)) {
+	char *excuse = pe_watcher_on(wa, 1);
+	if (SvIV(DebugLevel) && excuse) {
+	    STRLEN n_a;
+	    warn("Event: can't restart '%s' %s", SvPV(wa->desc,n_a), excuse);
+	}
+    }
     if (Estat.on) {
 	if (fp->stats) {
 	    Estat.scrub(fp->stats, wa);

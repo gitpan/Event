@@ -45,15 +45,17 @@ static char *pe_io_start(pe_watcher *_ev, int repeat) {
 
     if (ev->fd >= 0) {
 	if (!ev->base.callback)
-	    return "Without io callback";
+	    return "without io callback";
 	PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
 	++IOWatchCount;
 	IOWatch_OK = 0;
 	++ok;
     }
     if (ev->timeout) {
-	if (!ev->base.callback && !ev->tm_callback)
+	if (!ev->base.callback && !ev->tm_callback) {
+	    assert(!ok);
 	    return "without timeout callback";
+	}
 	WaCBTIME_on(ev);
 	ev->poll |= PE_T;
 	ev->tm.at = NVtime() + ev->timeout;  /* too early okay */
@@ -110,9 +112,15 @@ static void pe_io_alarm(pe_watcher *_wa, pe_timeable *hit) {
 }
 
 static void _io_restart(pe_watcher *ev) {
+    char *excuse;
     if (!WaPOLLING(ev)) return;
     pe_watcher_off(ev);
-    pe_watcher_on(ev, 0); /* ignore failure */
+    excuse = pe_watcher_on(ev, 0);
+    if (SvIV(DebugLevel) && excuse) {
+	STRLEN n_a;
+	warn("Event: can't restart '%s' %s",
+	     SvPV(ev->desc, n_a), excuse);
+    }
 }
 
 static void pe_io_reset_handle(pe_watcher *ev) {  /* used by unix_io */

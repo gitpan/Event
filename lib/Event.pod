@@ -74,7 +74,10 @@ Watchers are returned in order of most recent to least recent.
 
 =item all_idle()
 
-Return all watchers on the idle queue.
+If the event queue is very busy, all the idle watchers will sit on the
+idle queue waiting to run.  However, be aware that if an idle watcher
+has the C<max> attribute set then it will queue a normal event when
+its C<max> wait time is exceeded.
 
 =back
 
@@ -214,7 +217,9 @@ Otherwise, they might be deprecated.
 Extra attributes: var => \$var, poll => 'rw'
 
 Var watchers generate events when the given variable is read from or
-written to.
+written to.  As perl is a concise language, it is often difficult to
+predict when a variable will be read.  For this reason, variable
+watchers should poll for writes unless you know what you are doing.
 
 =item timer
 

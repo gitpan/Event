@@ -87,12 +87,12 @@ static void pe_sys_multiplex(double timeout) {
 	while (ev) {
 	    int fd = ev->fd;
 	    ev->xref = -1;
-	    if (fd >= 0) {
+	    assert(fd >= 0); {
 		int bits=0;
 		if (ev->poll & PE_R) bits |= (POLLIN | POLLRDNORM | POLLHUP);
 		if (ev->poll & PE_W) bits |= (POLLOUT |POLLWRNORM |POLLWRBAND);
 		if (ev->poll & PE_E) bits |= (POLLRDBAND | POLLPRI);
-		if (bits) {
+		assert(bits); {
 		    int ok=0;;
 		    for (xx = 0; xx < Nfds; xx++) {
 			if (Pollfd[xx].fd == fd) { ok=1; break; }

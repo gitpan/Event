@@ -83,9 +83,17 @@ WKEYMETH(_signal_signal) {
 	    croak("Unrecognized signal '%s'", SvPV(nval, n_a));
 	if (!PE_SIGVALID(sig))
 	    croak("Signal '%s' cannot be caught", SvPV(nval, n_a));
+	/* factor XXX */
 	if (active) pe_watcher_off(ev);
 	sg->signal = sig;
-	if (active) pe_watcher_on(ev, 0);
+	if (active) {
+	    char *excuse = pe_watcher_on(ev, 0);
+	    if (SvIV(DebugLevel) && excuse) {
+		STRLEN n_a;
+		warn("Event: can't restart '%s' %s",
+		     SvPV(ev->desc, n_a), excuse);
+	    }
+	}
     }
 }
 
