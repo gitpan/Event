@@ -1,9 +1,11 @@
 # the time for -*-perl-*-
 
-use Test; plan tests => 6;
+use Test; plan tests => 7;
 use Event qw(loop unloop);
 
-# $Event::DebugLevel = 4;
+# $Event::DebugLevel = 3;
+
+#if (0) {
 
 my $count = 0;
 Event->timer(after => 0.5, interval => .1, nice => -1,
@@ -37,3 +39,18 @@ $long->cb(sub { ok 1 });
 $long->at(time);
 
 ok loop(), 'ok';
+
+$_->cancel for Event::all_watchers();
+
+#}
+
+my $depth=0;
+Event->timer(interval => .01, cb => sub {
+		 if (++$depth < 2) {
+		     loop();
+		 } else {
+		     Event::unloop_all('reentrant');
+		 }
+	     });
+
+ok loop(), 'reentrant';

@@ -1,3 +1,16 @@
+2000-04-26  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.76.
+
+	* Fixed a horribly subtle bug in the handling of reentrant
+ 	INVOKE1-style watchers (e.g. a timer) in nested loops.  Added
+ 	test.  This change also removes at least one conditional from a
+ 	hot code path.
+
+2000-04-25  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* EventAPI += unloop.
+
 2000-04-24  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.75.

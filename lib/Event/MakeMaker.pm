@@ -35,16 +35,16 @@ This is an advanced feature of Event.
 
 =head1 DESCRIPTION
 
-If you need optimal performance, you can hook into Event at the
-C-level.  You'll need to make changes to your C<Makefile.PL> and add
-code to your C<xs> or C<c> file(s).
+For optimal performance, hook into Event at the C-level.  You'll need
+to make changes to your C<Makefile.PL> and add code to your C<xs> /
+C<c> file(s).
 
 =head1 WARNING
 
-When you hook in at the C-level, you get a I<huge> performance gain
-but you reduce the chances that your code will work unmodified with
-newer versions of perl or L<Event>.  This may or not be a problem.
-Just be aware of it and set your expectations accordingly.
+When you hook in at the C-level you get a I<huge> performance gain,
+but you also reduce the chances that your code will work unmodified
+with newer versions of C<perl> or C<Event>.  This may or may not be a
+problem.  Just be aware, and set your expectations accordingly.
 
 =head1 HOW TO
 

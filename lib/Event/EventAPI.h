@@ -208,6 +208,9 @@ struct EventAPI {
     void *(*sv_2watcher)(SV *sv);
     SV   *(*event_2sv)(pe_event *ev);
     void *(*sv_2event)(SV *sv);
+
+    /* EVERYTHING ELSE */
+    void (*unloop)(SV *);
 };
 
 static struct EventAPI *GEventAPI=0;

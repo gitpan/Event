@@ -222,20 +222,6 @@ static void pe_event_invoke(pe_event *ev) {
 
     /* SETUP */
     ENTER;
-    if (CurCBFrame >= 0) {
-	pe_watcher *pwa;
-	frp = CBFrame + CurCBFrame;
-	pwa = frp->ev->up;
-	assert(pwa->running == frp->run_id);
-	if (Estat.on)
-	    Estat.suspend(frp->stats);
-	if (!WaREENTRANT(pwa) && WaREPEAT(pwa) && !WaSUSPEND(pwa)) {
-	    /* temporarily suspend non-reentrant watcher until callback is
-	       finished! */
-	    pe_watcher_suspend(pwa);
-	    SAVEDESTRUCTOR(_resume_watcher, pwa);
-	}
-    }
     SAVEINT(wa->running);
     PE_RING_DETACH(&ev->peer);
     frp = &CBFrame[++CurCBFrame];

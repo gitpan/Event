@@ -199,9 +199,42 @@ static int one_event(double tm) {  /**INVOKE**/
     }
 }
 
+static void pe_reentry() {
+    pe_watcher *wa;
+    struct pe_cbframe *frp;
+
+    ENTER;  /* for SAVE*() macro (see below) */
+
+    if (CurCBFrame < 0)
+	return;
+
+    frp = CBFrame + CurCBFrame;
+    wa = frp->ev->up;
+    assert(wa->running == frp->run_id);
+    if (Estat.on)
+	Estat.suspend(frp->stats);  /* reversed by pe_event_postCB? */
+    if (WaREPEAT(wa)) {
+	if (WaREENTRANT(wa)) {
+	    if (WaACTIVE(wa) && WaINVOKE1(wa))
+		pe_watcher_on(wa, 1);
+	} else {
+	    if (!WaSUSPEND(wa)) {
+		/* temporarily suspend non-reentrant watcher until
+		   callback is finished! */
+		pe_watcher_suspend(wa);
+		SAVEDESTRUCTOR(_resume_watcher, wa);
+	    }
+	}
+    }
+}
+
 static int safe_one_event(double maxtm) {
+    int got;
     pe_check_recovery();
-    return one_event(maxtm);
+    pe_reentry();
+    got = one_event(maxtm);
+    LEAVE; /* reentry */
+    return got;
 }
 
 static void pe_unloop(SV *why) {

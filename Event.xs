@@ -306,6 +306,7 @@ BOOT:
       api->sv_2watcher = sv_2watcher;
       api->event_2sv = event_2sv;
       api->sv_2event = sv_2event;
+      api->unloop = pe_unloop;
       apisv = perl_get_sv("Event::API", 1);
       sv_setiv(apisv, (IV)api);
       SvREADONLY_on(apisv);
@@ -478,6 +479,7 @@ void
 _loop()
 	CODE:
 	pe_check_recovery();
+	pe_reentry();
 	while (ExitLevel >= LoopLevel && ActiveWatchers) {
 	  ENTER;
 	  SAVETMPS;
@@ -485,6 +487,7 @@ _loop()
 	  FREETMPS;
 	  LEAVE;
 	}
+	LEAVE; /* reentry */
 
 void
 _queue_pending()
@@ -496,7 +499,9 @@ _empty_queue(prio)
 	int prio
 	CODE:
 	pe_check_recovery();
+	pe_reentry();
 	while (pe_empty_queue(prio));
+	LEAVE; /* reentry */
 
 void
 queue_time(prio)
