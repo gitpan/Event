@@ -1,5 +1,5 @@
 # leak -*-perl-*-
-use Test; plan test => 3;
+use Test; plan test => 4;
 use Event qw(all_watchers);
 
 my @e = Event::all_watchers();
@@ -19,3 +19,9 @@ for (1..2) { thrash(); }
 
 my $got = join(', ', map { ref } all_watchers()) || 'None';
 ok($got, 'None');
+
+{
+    my $io = Event->io();
+    $io->cancel for 1..3;  #shouldn't crash!
+    ok 1;
+}

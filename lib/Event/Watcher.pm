@@ -94,6 +94,12 @@ sub configure {
     }
 }
 
+sub data {  # assumes $self is a HASH ref
+    my $self = shift;
+    $self->{Event_data} = shift if @_;
+    $self->{Event_data};
+}
+
 sub clump {
     require Carp;
     Carp::cluck "clump is deprecated";

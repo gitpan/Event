@@ -279,12 +279,14 @@ static void pe_watcher_now(pe_watcher *wa) {
 */
 
 static void pe_watcher_cancel(pe_watcher *wa) {
+    if (WaCANCELLED(wa))
+	return;
     WaSUSPEND_off(wa);
     pe_watcher_stop(wa, 1); /* peer */
     WaCANCELLED_on(wa);
     PE_RING_DETACH(&wa->all);
     if (wa->mysv)
-	SvREFCNT_dec(wa->mysv);  /* might destroy */
+	SvREFCNT_dec(wa->mysv);	/* might destroy */
     else if (WaCANDESTROY(wa))
 	(*wa->vtbl->dtor)(wa);
 }

@@ -97,6 +97,10 @@ customized by passing extra attributes to the constructor.  When
 created, watcher objects are "started" and are waiting for events
 (see C<$event-E<gt>start> below).
 
+L<NetServer::ProcessTop> displays watchers in real-time, formatted
+similarly to the popular C<top> program.  You may find this a useful
+aide for debugging.
+
 =head2 Shared Watcher Attributes
 
 Watchers are configured with attributes (also known as properties).
@@ -313,9 +317,9 @@ Similar to a C<timeout>.
 
 =item max_cb_tm => $seconds
 
-The maximum number of seconds to spend in the callback.  If the
-callback uses more time then it is aborted.  Defaults to 1 sec.  This
-feature is normally disabled.  See L<Event::Stats>.
+The maximum number of seconds to spend in a callback.  If a callback
+uses more time then it is aborted.  Defaults to 1 sec.  This feature
+is normally disabled.  See L<Event::Stats>.
 
 =item min => $seconds
 
@@ -588,7 +592,7 @@ those lists below and folks mentioned in the ChangeLog.
 
 =head1 COPYRIGHT
 
-Copyright © 1997-1999 Joshua Nathaniel Pritikin & Graham Barr.  All
+Copyright © 1997-2000 Joshua Nathaniel Pritikin & Graham Barr.  All
 rights reserved.  This program is free software; you can redistribute
 it and/or modify it under the same terms as Perl itself.
 

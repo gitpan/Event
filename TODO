@@ -1,3 +1,9 @@
+don't invoke start method in the constructor: parked => 1 ?
+
+increase the number of priority levels?
+  ASYNC    0    1    2    3    4    5    6    7    8    9   IDLE
+                         HIGH           NORM
+
 rethink
   pe_check_recovery & ENTER/LEAVE points
 
@@ -6,6 +12,7 @@ find owner for Win32 port
 documentation
   how to design new event types (in perl)
   how to design new event types (in C)??
+  distinguish between attributes and constructor attributes
 
 optimization
   update io event-mask without invalidating cache

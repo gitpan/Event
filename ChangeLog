@@ -1,4 +1,14 @@
+2000-01-26  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.60.
+
+	* Added $watcher->data() attribute. (This is Uri Guttman
+ 	<uri@sysarch.com>'s fault.)
+
 2000-01-20  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fixed refcnt problem caused by extra invocations of cancel()
+ 	(Discovered by uri@sysarch.com.)  Added test.
 
 	* Release 0.59.
 
