@@ -4,23 +4,6 @@ static pe_ring IOWatch;
 static int IOWatchCount;
 static int IOWatch_OK;
 
-#define PE_IO_R 1
-#define PE_IO_W 2
-#define PE_IO_E 4
-
-typedef struct pe_io pe_io;
-struct pe_io {
-  pe_event base;
-  pe_ring ioring;
-  SV *handle;
-  int events;
-  int got;
-/* ifdef UNIX */
-  int fd;
-  int xref;  /*for poll*/
-/* endif */
-};
-
 static pe_event *
 pe_io_allocate()
 {

@@ -4,13 +4,6 @@
 
 static struct pe_event_vtbl pe_signal_vtbl;
 
-typedef struct pe_signal pe_signal;
-struct pe_signal {
-  pe_event base;
-  pe_ring sring;
-  int sig;
-};
-
 /* GLOBALS: Sigvalid Sigring Sigstat Sigslot */
 
 static U32 Sigvalid[(1+NSIG)/32]; /*assume 32bit; doesn't matter*/

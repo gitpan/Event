@@ -3,15 +3,6 @@ static pe_ring Timers;
 /* static double BaseTime; /* make everything relative? XXX */
 static double Now=0; /* EXPORT XXX */
 
-typedef struct pe_timer pe_timer;
-struct pe_timer {
-  pe_event base;
-  pe_ring tmring;
-  int hard;
-  double at;
-  SV *interval;
-};
-
 static pe_event *
 pe_timer_allocate()
 {

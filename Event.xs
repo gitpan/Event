@@ -1,9 +1,8 @@
+/* -*- /C/ -*- sometimes */
+
 #include <EXTERN.h>
 #include <perl.h>
 #include <XSUB.h>
-
-#define PE_PRIO_NORMAL 4
-#define PE_PRIO_HIGH 2
 
 #define PE_NEWID ('e'+'v')  /* for New() macro */
 
@@ -39,6 +38,11 @@ static SV *Eval;
 static void queueEvent(pe_event *ev, int count);
 static void dequeEvent(pe_event *ev);
 
+static void pe_event_cancel(pe_event *ev);
+static void pe_event_suspend(pe_event *ev);
+static void pe_event_now(pe_event *ev);
+static void pe_event_start(pe_event *ev, int repeat);
+
 #include "typemap.c"
 #include "gettimeofday.c"  /* hack XXX */
 #include "event_vtbl.c"
@@ -69,6 +73,27 @@ BOOT:
   boot_signal();
   boot_queue();
   boot_stats();
+  {
+    struct EventAPI *api;
+    SV *apisv;
+    New(PE_NEWID, api, 1, struct EventAPI);
+    api->Ver = EventAPI_VERSION;
+    api->doOneEvent = doOneEvent;
+    api->start = pe_event_start;
+    api->queue = queueEvent;
+    api->now = pe_event_now;
+    api->suspend = pe_event_suspend;
+    api->resume = pe_event_resume;
+    api->cancel = pe_event_cancel;
+    api->new_idle = pe_idle_allocate;
+    api->new_timer = (pe_timer*(*)()) pe_timer_allocate;
+    api->new_io = (pe_io*(*)()) pe_io_allocate;
+    api->new_watchvar = (pe_watchvar*(*)()) pe_watchvar_allocate;
+    api->new_signal = (pe_signal*(*)()) pe_signal_allocate;
+    apisv = perl_get_sv("Event::API", 1);
+    sv_setiv(apisv, (IV)api);
+    SvREADONLY_on(apisv);
+  }
 
 void
 DESTROY(ref)
@@ -181,7 +206,10 @@ pe_event::stats(sec)
 	int ran;
 	double elapse;
 	PPCODE:
-	pe_stat_query(&THIS->stats, sec, &ran, &elapse);
+	if (THIS->stats)
+	  pe_stat_query(THIS->stats, sec, &ran, &elapse);
+	else
+	  ran = elapse = 0;
 	XPUSHs(sv_2mortal(newSViv(ran)));
 	XPUSHs(sv_2mortal(newSVnv(elapse)));
 
@@ -195,6 +223,24 @@ allocate(class)
 
 MODULE = Event		PACKAGE = Event::Stats
 
+int
+round_seconds(sec)
+	int sec;
+	CODE:
+	if (sec <= 0)
+	  RETVAL = PE_STAT_SECONDS;
+	else if (sec < PE_STAT_SECONDS * PE_STAT_I1)
+	  RETVAL = ((int)(sec + PE_STAT_SECONDS-1)/ PE_STAT_SECONDS) *
+			PE_STAT_SECONDS;
+	else if (sec < PE_STAT_SECONDS * PE_STAT_I1 * PE_STAT_I2)
+	  RETVAL = ((int)(sec + PE_STAT_SECONDS * PE_STAT_I1 - 1) /
+			       (PE_STAT_SECONDS * PE_STAT_I1)) *
+			PE_STAT_SECONDS * PE_STAT_I1;
+	else
+	  RETVAL = PE_STAT_SECONDS * PE_STAT_I1 * PE_STAT_I2;
+	OUTPUT:
+	RETVAL
+
 void
 idle(class, sec)
 	SV *class;
@@ -205,6 +251,17 @@ idle(class, sec)
 	PPCODE:
 	pe_stat_query(&idleStats, sec, &ran, &elapse);
 	XPUSHs(sv_2mortal(newSViv(ran)));
+	XPUSHs(sv_2mortal(newSVnv(elapse)));
+
+void
+total(class, sec)
+	SV *class;
+	int sec
+	PREINIT:
+	int ran;
+	double elapse;
+	PPCODE:
+	pe_stat_query(&totalStats, sec, &ran, &elapse);
 	XPUSHs(sv_2mortal(newSVnv(elapse)));
 
 void
@@ -276,7 +333,7 @@ listQ()
 	PPCODE:
 	int xx;
 	pe_event *ev;
-	for (xx=0; xx < QUEUES; xx++) {
+	for (xx=0; xx < PE_QUEUES; xx++) {
 	  ev = Queue[xx].prev->self;
 	  while (ev) {
 	    XPUSHs(sv_2mortal(event_2sv(ev)));

@@ -1,3 +1,11 @@
+1998-09-21  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Event::MakeMaker & event_api.h.
+
+1998-09-14  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Add 'total' stat.  Moved stat methods to Event::Loop package.
+
 1998-09-11  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.11.
@@ -12,7 +20,7 @@
 1998-09-09  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Tweaked queue scheduling.  Events with priorities <= 5 now
- 	starve if there are higher priority events available.
+ 	starve if higher priority events are available.
 
 	* Changing the event priority of a queued event will now reque the
  	event into the appropriate queue.
@@ -41,8 +49,6 @@
 	* Removed $Event::*::Count since it is superceded by
  	NetServer::ProcessTop.
 	
-	* Fixed serious bug in the event destructor.
-
 1998-08-28  Joshua Pritikin  <joshua@eq1062.wks.na.deuba.com>
 
 	* Fixed serious bug in the event destructor.
@@ -58,7 +64,7 @@
 
 1998-08-14  Joshua Pritikin  <joshua.pritikin@db.com>
  	
-	* Rewrote almost everything in C.
+	* Completed re-write of almost everything in C.
 
 Change 144 on 1998/05/31 by <gbarr@pobox.com> (Graham Barr)
 

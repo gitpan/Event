@@ -24,11 +24,11 @@ pe_event_init(pe_event *ev)
   ev->refcnt = 0;  /* maybe can remove later? XXX */
   ev->desc = newSVpvf("Event-0x%x", ev);
   ev->count = 0;
-  ev->priority = QUEUES;
+  ev->priority = PE_QUEUES;
   ev->perl_callback[0] = 0;
   ev->perl_callback[1] = 0;
   ev->c_callback = 0;
-  pe_stat_init(&ev->stats);
+  ev->stats = 0;
 }
 
 static void
@@ -354,8 +354,12 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
   if (Stats) {
     struct timeval done_tm;
     gettimeofday(&done_tm, 0);
-    pe_stat_record(&ev->stats, (done_tm.tv_sec - start_tm.tv_sec +
-				(done_tm.tv_usec - start_tm.tv_usec)/1000000.0));
+    if (!ev->stats) {
+      New(PE_NEWID, ev->stats, 1, pe_stat);
+      pe_stat_init(ev->stats);
+    }
+    pe_stat_record(ev->stats, (done_tm.tv_sec - start_tm.tv_sec +
+			       (done_tm.tv_usec - start_tm.tv_usec)/1000000.0));
   }
   if (debug >= 3)
     warn("Event: completed '%s'\n", SvPV(ev->desc, na));
@@ -385,7 +389,7 @@ pe_event_nomethod(pe_event *ev, char *meth)
 }
 
 static void
-pe_event_start(pe_event *ev, int repeat)
+pe_event_nostart(pe_event *ev, int repeat)
 {
   pe_event_nomethod(ev,"start");
 }
@@ -422,7 +426,7 @@ boot_pe_event()
   vt->keylist = keylist;
   vt->FIRSTKEY = pe_event_FIRSTKEY;
   vt->NEXTKEY = pe_event_NEXTKEY;
-  vt->start = pe_event_start;
+  vt->start = pe_event_nostart;
   vt->stop = pe_event_stop;
 
   newCONSTSUB(stash, "ACTIVE", newSViv(PE_ACTIVE));
@@ -438,7 +442,7 @@ pe_register_vtbl(pe_event_vtbl *vt)
   /* why?  dunno */
 }
 
-void pe_event_cancel(pe_event *ev)
+static void pe_event_cancel(pe_event *ev)
 {
   if (!EvSUSPEND(ev)) {
     (*ev->vtbl->stop)(ev);
@@ -449,7 +453,7 @@ void pe_event_cancel(pe_event *ev)
     (*ev->vtbl->dtor)(ev);
 }
 
-void pe_event_suspend(pe_event *ev)
+static void pe_event_suspend(pe_event *ev)
 {
   if (EvSUSPEND(ev))
     return;
@@ -464,7 +468,7 @@ void pe_event_suspend(pe_event *ev)
   EvSUSPEND_on(ev);
 }
 
-void pe_event_resume(pe_event *ev)
+static void pe_event_resume(pe_event *ev)
 {
   if (!EvSUSPEND(ev))
     return;
@@ -479,7 +483,7 @@ void pe_event_resume(pe_event *ev)
   }
 }
 
-void pe_event_now(pe_event *ev)
+static void pe_event_now(pe_event *ev)
 {
   if (EvSUSPEND(ev))
     return;
@@ -487,3 +491,6 @@ void pe_event_now(pe_event *ev)
     (*ev->vtbl->stop)(ev);
   queueEvent(ev, 1);
 }
+
+static void pe_event_start(pe_event *ev, int repeat)
+{ (*ev->vtbl->start)(ev, repeat); }

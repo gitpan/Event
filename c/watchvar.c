@@ -1,11 +1,5 @@
 static struct pe_event_vtbl pe_watchvar_vtbl;
 
-typedef struct pe_watchvar pe_watchvar;
-struct pe_watchvar {
-  pe_event base;
-  SV *variable;
-};
-
 static pe_event *
 pe_watchvar_allocate()
 {

@@ -1,4 +1,6 @@
-static pe_timer *RollTimer;
+static pe_stat totalStats;
+static struct timeval total_tm;
+static pe_timer *RollTimer=0;
 
 static void pe_stat_init(pe_stat *st)
 {
@@ -91,12 +93,24 @@ static void pe_stat_roll(pe_stat *st)
 
 static void pe_stat_roll_cb()
 {
-  pe_event *ev = AllEvents.next->self;
+  pe_event *ev;
+  struct timeval done_tm;
+  gettimeofday(&done_tm, 0);
+  pe_stat_record(&totalStats, (done_tm.tv_sec-total_tm.tv_sec +
+			      (done_tm.tv_usec-total_tm.tv_usec)/1000000.0));
+  gettimeofday(&total_tm, 0);
+
+  ev = AllEvents.next->self;
   while (ev) {
-    pe_stat_roll(&ev->stats);
+    if (!ev->stats) {
+      New(PE_NEWID, ev->stats, 1, pe_stat);
+      pe_stat_init(ev->stats);
+    }
+    pe_stat_roll(ev->stats);
     ev = ev->all.next->self;
   }
   pe_stat_roll(&idleStats);
+  pe_stat_roll(&totalStats);
 }
 
 static void pe_stat_restart()
@@ -105,13 +119,16 @@ static void pe_stat_restart()
     pe_event *ev = AllEvents.next->self;
     /*    warn("reinit stats"); /**/
     while (ev) {
-      pe_stat_init(&ev->stats);
+      if (ev->stats)
+	pe_stat_init(ev->stats);
       ev = ev->all.next->self;
     }
     pe_stat_init(&idleStats);
+    pe_stat_init(&totalStats);
     
     cacheNow();
-    RollTimer = (pe_timer*) pe_timer_allocate();
+    if (!RollTimer)
+      RollTimer = (pe_timer*) pe_timer_allocate();
     RollTimer->at = Now;
     sv_setnv(RollTimer->interval, PE_STAT_SECONDS);
     ev = (pe_event*) RollTimer;
@@ -119,6 +136,7 @@ static void pe_stat_restart()
     sv_setpv(ev->desc, "Event::Stats");
     ev->priority = PE_PRIO_NORMAL + 1;
     ev->c_callback = pe_stat_roll_cb;
+    gettimeofday(&total_tm, 0);
     pe_timer_start(ev, 0);
   }
   ++Stats;
@@ -132,7 +150,6 @@ static void pe_stat_stop()
       return;
 
     ev = (pe_event*) RollTimer;
-    ev->c_callback = 0;
     pe_timer_stop(ev);
   }
 }

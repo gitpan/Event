@@ -1,4 +1,4 @@
-static pe_ring Queue[QUEUES];
+static pe_ring Queue[PE_QUEUES];
 static int queueCount = 0;
 static pe_stat idleStats;
 static AV *Prepare, *Check, *AsyncCheck;
@@ -8,10 +8,10 @@ boot_queue()
 {
   int xx;
   HV *stash = gv_stashpv("Event::Loop", 1);
-  for (xx=0; xx < QUEUES; xx++) {
+  for (xx=0; xx < PE_QUEUES; xx++) {
     PE_RING_INIT(&Queue[xx], 0);
   }
-  newCONSTSUB(stash, "QUEUES", newSViv(QUEUES));
+  newCONSTSUB(stash, "QUEUES", newSViv(PE_QUEUES));
   newCONSTSUB(stash, "PRIO_NORMAL", newSViv(PE_PRIO_NORMAL));
   newCONSTSUB(stash, "PRIO_HIGH", newSViv(PE_PRIO_HIGH));
 
@@ -53,8 +53,8 @@ queueEvent(pe_event *ev, int count)
   }
   if (EvQUEUED(ev))
     return;
-  if (prio >= QUEUES)
-    prio = QUEUES-1;
+  if (prio >= PE_QUEUES)
+    prio = PE_QUEUES-1;
   if (debug >= 3)
     warn("Event: queuing %s at priority %d\n", SvPV(ev->desc,na), prio);
   PE_RING_UNSHIFT(&ev->que, &Queue[prio]);
@@ -68,7 +68,7 @@ emptyQueue(int max)
   int qx;
   if (!queueCount)
     return 0;
-  assert(max >= 0 && max <= QUEUES);
+  assert(max >= 0 && max <= PE_QUEUES);
   for (qx=0; qx < max; qx++) {
     pe_event *ev;
     if (PE_RING_EMPTY(&Queue[qx]))
@@ -151,7 +151,7 @@ doOneEvent()
   pe_signal_asynccheck();
   if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
 
-  if (emptyQueue(QUEUES-2)) {
+  if (emptyQueue(PE_QUEUES-2)) {
     ++doe_leave;
     return 1;
   }
@@ -208,7 +208,7 @@ doOneEvent()
     if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
   }
 
-  if (emptyQueue(QUEUES)) {
+  if (emptyQueue(PE_QUEUES)) {
     ++doe_leave;
     return 1;
   }

@@ -22,11 +22,11 @@ WriteMakefile(
 			   },
 	      VERSION_FROM	=> "./lib/Event.pm",
 	      NAME      	=> "Event",
-	      INC => '-Ic',
-	      H => [glob("c/*"), glob("*.h")],
+	      INC => '-Ic -Ilib/Event',
+	      H => [glob("c/*"), glob("*.h"), "lib/Event/EventAPI.h"],
 	      @Safe,
  
-	'linkext' 	=> {LINKTYPE => 'dynamic' },
+	'linkext' 	=> {LINKTYPE => 'dynamic' }, #maybe static ok?
  
 	'clean'   	=> {FILES => join(" ",
 					map { "$_ */$_ */*/$_" }

@@ -11,8 +11,8 @@ package Event;
 require Exporter;
 *require_version = \&Exporter::require_version;
 use Carp qw(carp cluck croak confess);
-use vars qw($VERSION $DebugLevel $Eval $DIED);
-$VERSION = '0.11';
+use vars qw($VERSION $API $DebugLevel $Eval $DIED);
+$VERSION = '0.12';
 $Eval = 0;
 $DIED = sub {
     my ($run, $err) = @_;
@@ -45,6 +45,15 @@ sub init {
     croak "Event::init wants 3 args" if @_ != 3;
     my ($o, $keys, $arg) = @_;
 
+    for my $up (1..4) {
+	my @fr = caller $up;  # try to cope with optimized-away frames?
+	next if !@fr;
+	my ($file,$line) = @fr[1,2];
+	$file =~ s,^.*/,,;
+	$o->{desc} = "?? $file:$line";
+	last;
+    }
+
     for (@$keys, qw(repeat desc callback debug)) {
 	if (exists $arg->{"-$_"}) {
 	    $o->{$_} = $arg->{"-$_"} 
@@ -60,17 +69,6 @@ sub init {
     $o->{priority} += $arg->{"-priority"} || $arg->{priority} || 0;
     $o->{priority} = -1
 	if $arg->{async} || $arg->{'-async'};
-
-    my $where;
-    for my $up (1..4) {
-	my @fr = caller $up;  # try to cope with optimized-away frames
-	next if !@fr;
-	my ($file,$line) = @fr[1,2];
-	$file =~ s,^.*/,,;
-	$where = "$file:$line";
-    }
-    $where ||= '?';
-    $o->{desc} ||= $where;
 
     cluck "creating ".ref($o)." desc='$o->{desc}'\n"
 	if $DebugLevel >= 3;

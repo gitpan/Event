@@ -1,21 +1,16 @@
-store stack trace for each Event?
-
-library-ize
-  delineate public API
-  build to a shared library
-  Xt event loop emulation?
-
-croak should route through Carp
+croak should route through Carp!
 
 documentation
   meaning of queue priorities
   how to design new event types
   exception handling
+  how to use Event::API
 
 optimization
   update io event-mask without invalidating cache
+  use fancy profiler tricks to improve performance?
 
-remove dependency on
+remove dependencies on
   Time::HiRes?
   IO::* ?
 
