@@ -1,3 +1,14 @@
+1999-06-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.42.
+
+	* Rename event.c -> ev.c (Jan Dubois).
+
+	* Split flags into individual methods: is_running, is_active,
+ 	is_suspended, is_queued.
+
+	* Repaired default_exception_handler.
+
 1999-05-19  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.41.

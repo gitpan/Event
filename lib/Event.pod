@@ -179,7 +179,12 @@ Extra attributes: var => \$var, poll => 'rw'
 Extra attributes: at => $time, interval => $sec, hard => $bool
 
 The C<$time> and C<$sec> are in seconds.  Fractional seconds may be
-used if L<Time::HiRes> is available.
+used if L<Time::HiRes> is available.  The constructor also accepts an
+C<after> attribute for easier initialization.  You can find the time
+at the start of today with:
+
+  use Time::Local;
+  my $TodaySeconds = int timelocal(0,0,0,(localtime)[3,4,5]);
 
 If C<interval> set then the watcher will automatically repeat.  Be
 aware that due to lags in the event loop, the C<interval> timeout may
@@ -187,9 +192,6 @@ already be in the past.  If the C<hard> flag is set, the event will be
 queued for execution relative to the last time the callback was
 invoke.  However, if C<hard> is false the new timeout will be
 calculated relative to the current time (this is the default).
-
-The constructor also accepts an C<after> attribute for easier
-initialization.
 
 =item io
 
@@ -517,6 +519,10 @@ check.
 
 The meaning of $io->timeout(0) might change.  Use C<undef> to unset
 the timeout.
+
+=head2 WHY WINDOWS CAN BE FASTER THAN UNIX
+
+  http://www.usenix.org/events/usenix99/full_papers/banga/banga_html/index.html
 
 =head1 ALSO SEE
 

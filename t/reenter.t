@@ -11,7 +11,7 @@ do {
     local $SIG{__WARN__} = sub {};  # COMMENT OUT WHEN DEBUGGING!
     ok !defined loop();
 };
-ok $rep->running, 0;
+ok $rep->is_running, 0;
 
 
 # simple nested case

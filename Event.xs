@@ -167,7 +167,7 @@ static void pe_collect_stats(int yes)
 #include "typemap.c"
 #include "timeable.c"
 #include "hook.c"
-#include "event.c"
+#include "ev.c"
 #include "watcher.c"
 #include "idle.c"
 #include "timer.c"
@@ -649,6 +649,39 @@ pe_watcher::use_keys(...)
 	warn("use_keys is deprecated");
 
 void
+pe_watcher::running(...)
+	PPCODE:
+	PUTBACK;
+	warn("running renamed to is_running");
+	_watcher_running(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
+	SPAGAIN;
+
+void
+pe_watcher::is_running(...)
+	PPCODE:
+	PUTBACK;
+	_watcher_running(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
+	SPAGAIN;
+
+void
+pe_watcher::is_active(...)
+	PPCODE:
+	PUTBACK;
+	XPUSHs(boolSV(EvACTIVE(THIS)));
+
+void
+pe_watcher::is_suspended(...)
+	PPCODE:
+	PUTBACK;
+	XPUSHs(boolSV(EvSUSPEND(THIS)));
+
+void
+pe_watcher::is_queued(...)
+	PPCODE:
+	PUTBACK;
+	XPUSHs(boolSV(EvFLAGS(THIS) & PE_QUEUED));
+
+void
 FETCH(obj, key)
 	SV *obj;
 	SV *key;
@@ -783,13 +816,6 @@ pe_watcher::repeat(...)
 	PPCODE:
 	PUTBACK;
 	_watcher_repeat(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
-	SPAGAIN;
-
-void
-pe_watcher::running(...)
-	PPCODE:
-	PUTBACK;
-	_watcher_running(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
 	SPAGAIN;
 
 void

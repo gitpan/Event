@@ -12,7 +12,7 @@ use base 'Exporter';
 use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.41';
+$VERSION = '0.42';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -55,7 +55,7 @@ sub AUTOLOAD {
 
 sub default_exception_handler {
     my ($run,$err) = @_;
-    my $desc = $run? $run->w->{e_desc} : '?';
+    my $desc = $run? $run->w->desc : '?';
     my $m = "Event: trapped error in '$desc': $err";
     $m .= "\n" if $m !~ m/\n$/;
     warn $m;

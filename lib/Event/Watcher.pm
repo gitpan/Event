@@ -4,8 +4,7 @@ use base 'Exporter';
 use Carp;
 use vars qw(@EXPORT_OK @ATTRIBUTE);
 @EXPORT_OK = qw(ACTIVE SUSPEND QUEUED RUNNING R W E T);
-@ATTRIBUTE = qw(cb cbtime clump desc debug prio reentrant repeat
-		running max_cb_tm);
+@ATTRIBUTE = qw(cb cbtime clump desc debug prio reentrant repeat max_cb_tm);
 
 sub register {
     no strict 'refs';

@@ -8,7 +8,7 @@ Makefile.PL
 README
 TODO
 WARNING
-c/event.c
+c/ev.c
 c/hook.c
 c/idle.c
 c/io.c
