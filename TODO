@@ -1,6 +1,7 @@
 find owner for Win32 port
 
 typemap
+  move our data from HvNAME to somewhere less dangerous
   why keep hash representation?  magic could be attached to any reference
 
 rethink EvNOW

@@ -8,12 +8,24 @@ BEGIN {
     }
 }
 
-use Test; plan tests => 3;
+use Test; plan tests => 4;
 use Event qw(loop unloop);
 use Event::Watcher qw(R W);
 use Symbol;
 
 #$Event::DebugLevel = 3;
+
+my $noticed_bogus_fd=0;
+Event->io(desc => 'oops', poll => 'r', fd => 123, cb => sub { warn 'oops' });
+
+$SIG{__WARN__} = sub {
+    my $is_it = $_[0] =~ m/\'oops\' was unexpectedly/;
+    if ($is_it) {
+	++$noticed_bogus_fd;
+    } else {
+	warn $_[0]
+    }
+};
 
 sub new_pipe {
     my ($cnt) = @_;
@@ -52,3 +64,5 @@ Event->io(timeout => .1, repeat => 0,
 	  });
 
 loop();
+
+ok $noticed_bogus_fd, 1;

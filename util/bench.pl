@@ -100,8 +100,6 @@ print "
  cc='$Config{cc}', optimize='$Config{optimize}'
  ccflags='$Config{ccflags}'
 
- Please mail benchmark results to perl-loop\@perl.org.  Thanks!
-
 Elapse Time:     ".pct($elapse,$TestTime)." of $TestTime seconds
 Timer/sec:       ".pct($TimerCount,$TimerExpect)." ($TimerCount total)
 Io/sec:          ".sprintf("%.3f", $IOCount/$elapse)." ($IOCount total)

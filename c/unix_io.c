@@ -1,10 +1,8 @@
 /*
   I believe this is comparible in efficiency with Apache 1.3.
 
-  Applications with a large number of open fds would benefit by
-  an incremental update of the select/poll structures.  Maybe next
-  release...!
-
+  Much improvement is possible with a better kernel interface.  Both
+  poll and select scale poorly.
 */
 
 static int pe_sys_fileno(SV *sv, char *context)
@@ -131,20 +129,27 @@ static void pe_sys_multiplex(double timeout)
   }
   ev = (pe_io*) IOWatch.next->self;
   while (ev) {
-    int xref = ev->xref;
-    if (xref >= 0) {
-      int got = 0;
-      int mask = Pollfd[xref].revents;
-      if (mask & (POLLIN | POLLRDNORM)) got |= PE_R;
-      if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_W;
-      if (mask & (POLLRDBAND | POLLPRI)) got |= PE_E;
-      if (got) _queue_io(ev, got);
-	/*
-	  Can only do this if fd-to-watcher is 1-to-1
-	  if (--ret == 0) { ev=0; continue; }
-	*/
-    }
-    ev = (pe_io*) ev->ioring.next->self;
+      STRLEN n_a;
+      int xref = ev->xref;
+      pe_io *next_ev = (pe_io*) ev->ioring.next->self;
+      if (xref >= 0) {
+	  int got = 0;
+	  int mask = Pollfd[xref].revents;
+	  if (mask & (POLLIN | POLLRDNORM)) got |= PE_R;
+	  if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_W;
+	  if (mask & (POLLRDBAND | POLLPRI)) got |= PE_E;
+	  if (mask & POLLNVAL) {
+	      warn("Event: '%s' was unexpectedly closed",
+		   SvPV(ev->base.desc, n_a));
+	      pe_io_stop((pe_watcher*) ev);
+	  }
+	  else if (got) _queue_io(ev, got);
+	  /*
+	    Can only do this if fd-to-watcher is 1-to-1
+	    if (--ret == 0) { ev=0; continue; }
+	  */
+      }
+      ev = next_ev;
   }
 }
 #endif /*HAS_POLL*/
@@ -222,18 +227,21 @@ static void pe_sys_multiplex(double timeout)
     if (errno == EINTR)
       return;
     if (errno == EBADF) {
-      ev = IOWatch.next->self;
-      while (ev) {
-	int fd = ev->fd;
-	struct stat buf;
-	if (fd >= 0 && PerlLIO_fstat(fd, &buf) < 0 && errno == EBADF) {
-	  pe_io_stop((pe_watcher*) ev);
+	  STRLEN n_a;
+	  ev = IOWatch.next->self;
+	  while (ev) {
+	      int fd = ev->fd;
+	      struct stat buf;
+	      if (fd >= 0 && PerlLIO_fstat(fd, &buf) < 0 && errno == EBADF) {
+		  warn("Event: '%s' was unexpectedly closed",
+		       SvPV(ev->base.desc, n_a));
+		  pe_io_stop((pe_watcher*) ev);
+		  return;
+	      }
+	      ev = ev->ioring.next->self;
+	  }
+	  warn("select: couldn't find cause of EBADF");
 	  return;
-	}
-	ev = ev->ioring.next->self;
-      }
-      warn("select: couldn't find cause of EBADF");
-      return;
     }
     if (errno == EINVAL) {
       warn("select: bad args %d %.2f", Nfds, timeout);

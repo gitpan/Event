@@ -544,8 +544,20 @@ L<Time::HiRes> and L<NetServer::ProcessTop>.
 
 =head1 SUPPORT
 
-Please direct your insights and complaints to the perl-loop@perl.org
-mailing list!
+If you have insights or complaints then please subscribe to the
+mailing list!  Send email to:
+
+  majordomo@perl.org
+
+The body of your message should read: 
+
+  subscribe perl-loop
+
+This list is archived at
+
+  http://www.xray.mpe.mpg.de/mailing-lists/perl-loop/
+
+Thanks!
 
 =head1 AUTHORS
 

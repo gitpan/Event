@@ -6,6 +6,3 @@ To get high-precision time you'll need to install and use Time::HiRes
 The design and implementation of this extension is discussed on the
 perl-loop mailing list.  Please send email to majordomo@perl.org to
 subscribe!
-
-Once you successfully build this extension, please run
-./util/bench.pl!!
