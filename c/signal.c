@@ -49,8 +49,10 @@ static void pe_signal_dtor(pe_watcher *ev) {
 static char *pe_signal_start(pe_watcher *_ev, int repeat) {
     pe_signal *ev = (pe_signal*) _ev;
     int sig = ev->signal;
+    if (!_ev->callback)
+	return "without callback";
     if (sig == 0)
-	return "no signal";
+	return "without signal";
     if (PE_RING_EMPTY(&Sigring[sig]))
 	rsignal(sig, process_sighandler);
     PE_RING_UNSHIFT(&ev->sring, &Sigring[sig]);

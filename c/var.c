@@ -60,10 +60,12 @@ static char *pe_var_start(pe_watcher *_ev, int repeat) {
     pe_var *ev = (pe_var*) _ev;
     SV *sv = ev->variable;
 
+    if (!_ev->callback)
+	return "without callback";
     if (!sv || !SvOK(sv))
 	return "watching what?";
     if (!ev->events)
-	return "no poll events specified";
+	return "without poll events specified";
     sv = SvRV(sv);
     if (SvREADONLY(sv))
 	return "cannot trace read-only variable";

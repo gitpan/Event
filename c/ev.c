@@ -11,7 +11,7 @@ pe_event_vtbl event_vtbl, ioevent_vtbl;
 static void pe_anyevent_init(pe_event *ev, pe_watcher *wa) {
     assert(wa);
     ev->up = wa;
-    ++wa->event_counter;
+    ++wa->refcnt;
     ev->mysv = 0;
     PE_RING_INIT(&ev->peer, ev);
     PE_RING_UNSHIFT(&ev->peer, &wa->events);
@@ -36,7 +36,7 @@ static void pe_anyevent_dtor(pe_event *ev) {
     ev->callback = 0;
     PE_RING_DETACH(&ev->peer);
     PE_RING_DETACH(&ev->que);
-    --wa->event_counter;
+    --wa->refcnt;
     if (WaCANDESTROY(wa)) /* running */
 	(*wa->vtbl->dtor)(wa);
 }

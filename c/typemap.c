@@ -104,19 +104,20 @@ static int sv_2interval(SV *in, double *out) {
 	sv = SvRV(sv);
     if (SvNOK(sv)) {
 	*out = SvNVX(sv);
-	return 1;
-    }
-    if (SvIOK(sv)) {
+    } else if (SvIOK(sv)) {
 	*out = SvIVX(sv);
-	return 1;
-    }
-    if (looks_like_number(sv)) {
+    } else if (looks_like_number(sv)) {
 	*out = SvNV(sv);
-	return 1;
+    } else {
+	sv_dump(in);
+	croak("Interval must be a number of reference to a number");
+	return 0;
     }
-    sv_dump(in);
-    croak("Interval must be a number of reference to a number");
-    return 0;
+    if (*out < 0) {
+	warn("Event: negative timeout (%.2f) clipped to zero", *out);
+	*out = 0;
+    }
+    return 1;
 }
 
 static SV* events_mask_2sv(int mask) {

@@ -9,6 +9,7 @@ Makefile.PL
 README
 TODO
 c/ev.c
+c/group.c
 c/hook.c
 c/idle.c
 c/io.c
@@ -23,6 +24,7 @@ c/var.c
 c/watcher.c
 demo/in.pl
 demo/inactivity.t
+demo/group.t
 demo/process.pm
 demo/readline.t
 demo/spin_io.t
@@ -32,6 +34,7 @@ lib/Event.pod
 lib/Event/EventAPI.h
 lib/Event/MakeMaker.pm
 lib/Event/Watcher.pm
+lib/Event/group.pm
 lib/Event/idle.pm
 lib/Event/inactivity.pm
 lib/Event/io.pm
@@ -47,6 +50,7 @@ t/bored.t
 t/callback.t
 t/delete.t
 t/eval.t
+t/fifo.t
 t/hook.t
 t/hup.t
 t/idle.t

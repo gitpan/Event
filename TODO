@@ -1,9 +1,10 @@
+deprecate inactivity completely?
+
+add timeout for var watchers?
+
 increase the number of priority levels?
   ASYNC    0    1    2    3    4    5    6    7    8    9   IDLE
                          HIGH           NORM
-
-rethink
-  pe_check_recovery & ENTER/LEAVE points
 
 find owner for Win32 port
 
@@ -18,13 +19,8 @@ optimization
     queue events from both sides?
   try to hoist system calls from the inner loop
 
-inactivity
-  For a single watcher, a simple timeout would surely have the same
-  effect. But if there would be a watcher grouping feature (as you
-  indicated), watching groups of watchers could provide a new dimension
-  of flexibility.
-
-add timeout for var watchers?
+rethink
+  pe_check_recovery & ENTER/LEAVE points
 
 mjtg@cus.cam.ac.uk signal discussion:
   The API rsignal overrides the current signal handler.  If the signal
@@ -39,9 +35,6 @@ there seems to be some sort of bug in the shutdown phase
 > Use of uninitialized value during global destruction.
 > Explicit blessing to '' (assuming package main) during global
 > destruction.
-
-If I install a watcher and delay the call of loop(), what about
-events arriving in the meantime?
 
 loop
   StarvePrio?

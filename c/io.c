@@ -44,12 +44,16 @@ static char *pe_io_start(pe_watcher *_ev, int repeat) {
        officially supported but maybe it is too unix specific. */
 
     if (ev->fd >= 0) {
+	if (!ev->base.callback)
+	    return "Without io callback";
 	PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
 	++IOWatchCount;
 	IOWatch_OK = 0;
 	++ok;
     }
     if (ev->timeout) {
+	if (!ev->base.callback && !ev->tm_callback)
+	    return "without timeout callback";
 	WaCBTIME_on(ev);
 	ev->poll |= PE_T;
 	ev->tm.at = NVtime() + ev->timeout;  /* too early okay */

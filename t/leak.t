@@ -8,12 +8,12 @@ ok @e, 0;
 ok @e, 0;
 
 sub thrash {
-    Event->idle()->cancel;
+    Event->idle(parked=>1)->cancel;
     Event->io(parked => 1)->cancel;
-    Event->signal(signal => 'INT')->cancel;
-    Event->timer(at => time)->cancel;
+    Event->signal(parked=>1)->cancel;
+    Event->timer(parked=>1)->cancel;
     my $var = 1;
-    Event->var(var => \$var)->cancel;
+    Event->var(parked=>1)->cancel;
 }
 for (1..2) { thrash(); }
 

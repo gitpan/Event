@@ -34,7 +34,7 @@ static void pe_watcher_init(pe_watcher *ev, HV *stash, SV *temple) {
     WaREENTRANT_on(ev);
     ev->FALLBACK = 0;
     NextID = (NextID+1) & 0x7fff; /* make it look like the kernel :-, */
-    ev->event_counter = 0;
+    ev->refcnt = 0;
     ev->desc = newSVpvn("??",2);
     ev->running = 0;
     ev->max_cb_tm = 1;  /* make default configurable? */

@@ -181,8 +181,8 @@ Reports whether the C<$watcher> is suspended.
 
 =item $watcher->pending
 
-Returns how many events this watcher has with the callback still pending
-in the event queue.
+Returns whether this watcher has any events pending in the event
+queue.
 
 =back
 
@@ -211,7 +211,7 @@ Otherwise, they might be deprecated.
 
 =item var
 
-Extra attributes: var => \$var, poll => 'rw', got => 'rw',
+Extra attributes: var => \$var, poll => 'rw'
 
 Var watchers generate events when the given variable is read from or
 written to.
@@ -237,7 +237,7 @@ calculated relative to the current time (this is the default).
 
 =item io
 
-Extra attributes: fd => $fd, poll => 'rwe', got => 'rwet',
+Extra attributes: fd => $fd, poll => 'rwe'
 [timeout => $seconds, hard => $bool, timeout_cb => \&code]
 
 The callback is invoked when the file descriptor, C<fd>, has data to
@@ -269,7 +269,8 @@ Not yet implemented.
 Priority is used to sort the event queue.  Meaningful priorities range
 from -1 to 6 inclusive.  Lower numbers mean higher priority (-1 is the
 highest priority and 6 is the lowest).  If multiple events get queued,
-the ones with the highest priority are serviced first.
+the ones with the highest priority are serviced first.  Events with
+equal priority are serviced in first-in-first-out order.
 
   use Event qw(PRIO_HIGH PRIO_NORMAL);   # some constants
 
@@ -485,7 +486,7 @@ A reference to the variable being watched.
 C<got> is available in the callback of watchers with C<poll>.
 C<got> is in the same format as C<poll> except that it gives what
 kind of event actually happened.  In contrast, C<poll> is just an
-expression of interest.
+indication of interest.
 
 =item hits => $int
 

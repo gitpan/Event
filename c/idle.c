@@ -28,6 +28,8 @@ static char *pe_idle_start(pe_watcher *ev, int repeating) {
     double now;
     double min,max;
     pe_idle *ip = (pe_idle*) ev;
+    if (!ev->callback)
+	return "without callback";
     if (SvOK(ip->min_interval) || SvOK(ip->max_interval))
 	WaCBTIME_on(ev);
     else
@@ -48,7 +50,7 @@ static char *pe_idle_start(pe_watcher *ev, int repeating) {
 	    pe_timeable_start(&ip->tm);
 	}
     }
-    return 0; /* always succeeds */
+    return 0;
 }
 
 static void pe_idle_alarm(pe_watcher *wa, pe_timeable *_ignore) {

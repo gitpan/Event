@@ -5,17 +5,18 @@ use Event;
 # $Event::DebugLevel = 3;
 
 my $really_bored;
-my $e;
-$e = Event->timer(after => .5);
-ok !defined $e->cb;
-$e->cb(sub {
+my $w;
+$w = Event->timer(after => .5, parked => 1);
+ok !defined $w->cb;
+$w->cb(sub {
 	   if (!$really_bored) {
-	       $e->again;
+	       $w->again;
 	       $really_bored='yes';
 	   } else {
 	       ok 1;
 	   }
        });
-ok ref $e->cb, 'CODE';
+ok ref $w->cb, 'CODE';
+$w->start;
 
 ok !defined Event::loop();

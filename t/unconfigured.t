@@ -1,28 +1,27 @@
 #!./perl -w
 
 use strict;
-use Test; plan test => 7;
+use Test; plan test => 6;
 use Event;
 
-eval { Event->io };
+my @p = (cb=>\&die);
+
+eval { Event->io(@p) };
 ok $@, '/unconfigured/';
 
-eval { Event->signal };
-ok $@, '/no signal/';
+eval { Event->signal(@p) };
+ok $@, '/without signal/';
 
-eval { Event->timer };
+eval { Event->timer(@p) };
 ok $@, '/unset/';
 
-eval { Event->timer(parked => 1, interval => -1)->again };
-ok $@, '/non\-positive/';
-
-eval { Event->var };
+eval { Event->var(@p) };
 ok $@, '/watching what/';
 
 my $var = 1;
 
-eval { Event->var(poll => 0, var => \$var) };
-ok $@, '/no poll events/';
+eval { Event->var(@p, poll => 0, var => \$var) };
+ok $@, '/without poll events/';
 
-eval { Event->var(var => \$1) };
+eval { Event->var(@p, var => \$1) };
 ok $@, '/read\-only/';

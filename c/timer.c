@@ -22,6 +22,8 @@ static void pe_timer_dtor(pe_watcher *ev) {
 static char *pe_timer_start(pe_watcher *ev, int repeat) {
     STRLEN n_a;
     pe_timer *tm = (pe_timer*) ev;
+    if (!ev->callback)
+	return "without callback";
     if (repeat) {
 	/* We just finished the callback and need to re-insert at
 	   the appropriate time increment. */
@@ -29,8 +31,6 @@ static char *pe_timer_start(pe_watcher *ev, int repeat) {
 
 	if (!sv_2interval(tm->interval, &interval))
 	    return "repeating timer has no interval";
-	if (interval <= 0)
-	    return "non-positive interval";
 
 	tm->tm.at = interval + (WaHARD(ev)? tm->tm.at : NVtime());
     }
@@ -74,6 +74,7 @@ WKEYMETH(_timer_interval) {
 	SV *old = tp->interval;
 	tp->interval = SvREFCNT_inc(nval);
 	SvREFCNT_dec(old);
+	/* recalc expiration XXX */
     }
 }
 

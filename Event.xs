@@ -236,6 +236,7 @@ double null_loops_per_second(int sec)
 #include "var.c"
 #include "signal.c"
 #include "tied.c"
+#include "group.c"
 #include "queue.c"
 
 MODULE = Event		PACKAGE = Event
@@ -256,6 +257,7 @@ BOOT:
   boot_var();
   boot_tied();
   boot_signal();
+  boot_group();
   boot_queue();
   {
       struct EventAPI *api;
@@ -534,7 +536,14 @@ DESTROY(ref)
 int
 pe_watcher::pending()
 	CODE:
-	RETVAL = THIS->event_counter;
+{
+    pe_ring *lk = &THIS->events;
+    RETVAL = 0;
+    while (lk->next->self) {  /* should not be too wasteful */
+	++RETVAL;
+	lk = lk->next;
+    }
+}
 	OUTPUT:
 	RETVAL
 
@@ -857,4 +866,35 @@ pe_watcher::signal(...)
 	PPCODE:
 	PUTBACK;
 	_signal_signal(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
+	SPAGAIN;
+
+MODULE = Event		PACKAGE = Event::group
+
+void
+allocate(clname, temple)
+     SV *clname;
+     SV *temple;
+     PPCODE:
+     XPUSHs(watcher_2sv(pe_group_allocate(gv_stashsv(clname, 1),
+		SvRV(temple))));
+
+void
+pe_watcher::timeout(...)
+	PPCODE:
+	PUTBACK;
+	_group_timeout(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
+	SPAGAIN;
+
+void
+pe_watcher::add(...)
+	PPCODE:
+	PUTBACK;
+	_group_add(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
+	SPAGAIN;
+
+void
+pe_watcher::del(...)
+	PPCODE:
+	PUTBACK;
+	_group_del(THIS, items == 2? sv_mortalcopy(ST(1)) : 0);
 	SPAGAIN;

@@ -150,7 +150,7 @@ struct pe_watcher_vtbl {
 #define WaDESTROYED_off(ev)	(WaFLAGS(ev) &= ~PE_DESTROYED)
 
 #define WaCANDESTROY(ev)					\
- (WaCANCELLED(ev) && ev->event_counter == 0 && !ev->mysv)
+ (WaCANCELLED(ev) && ev->refcnt == 0 && !ev->mysv)
 
 
 #define EvFLAGS(ev)		((pe_event*)ev)->flags

@@ -28,7 +28,7 @@ struct pe_watcher {
     pe_ring all;	/* all watchers */
     pe_ring events;	/* this watcher's queued events */
     HV *FALLBACK;
-    I16 event_counter; /* refcnt? XXX */
+    I16 refcnt;		/* internal to Event; not perl related */
     I16 prio;
     I16 max_cb_tm;
 };
@@ -146,6 +146,16 @@ struct pe_var {
     pe_watcher base;
     SV *variable;
     U16 events;
+};
+
+typedef struct pe_group pe_group;
+struct pe_group {
+    pe_watcher base;
+    double since;
+    pe_timeable tm;
+    SV *timeout;
+    int members;
+    pe_watcher **member;
 };
 
 typedef struct pe_event_stats_vtbl pe_event_stats_vtbl;
