@@ -540,7 +540,7 @@ the timeout.
 
 =head1 ALSO SEE
 
-L<Time::HiRes> and L<NetServer::ProcessTop>.
+L<Time::HiRes>, L<Time::Warp>, and L<NetServer::ProcessTop>.
 
 =head1 SUPPORT
 

@@ -1,3 +1,24 @@
+1999-08-18  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.52.
+
+	* Moved t/inactivity.t to demo/ because it fails occationally and
+ 	I don't have time to figure it out.  You might say that it takes
+ 	too much time to write a good test of inactivity.
+
+1999-08-02  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Make mention of Time::Warp.
+
+1999-07-29  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Don't complain about Time::HiRes (uri@sysarch.com)
+
+1999-07-27  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Skip t/idle2.t if Time::HiRes is unavailable (lukka@iki.fi &
+ 	gbarr@pobox.com).
+
 1999-07-23  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.51.

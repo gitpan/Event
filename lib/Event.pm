@@ -10,9 +10,10 @@ BEGIN {  # do the right thing for threads?
 package Event;
 use base 'Exporter';
 use Carp;
+eval { require Carp::Heavy; };  # work around perl_call_pv bug XXX
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.51';
+$VERSION = '0.52';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -22,14 +23,22 @@ require DynaLoader;
 (defined(&bootstrap)? \&bootstrap : \&DynaLoader::bootstrap)->
     (__PACKAGE__, $VERSION);
 
-# Try to load Time::HiRes
-eval { require Time::HiRes; };
-die if $@ && $@ !~ /^Can\'t locate Time/;
+if (!cache_time_api()) {
+    eval { require Time::HiRes; };
+    if ($@ =~ /^Can\'t locate Time/) {
+	# just fake it up
+	install_time_api();
+    } elsif ($@) {
+	die if $@;
+    }
+    die "Can't find time API"
+	if !cache_time_api();
+}
 
-install_time_api();  # broadcast_adjust XXX
+# broadcast_adjust for Time::Warp? XXX
 
 $DebugLevel = 0;
-$Eval = 0;		# should avoid because c_callback is exempt
+$Eval = 0;		# avoid because c_callback is exempt
 $DIED = \&default_exception_handler;
 
 @EXPORT_OK = qw(time all_events all_watchers all_running all_queued all_idle

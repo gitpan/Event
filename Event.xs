@@ -31,7 +31,7 @@ static void Event_croak(const char* pat, ...) {
     dSP;
     SV *msg;
     va_list args;
-/* perl_require_pv("Carp.pm");     Couldn't possibly be unloaded.*/
+    /* perl_require_pv("Carp.pm");     Couldn't possibly be unloaded.*/
     va_start(args, pat);
     msg = NEWSV(0,0);
     sv_vsetpvfn(msg, pat, strlen(pat), &args, Null(SV**), 0, 0);
@@ -42,7 +42,7 @@ static void Event_croak(const char* pat, ...) {
     XPUSHs(msg);
     PUTBACK;
     perl_call_pv("Carp::croak", G_DISCARD);
-    PerlIO_puts(PerlIO_stderr(), SvPV(msg, n_a));
+    PerlIO_puts(PerlIO_stderr(), "panic: Carp::croak failed\n");
     (void)PerlIO_flush(PerlIO_stderr());
     my_failure_exit();
 }
@@ -290,19 +290,23 @@ _timeout_too_early()
 	OUTPUT:
 	RETVAL
 
+bool
+cache_time_api()
+	CODE:
+	SV **svp = hv_fetch(PL_modglobal, "Time::NVtime", 12, 0);
+	if (!svp || !*svp || !SvIOK(*svp))
+	    XSRETURN_NO;
+	myNVtime = (double(*)()) SvIV(*svp);
+	XSRETURN_YES;
+
 void
 install_time_api()
 	CODE:
 	SV **svp = hv_fetch(PL_modglobal, "Time::NVtime", 12, 0);
-	if (!svp) {
-	  warn("Event: Time::HiRes is not loaded --\n\tat best 1s time accuracy is available");
-	  svp = hv_store(PL_modglobal, "Time::NVtime", 12,
+	svp = hv_store(PL_modglobal, "Time::NVtime", 12,
 			 newSViv((IV) fallback_NVtime), 0);
-	  hv_store(PL_modglobal, "Time::U2time", 12,
+	hv_store(PL_modglobal, "Time::U2time", 12,
 			 newSViv((IV) fallback_U2time), 0);
-	}
-	if (!SvIOK(*svp)) croak("Time::NVtime isn't a function pointer");
-	myNVtime = (double(*)()) SvIV(*svp);
 
 double
 time()

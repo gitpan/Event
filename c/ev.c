@@ -206,6 +206,7 @@ static void pe_check_recovery()
 
 static void pe_event_invoke(pe_event *ev) {
     STRLEN n_a;
+    int Dbg;
     pe_watcher *wa = ev->up;
     struct pe_cbframe *frp;
 
@@ -230,9 +231,20 @@ static void pe_event_invoke(pe_event *ev) {
 	croak("Deep recursion detected; invoking unloop_all()\n");
     }
 
-    if (EvDEBUGx(wa) >= 2)
-	warn("Event: [%d]invoking '%s' (prio %d)\n",
-	     CurCBFrame, SvPV(wa->desc,n_a),ev->prio);
+    Dbg = EvDEBUGx(wa);
+    if (Dbg) {
+	/*
+	SV *cvb = perl_get_sv("Carp::Verbose", 1);
+	if (!SvIV(cvb)) {
+	    SAVEIV(SvIVX(cvb));
+	    SvIVX(cvb) = 1;
+	}
+	*/
+
+	if (Dbg >= 2)
+	    warn("Event: [%d]invoking '%s' (prio %d)\n",
+		 CurCBFrame, SvPV(wa->desc,n_a),ev->prio);
+    }
 
     if (!PE_RING_EMPTY(&Callback)) pe_map_check(&Callback);
 
@@ -275,7 +287,7 @@ static void pe_event_invoke(pe_event *ev) {
 	    Estat.commit(frp->stats, wa);
 	frp->stats=0;
     }
-    if (EvDEBUGx(wa) >= 3)
+    if (Dbg >= 3)
 	warn("Event: completed '%s'\n", SvPV(wa->desc, n_a));
     pe_event_postCB(frp);
 }

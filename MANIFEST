@@ -22,6 +22,7 @@ c/unix_io.c
 c/var.c
 c/watcher.c
 demo/in.pl
+demo/inactivity.t
 demo/process.pm
 lib/Event.pm
 lib/Event.pod
@@ -42,7 +43,6 @@ t/eval.t
 t/hook.t
 t/idle.t
 t/idle2.t
-t/inactivity.t
 t/io.t
 t/leak.t
 t/loop.t

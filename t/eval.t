@@ -1,6 +1,6 @@
 # stop -*-perl-*- ?
 
-use Carp 'verbose';
+use Carp;# 'verbose';
 use Test; plan tests => 7;
 use Event qw(all_running loop unloop sweep);
 # $Event::DebugLevel = 3;

@@ -1,5 +1,17 @@
 # idle daydreams -*-perl-*-
 
+BEGIN {
+    eval {
+	require Time::HiRes;
+	Time::HiRes->VERSION(1.20);
+    };
+    if ($@) {
+	print "1..0\n";
+	print "ok 1 # skipped; requires Time::HiRes 1.20\n";
+	exit;
+    }
+}
+
 use Test; plan tests => 5;
 use Event qw(loop unloop time all_events one_event);
 require Event::timer;
