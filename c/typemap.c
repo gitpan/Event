@@ -34,7 +34,7 @@ static SV *wrap_watcher(void *ptr, HV *stash, SV *temple) {
     return ref;
 }
 
-static SV *watcher_2sv(pe_watcher *wa) { /**SLOW IS OKAY**/
+SV *watcher_2sv(pe_watcher *wa) { /**SLOW IS OKAY**/
     assert(!WaDESTROYED(wa));
     if (!wa->mysv) {
 	wa->mysv = wrap_watcher(wa, wa->vtbl->stash, 0);
@@ -47,7 +47,7 @@ static SV *watcher_2sv(pe_watcher *wa) { /**SLOW IS OKAY**/
     return SvREFCNT_inc(sv_2mortal(wa->mysv));
 }
 
-static void* sv_2watcher(SV *sv) {
+void* sv_2watcher(SV *sv) {
     MAGIC *mg;
     SV *origsv = sv;
     if (!sv || !SvROK(sv))
@@ -74,7 +74,7 @@ static void* sv_2watcher(SV *sv) {
   is deallocated (or, more likely, recycled).
 */
 
-static SV *event_2sv(pe_event *ev) { /**MAKE FAST**/
+SV *event_2sv(pe_event *ev) { /**MAKE FAST**/
     if (!ev->mysv) {
 	SV *rv = newSV(0);
 	SV *sv = newSVrv(rv,0);
@@ -91,7 +91,7 @@ static SV *event_2sv(pe_event *ev) { /**MAKE FAST**/
     return SvREFCNT_inc(sv_2mortal(ev->mysv));
 }
 
-static void *sv_2event(SV *sv) {
+void *sv_2event(SV *sv) {
     void *ptr;
     assert(sv);
     assert(SvROK(sv));
@@ -106,7 +106,7 @@ static void *sv_2event(SV *sv) {
 #define VERIFYINTERVAL(name, f) \
  STMT_START { double ign; sv_2interval(name, f, &ign); } STMT_END
 
-static int sv_2interval(char *label, SV *in, double *out) {
+int sv_2interval(char *label, SV *in, double *out) {
     SV *sv = in;
     if (!sv) return 0;
     if (SvGMAGICAL(sv))
@@ -137,7 +137,7 @@ static int sv_2interval(char *label, SV *in, double *out) {
     return 1;
 }
 
-static SV* events_mask_2sv(int mask) {
+SV* events_mask_2sv(int mask) {
     STRLEN len;
     SV *ret = newSV(0);
     SvUPGRADE(ret, SVt_PVIV);
@@ -151,7 +151,7 @@ static SV* events_mask_2sv(int mask) {
     return ret;
 }
 
-static int sv_2events_mask(SV *sv, int bits) {
+int sv_2events_mask(SV *sv, int bits) {
     if (SvPOK(sv)) {
 	UV got=0;
 	int xx;

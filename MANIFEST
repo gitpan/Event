@@ -34,6 +34,7 @@ demo/repeat.t
 demo/semaphore.pm
 lib/Event.pm
 lib/Event.pod
+lib/Event/typemap
 lib/Event/EventAPI.h
 lib/Event/MakeMaker.pm
 lib/Event/Watcher.pm
@@ -68,6 +69,5 @@ t/timeout_cb.t
 t/timer.t
 t/unconfigured.t
 t/var.t
-typemap
 util/bench.pl
 util/filehandle.txt

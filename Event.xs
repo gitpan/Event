@@ -331,6 +331,9 @@ BOOT:
       api.unloop = pe_unloop;
       api.unloop_all = pe_unloop_all;
       api.sv_2interval = sv_2interval;
+      api.events_mask_2sv = events_mask_2sv;
+      api.sv_2events_mask = sv_2events_mask;
+
       apisv = perl_get_sv("Event::API", 1);
       sv_setiv(apisv, (IV)&api);
       SvREADONLY_on(apisv);
@@ -500,6 +503,8 @@ _loop()
 	CODE:
 	pe_check_recovery();
 	pe_reentry();
+        if (!ActiveWatchers)
+          warn("Event: loop without active watchers");
 	while (ExitLevel >= LoopLevel && ActiveWatchers) {
 	  ENTER;
 	  SAVETMPS;

@@ -13,7 +13,7 @@ use Carp;
 eval { require Carp::Heavy; };  # work around perl_call_pv bug XXX
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.79';
+$VERSION = '0.80';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -64,8 +64,12 @@ sub AUTOLOAD {
 
 sub default_exception_handler {
     my ($run,$err) = @_;
-    my $desc = $run? $run->w->desc : '?';
-    my $m = "Event: trapped error in '$desc': $err";
+    my $desc = '?';
+    my $w;
+    if ($run and ($w = $run->w)) {
+	$desc = "`".$w->desc."'";
+    }
+    my $m = "Event: trapped error in $desc: $err";
     $m .= "\n" if $m !~ m/\n$/;
     warn $m;
     #Carp::cluck "Event: fatal error trapped in '$desc'";
@@ -178,5 +182,29 @@ use vars qw(@ISA);
 package Event;
 require Event::Watcher;
 _load_watcher($_) for qw(idle io signal timer var);
+
+# Provide hints to Inline.pm for usage:
+# use Inline with => 'Event';
+
+sub Inline {
+    my $language = shift;
+    if ($language ne 'C') {
+	warn "Warning: Event.pm does not provide Inline hints for the $language language\n";
+	return
+    }
+
+    require Event::MakeMaker;
+    my $path = $Event::MakeMaker::installsitearch;
+    require Config;
+    my $so = $Config::Config{so};
+
+    return {
+	INC => "-I $path/Event",
+	TYPEMAPS => "$path/Event/typemap",
+	MYEXTLIB => "$path/auto/Event/Event.$so",
+	AUTO_INCLUDE => '#include "EventAPI.h"',
+	BOOT => 'I_EVENT_API("Inline");',
+    };
+}
 
 1;

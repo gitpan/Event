@@ -176,7 +176,7 @@ struct pe_event_stats_vtbl {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 21
+#define EventAPI_VERSION 22
     I32 Ver;
 
     /* EVENTS */
@@ -197,6 +197,7 @@ struct EventAPI {
     pe_signal   *(*new_signal)(HV*, SV*);
 
     /* TIMEABLE */
+    double (*NVtime)();
     void (*tstart)(pe_timeable *);
     void (*tstop)(pe_timeable *);
 
@@ -214,12 +215,13 @@ struct EventAPI {
     void *(*sv_2watcher)(SV *sv);
     SV   *(*event_2sv)(pe_event *ev);
     void *(*sv_2event)(SV *sv);
+    int (*sv_2interval)(char *label, SV *in, double *out);
+    SV (*events_mask_2sv)(int mask);
+    int (*sv_2events_mask)(SV *sv, int bits);
 
     /* EVERYTHING ELSE */
     void (*unloop)(SV *);
-    double (*NVtime)();
     void (*unloop_all)(SV *);
-    int (*sv_2interval)(char *label, SV *in, double *out);
 };
 
 static struct EventAPI *GEventAPI=0;

@@ -1,3 +1,30 @@
+2000-12-07  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.80.
+
+	* Update Tutorial.pdf to Jochen's latest.
+
+2000-12-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Remove silly warning on $io->poll(T).
+
+	* Fix $DIED doc. (paul@miraclefish.com)
+
+2000-12-05  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Change C callback prototype to (void(*)(pe_event*))
+ 	at request of Jochen.
+
+2000-12-01  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Warn if loop without active watchers.
+
+	* Slightly more reliable default_exception_handler.
+
+2000-11-28  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Inline 0.30 integration (briani@activestate.com)
+
 2000-11-17  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.79.

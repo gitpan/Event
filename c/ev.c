@@ -287,7 +287,7 @@ static void pe_event_invoke(pe_event *ev) {
 	}
     } else {
 	assert(ev->callback);
-	(* (void(*)(void*,pe_event*)) ev->callback)(ev->ext_data, ev);
+	(* (void(*)(pe_event*)) ev->callback)(ev);
     }
 
     LEAVE;

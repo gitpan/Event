@@ -131,7 +131,7 @@ customized by passing extra attributes to the constructor.  When
 created, watcher objects are "started" and are waiting for events
 (see C<$event-E<gt>start> below).
 
-L<NetServer::Portal> can display watchers in real-time, formatted
+NetServer::Portal can display watchers in real-time, formatted
 similarly to the popular C<top> program.  You may find this a useful
 aide for debugging.
 
@@ -253,7 +253,7 @@ watchers should poll for writes unless you know what you are doing.
 Extra attributes: at => $time, interval => $sec, hard => $bool
 
 The C<$time> and C<$sec> are in seconds.  Fractional seconds may be
-used if L<Time::HiRes> is available.  The constructor also accepts an
+used if Time::HiRes is available.  The constructor also accepts an
 C<after> attribute for easier initialization.  It might be useful to
 know the time at the start of today.  You can find it with:
 
@@ -420,7 +420,7 @@ Similar to a C<timeout>.
 
 The maximum number of seconds to spend in a callback.  If a callback
 uses more time then it is aborted.  Defaults to 1 sec.  This feature
-is normally disabled.  See L<Event::Stats>.
+is normally disabled.  See Event::Stats.
 
 =item min => $seconds
 
@@ -569,7 +569,10 @@ Or you can write your own.  The handler is invoked like this:
 If you do not want to continue looping after an error, you can do
 something like this:
 
-  $Event::DIED = sub { die &Event::verbose_exception_handler(@_) };
+  $Event::DIED = sub {
+    Event::verbose_exception_handler(@_);
+    Event::unloop_all();
+  };
 
 =item * Event->add_hooks(key => sub { ... }, ...);
 
@@ -593,7 +596,7 @@ Currently support hooks are detailed as follows:
 =head1 C API
 
 Event also has a direct API for callbacks written exclusively in C.
-See L<Event::MakeMaker>.
+See Event::MakeMaker.
 
 =head1 WHAT ABOUT THREADS?
 
@@ -680,7 +683,7 @@ There seems to be some sort of bug in the global destruction phase:
   Explicit blessing to '' (assuming package main) during global
   destruction.
 
-=head2 WHY MICROSOFT WINDOWS MIGHT BE FASTER THAN UNIX
+=head2 WHY SELECT/POLL SUCKS
 
 This section is concerned with advanced kernel architecture.
 
@@ -716,10 +719,25 @@ Event Loop.  Just start coding!
 
 =head1 ALSO SEE
 
-L<Time::HiRes>, L<NetServer::Portal>, L<IPC::LDT>, L<Event-tcp>,
-and L<Time::Warp>.
+=over 4
 
-While Tk does not yet support Event, L<PerlQt> does.
+=item * Useful and Fun
+
+Time::HiRes, NetServer::Portal, Time::Warp
+
+=item * Message Passing
+
+COPE, IPC::LDT, Event-tcp
+
+=item * GUI
+
+While Tk does not yet support Event, PerlQt does.
+
+=item * C API
+
+Inline
+
+=back
 
 =head1 SUPPORT
 

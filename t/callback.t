@@ -1,7 +1,7 @@
 #!./perl -w
 
 use strict;
-use Test; plan tests => 5;
+use Test; plan tests => 6;
 use Event 0.65;
 
 my $invoked_method=0;
@@ -29,7 +29,12 @@ ok $@, '/Callback/';
 	ok $run->w->desc, 'nomethod';
 	ok $err, '/object method/';
     };
+    my $warn='';
+    local $SIG{__WARN__} = sub {
+	$warn .= $_[0];
+    };
     Event::loop();
+    ok $warn, '/loop without active watchers/';
 }
 
 ok $invoked_method, 3;

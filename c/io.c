@@ -126,7 +126,7 @@ static void pe_io_reset_handle(pe_watcher *ev) {  /* used by unix_io */
 WKEYMETH(_io_poll) {
     pe_io *io = (pe_io*)ev;
     if (nval) {
-	int nev = sv_2events_mask(nval, PE_R|PE_W|PE_E);
+	int nev = sv_2events_mask(nval, PE_R|PE_W|PE_E|PE_T);
 	if (io->timeout) nev |=  PE_T;
 	else             nev &= ~PE_T;
 	if (io->poll != nev) {

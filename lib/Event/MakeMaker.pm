@@ -2,23 +2,29 @@ use strict;
 package Event::MakeMaker;
 use Config;
 use base 'Exporter';
-use vars qw(@EXPORT_OK);
-@EXPORT_OK = qw(&event_args);
+use vars qw(@EXPORT_OK $installsitearch);
+@EXPORT_OK = qw(&event_args $installsitearch);
 
-my $installsitearch = $Config{sitearch};
-$installsitearch =~ s,$Config{prefix},$ENV{PERL5PREFIX}, if
-    exists $ENV{PERL5PREFIX};
+my %opt;
+for my $opt (split /:+/, $ENV{PERL_MM_OPT}) {
+    my ($k,$v) = split /=/, $opt;
+    $opt{$k} = $v;
+}
+
+my $extra = $Config{sitearch};
+$extra =~ s,$Config{prefix},$opt{PREFIX}, if
+    exists $opt{PREFIX};
+
+for my $d ($extra, @INC) {
+    if (-e "$d/Event/EventAPI.h") {
+	$installsitearch = $d;
+	last
+    }
+}
 
 sub event_args {
     my %arg = @_;
-    my $dir;
-    for my $d ($installsitearch, @INC) {
-	if (-e "$d/Event/EventAPI.h") {
-	    $dir = $d;
-	    last
-	}
-    }
-    $arg{INC} .= " -I$dir/Event";
+    $arg{INC} .= " -I$installsitearch/Event";
     %arg;
 }
 
