@@ -151,12 +151,20 @@ complete but pending events are cancelled.  Note that a stopped
 watcher can be reactivated by calling the C<start> or C<again>
 methods.
 
+Watchers are stopped implicitly if their new configuration deprives
+them of the ability to generate events.  For instance:
+
+  my $io_watcher = Event->io(timeout => 1);  # started
+  $io_watcher->timeout(undef);               # stopped implicitly
+  $io_watcher->timeout(1);                   # still stopped
+  $io_watcher->start;                        # restarted
+
 =item $watcher->cancel
 
 Stop and destroy C<$watcher>.  Running events are allowed to complete
 but pending events are cancelled.  Cancelled watchers are no longer
-valid except for read-only type operations.  For example, prio() will
-return the watcher's priority, but start() will always fail.
+valid except for read-only type operations.  For example, prio() can
+return the watcher's priority, but start() will fail.
 
 =item $watcher->is_cancelled
 
@@ -251,6 +259,38 @@ Not yet implemented.
 
 =back
     
+=head2 PRIORITY
+
+Priority is used to sort the event queue.  Meaningful priorities range
+from -1 to 6 inclusive.  Lower numbers mean higher priority (-1 is the
+highest priority and 6 is the lowest).  If multiple events get queued,
+the ones with the highest priority are serviced first.
+
+  use Event qw(PRIO_HIGH PRIO_NORMAL);   # some constants
+
+  LEVELS: -1      0      1      2      3      4      5      6
+                     PRIO_HIGH            PRIO_NORMAL
+
+A negative priority causes the callback to be invoked immediately upon
+event occurance.  Use this with caution.  While it may seem
+advantageous to use negative priorities, they bypass the whole point
+of having an event queue.
+
+Each watcher has a I<default priority>, assigned by its constructor:
+
+  io	   PRIO_NORMAL
+  signal   PRIO_HIGH
+  timer    PRIO_NORMAL
+  var      PRIO_NORMAL
+
+Default priorities are stored in ${"Event::${type}::DefaultPriority"}.
+If the default priority is not satisfactory for your purposes, the
+constructor options C<nice>, C<async>, or C<prio> can be used to
+adjust it.  C<nice> specifies an offset from the default priority;
+C<async> forces the priority to -1; and C<prio> assigns a given
+priority of your choice.  If more than one of these options are given
+then C<prio> overrides C<async> overrides C<nice>.
+
 =head2 WATCHER CONSTRUCTOR ATTRIBUTES
 
 These options are only supported as constructor arguments.
@@ -265,10 +305,9 @@ See the discussion of the timer watcher.
 
 If $bool then the watcher priority is set to -1.
 
-=item nice => $int
+=item nice => $offset
 
-Offset from the default priority.  All watchers have a default
-priority of ${"Event::${type}::DefaultPriority"}.
+Offset from the default priority.
 
 =item parked => $yes
 
@@ -372,24 +411,10 @@ Thus, both of these statements enable interest in read:
 A given type of watcher may support all or a subset of the available
 events.
 
-=item prio => $int
+=item prio => $level
 
-Priority is used to sort the event queue.  Meaningful priorities range
-from -1 to 6 inclusive.  Lower numbers mean higher priority (-1 is the
-highest priority and 6 is the lowest).  When multiple events happen,
-the events with the highest priority are serviced first.
-
-A negative priority indicates that the callback should be invoked
-immediately upon event occurance.  Use this with caution.  While it
-may seem advantageous to use negative priorities, they bypass the
-whole point of having an event queue.
-
-  ASYNC    0    1    2    3    4    5    6    IDLE
-                    HIGH      NORM
-
-You should not specify prio in the constructor.  Use C<nice> instead
-for an offset from the default priority.  Default priorities are
-stored in ${"Event::${type}::DefaultPriority"}.
+Changes the watcher's priority to the given level.  Events generated
+by a watcher usually inherit the priority of the watcher.
 
 =item reentrant => $bool
 
@@ -461,12 +486,12 @@ expression of interest.
 A watcher increments C<hits> every time it registers an event.
 Signals in quick succession can be clumped into a single event.
 
-=item prio => $int
+=item prio => $level
 
-The event's priority.  Be aware that this priority can differ from the
-watcher's priority since the watcher's priority may have changed since
+Be aware that this priority can differ from the watcher's
+priority. For instance, the watcher's priority may have changed since
 the event was generated.  Moreover, the C extension API offers the
-freedom to queue events of any priority.
+freedom to queue events of arbitrary priority.
 
 =item w => $watcher
 

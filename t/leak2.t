@@ -19,6 +19,7 @@
 use Test; plan test => 2;
 
 use Event;
+use Event::type qw(io timer);
 # $Event::DebugLevel = 3;
 
 sub check {warn "[DBG] ", join('-', Event::_memory_counters), "\n";}

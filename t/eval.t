@@ -3,6 +3,7 @@
 use Carp;# 'verbose';
 use Test; plan tests => 7;
 use Event qw(all_running loop unloop sweep);
+use Event::type qw(idle);
 # $Event::DebugLevel = 3;
 
 my $die = Event->idle(cb => sub { die "died\n" }, desc => 'killer');

@@ -35,11 +35,10 @@ static void Event_croak(const char* pat, ...) {
     va_list args;
     /* perl_require_pv("Carp.pm");     Couldn't possibly be unloaded.*/
     va_start(args, pat);
-    msg = NEWSV(0,0);
+    msg = sv_newmortal();
     sv_vsetpvfn(msg, pat, strlen(pat), &args, Null(SV**), 0, 0);
     va_end(args);
     SvREADONLY_on(msg);
-    SAVEFREESV(msg);
     PUSHMARK(SP);
     XPUSHs(msg);
     PUTBACK;

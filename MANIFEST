@@ -39,6 +39,7 @@ lib/Event/msg.pm
 lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
+lib/Event/type.pm
 lib/Event/var.pm
 ppport.h
 t/attach_to.t

@@ -13,7 +13,7 @@ use Carp;
 eval { require Carp::Heavy; };  # work around perl_call_pv bug XXX
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.62';
+$VERSION = '0.63';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -47,7 +47,8 @@ $DIED = \&default_exception_handler;
 
 sub _load_watcher {
     my $sub = shift;
-    eval { require "Event/$sub.pm" } or return;
+    eval { require "Event/$sub.pm" };
+    die if $@;
     croak "Event/$sub.pm did not define Event::$sub\::new"
 	unless defined &$sub;
     1;
@@ -59,6 +60,9 @@ sub _load_watcher {
 sub AUTOLOAD {
     my $sub = ($Event::AUTOLOAD =~ /(\w+)$/)[0];
     _load_watcher($sub) or croak $@ . ', Undefined subroutine &' . $sub;
+    carp "Autoloading with Event->$sub(...) is deprecated;
+\tplease 'use Event::type qw($sub);' explicitly
+\tor 'use Event::type qw(:all)';";
     goto &$sub;
 }
 

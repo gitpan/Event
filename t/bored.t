@@ -1,6 +1,7 @@
 # -*- perl -*-
 use Test; plan test => 4;
 use Event;
+use Event::type qw(timer);
 
 # $Event::DebugLevel = 3;
 

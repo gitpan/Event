@@ -9,6 +9,7 @@ BEGIN {
 
 use Test; plan test => 7;
 use Event qw(loop unloop one_event all_running);
+require Event::io;
 
 #$Event::DebugLevel = 4;
 

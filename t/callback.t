@@ -3,6 +3,7 @@
 use strict;
 use Test; plan tests => 3;
 use Event 0.53;
+use Event::type qw(timer);
 
 my $invoked_method=0;
 sub method {

@@ -10,6 +10,7 @@ BEGIN {
 
 use Test; plan tests => 6;
 use Event qw(loop unloop);
+use Event::type qw(io);
 use Event::Watcher qw(R W);
 use Symbol;
 

@@ -1,8 +1,9 @@
 #!./perl -w
 
 use strict;
-use Test; plan test => 8;
+use Test; plan test => 7;
 use Event;
+use Event::type ':all';
 
 eval { Event->io };
 ok $@, '/unconfigured/';
@@ -26,7 +27,3 @@ ok $@, '/no poll events/';
 
 eval { Event->var(var => \$1) };
 ok $@, '/read\-only/';
-
-eval { Event->var(var => \$var) for 1..2 };
-ok $@, '/already being traced/';
-

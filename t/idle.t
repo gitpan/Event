@@ -2,6 +2,7 @@
 
 use Test; plan tests => 4;
 use Event qw(loop unloop);
+use Event::type qw(idle);
 
 # $Event::Eval = 1;
 #$Event::DebugLevel = 0;

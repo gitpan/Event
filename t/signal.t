@@ -10,6 +10,7 @@ BEGIN {
 
 use Test; plan tests => 4;
 use Event qw(loop unloop);
+use Event::type qw(signal idle);
 
 #$Event::DebugLevel = 3;
 

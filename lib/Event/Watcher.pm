@@ -49,20 +49,20 @@ sub init {
 	}
     }
 
-    # find e_prio
-    if (exists $arg->{prio}) {
-	$o->prio(delete $arg->{prio})
-    } elsif ($arg->{async}) {
-	delete $arg->{async};
-	$o->prio(-1);
-    } else {
+    # set up prio
+    {
 	no strict 'refs';
 	$o->prio($ { ref($o)."::DefaultPriority" } || Event::PRIO_NORMAL);
 	if (exists $arg->{nice}) {
 	    $o->prio($o->prio + delete $arg->{nice});
 	}
     }
+    $o->prio(-1)
+	if delete $arg->{async};
+    $o->prio(delete $arg->{prio})
+	if exists $arg->{prio};
 
+    # is parked?
     my $parked = delete $arg->{parked};
 
     for my $k (keys %$arg) {

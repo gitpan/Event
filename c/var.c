@@ -69,8 +69,6 @@ static char *pe_var_start(pe_watcher *_ev, int repeat) {
 	return "cannot trace read-only variable";
     if (!SvUPGRADE(sv, SVt_PVMG))
 	return "SvUPGRADE failed";
-    if (mg_find(sv, 'U'))
-	return "var is already being traced";
 
     mgp = &SvMAGIC(sv);
     while ((mg = *mgp)) {
@@ -110,7 +108,7 @@ static void pe_var_stop(pe_watcher *_ev) {
 
     mgp = &SvMAGIC(sv);
     while ((mg = *mgp)) {
-	if (mg->mg_obj == (SV*)ev)
+	if (mg->mg_type == 'U' && mg->mg_obj == (SV*)ev)
 	    break;
 	mgp = &mg->mg_moremagic;
     }

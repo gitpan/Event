@@ -2,6 +2,7 @@
 # contributed by jsalmon@gw.thesalmons.org
 
 use Event qw(loop);
+require Event::timer;
 
 $w = Event->timer(interval => 1);
 $w->cb(sub {

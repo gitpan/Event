@@ -164,7 +164,6 @@ static void pe_event_postCB(pe_cbframe *fp) {
 
 static void pe_callback_died(pe_cbframe *fp) {
     dSP;
-    dTHX;
     STRLEN n_a;
     pe_watcher *wa = fp->ev->up;
     SV *eval = perl_get_sv("Event::DIED", 1);
@@ -275,7 +274,6 @@ static void pe_event_invoke(pe_event *ev) {
 	SV *cb = SvRV((SV*)ev->callback);
 	int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
 	dSP;
-	dTHX;
 	SV *evsv = event_2sv(ev);
 	if (SvTYPE(cb) == SVt_PVCV) {
 	    PUSHMARK(SP);

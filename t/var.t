@@ -1,8 +1,9 @@
 # watch -*-perl-*-
 
 use strict;
-use Test; plan test => 5;
+use Test; plan test => 6;
 use Event qw(loop unloop);
+use Event::type qw(var idle);
 
 # $Event::DebugLevel = 2;
 
@@ -18,6 +19,8 @@ Event->var(var => \$var1, cb =>
 	   },
 	   desc => "var1"
 );
+
+Event->var(var => \$var1, cb => sub { ok $var1, 2 });
 
 Event->var(var => \$var2, cb =>
 	   sub {
