@@ -30,7 +30,7 @@ sub new {
 	my $i = delete $arg{e_interval};
 	$o->{e_at} = Event::time() + (ref $i? $$i : $i) unless $has_at;
 	$o->{e_interval} = $i;
-	$o->{e_repeat} = 1;
+	$o->{e_repeat} = 1 unless exists $arg{e_repeat};
     }
 
     $o->init(\%arg);

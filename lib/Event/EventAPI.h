@@ -24,9 +24,10 @@ struct pe_ring { void *self; pe_ring *next, *prev; };
 #define PE_ITER_FALLBACK 2
 
 struct pe_watcher {
-  pe_watcher_vtbl *vtbl;
+    pe_watcher_vtbl *vtbl;
+    SV *mysv;
+
   HV *stash;
-  SV *mysv;
   U32 flags;
   SV *desc;
   pe_ring all;
@@ -43,9 +44,10 @@ struct pe_watcher {
 };
 
 struct pe_event {
-  pe_event_vtbl *vtbl;
+    pe_event_vtbl *vtbl;
+    SV *mysv;  /* must match layout of pe_watcher */
+
   pe_watcher *up;
-  SV *mysv;
   pe_ring peer;
   pe_ring que;
   I16 count;
@@ -53,7 +55,7 @@ struct pe_event {
 };
 
 /* This must be placed directly after pe_watcher so the memory
-   layouts are always compatible. */
+   layouts are always compatible. XXX? */
 typedef struct pe_timeable pe_timeable;
 struct pe_timeable {
   pe_ring ring;
@@ -124,7 +126,7 @@ struct pe_io {
   pe_ring ioring;
   SV *handle;
   float timeout;
-  U16 events;
+  U16 poll;
 /* ifdef UNIX */
   int fd;
   int xref;  /*private: for poll*/
@@ -164,7 +166,7 @@ struct pe_event_stats_vtbl {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 14
+#define EventAPI_VERSION 15
   I32 Ver;
 
   /* EVENTS */

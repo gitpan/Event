@@ -29,4 +29,4 @@ ok $timer->{stuff}, 'stuff';
 sweep();
 
 eval { ++$ev->{retries} };
-ok $@, qr/destroyed/;
+ok $@, '/destroyed/';

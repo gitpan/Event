@@ -16,7 +16,7 @@ static void pe_tied_start(pe_watcher *ev, int repeat)
   GV *gv;
   dSP;
   PUSHMARK(SP);
-  XPUSHs(sv_2mortal(watcher_2sv(ev)));
+  XPUSHs(watcher_2sv(ev));
   XPUSHs(boolSV(repeat));
   PUTBACK;
   gv = gv_fetchmethod(ev->stash, "_start");
@@ -32,7 +32,7 @@ static void pe_tied_stop(pe_watcher *ev)
   if (gv) {
     dSP;
     PUSHMARK(SP);
-    XPUSHs(sv_2mortal(watcher_2sv(ev)));
+    XPUSHs(watcher_2sv(ev));
     PUTBACK;
     perl_call_sv((SV*)GvCV(gv), G_DISCARD);
   }
@@ -43,7 +43,7 @@ static void pe_tied_alarm(pe_watcher *ev, pe_timeable *_ign)
   GV *gv;
   dSP;
   PUSHMARK(SP);
-  XPUSHs(sv_2mortal(watcher_2sv(ev)));
+  XPUSHs(watcher_2sv(ev));
   PUTBACK;
   gv = gv_fetchmethod(ev->stash, "_alarm");
   if (!gv)

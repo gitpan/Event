@@ -39,6 +39,26 @@ _examine(obj)
 #  define PL_sig_name sig_name
 #endif
 
+#undef croak
+#define croak Event_croak
+
+static void Event_croak(const char* pat, ...)
+{
+  dSP;
+  SV *msg = NEWSV(0,0);
+  va_list args;
+/* perl_require_pv("Carp.pm");     Couldn't possibly be unloaded.*/
+  va_start(args, pat);
+  sv_vsetpvfn(msg, pat, strlen(pat), &args, Null(SV**), 0, Null(bool*));
+  va_end(args);
+  SvREADONLY_on(msg);
+  SAVEFREESV(msg);
+  PUSHMARK(sp);
+  XPUSHs(msg);
+  PUTBACK;
+  perl_call_pv("Carp::croak", G_DISCARD);
+}
+
 #ifdef WIN32
 #   include <fcntl.h>
 #endif
@@ -47,7 +67,7 @@ _examine(obj)
 # include <poll.h>
 
 /*
-	Many operating systems claim to support poll, yet they
+	Many operating systems claim to support poll yet they
 	actually emulate it with select.  c/unix_io.c supports
 	either poll or select but it doesn't know which one to
 	use.  Here we try to detect if we have a native poll
@@ -85,9 +105,10 @@ static SV *DebugLevel;
 static SV *Eval;
 static pe_event_stats_vtbl Estat;
 
-/* close enough to zero -- this needs to be bigger if you turn
-   on lots of debugging?  Can determine clock resolution dynamically? XXX */
-static double IntervalEpsilon = 0.0001;
+/* IntervalEpsilon should be equal to the clock's sleep resolution
+   (poll or select) times two.  It probably needs to be bigger if you turn
+   on lots of debugging?  Can determine this dynamically? XXX */
+static double IntervalEpsilon = 0.0002;
 static int TimeoutTooEarly=0;
 
 static double (*myNVtime)();
@@ -111,7 +132,7 @@ static void pe_watcher_off(pe_watcher *wa);
 /****************** KEY_REMAP */
 static HV *KREMAP;
 static int remap_noise=10;
-static SV *kremap(SV *key)
+static SV *kremap(SV *key) /*DEPRECATED XXX*/
 {
   STRLEN n_a;
   HE *he;
@@ -182,6 +203,7 @@ static void pe_collect_stats(int yes)
 
 #include "typemap.c"
 #include "timeable.c"
+#include "hook.c"
 #include "event.c"
 #include "watcher.c"
 #include "idle.c"
@@ -204,6 +226,7 @@ BOOT:
   KREMAP = (HV*) SvREFCNT_inc(perl_get_hv("Event::KEY_REMAP", 1));
   boot_typemap();
   boot_timeable();
+  boot_hook();
   boot_pe_event();
   boot_pe_watcher();
   boot_idle();
@@ -351,7 +374,7 @@ all_watchers()
 	  return;
 	ev = AllWatchers.next->self;
 	while (ev) {
-	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
+	  XPUSHs(watcher_2sv(ev));
 	  ev = ev->all.next->self;
 	}
 
@@ -364,7 +387,7 @@ all_idle()
 	  return;
 	ev = Idle.prev->self;
 	while (ev) {
-	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
+	  XPUSHs(watcher_2sv(ev));
 	  ev = ((pe_idle*)ev)->iring.prev->self;
 	}
 
@@ -375,7 +398,7 @@ all_running()
 	int fx;
 	for (fx = CurCBFrame; fx >= 0; fx--) {
 	  pe_watcher *ev = (CBFrame + fx)->ev->up; /* XXX */
-	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
+	  XPUSHs(watcher_2sv(ev));
 	  if (GIMME_V != G_ARRAY)
 	    break;
 	}
@@ -463,7 +486,7 @@ queue_time(prio)
 	XPUSHs(max? sv_2mortal(newSVnv(max)) : &PL_sv_undef);
 
 
-MODULE = Event		PACKAGE = Event::Watcher::Inner
+MODULE = Event		PACKAGE = Event::Watcher
 
 void
 DESTROY(ref)
@@ -473,39 +496,16 @@ DESTROY(ref)
 	pe_watcher *THIS;
 	assert(SvROK(ref));
 	sv = SvRV(ref);
-	assert(SvTYPE(sv) == SVt_PVMG);
-	assert(SvIOK(sv));
-	THIS = (pe_watcher*) SvIVX(sv);
+	assert(SvTYPE(sv) == SVt_PVHV);
+	THIS = (pe_watcher*) HvNAME(sv);
 	if (THIS) {
 	  STRLEN n_a;
-	  if (EvDEBUGx(THIS) >= 3)
+	/* if (EvDEBUGx(THIS) >= 3)
 		warn("Watcher '%s' leaving scope (SV=0x%x)",
-		   SvPV(THIS->desc, n_a), sv);
+		   SvPV(THIS->desc, n_a), sv); */
 	  THIS->mysv = 0;
+	  HvNAME(sv) = 0;
 	}
-
-MODULE = Event		PACKAGE = Event::Event
-
-void
-DESTROY(ref)
-	SV *ref
-	CODE:
-	SV *sv;
-	pe_event *THIS;
-	assert(SvROK(ref));
-	sv = SvRV(ref);
-	assert(SvTYPE(sv) == SVt_PVMG);
-	assert(SvIOK(sv));
-	THIS = (pe_event*) SvIVX(sv);
-	if (THIS) {
-	  STRLEN n_a;
-	  if (EvDEBUGx(THIS->up) >= 3)
-		warn("Event '%s' leaving scope (SV=0x%x)",
-		  SvPV(THIS->up->desc, n_a), sv);
-	  THIS->mysv = 0;
-	}
-
-MODULE = Event		PACKAGE = Event::Watcher
 
 void
 pe_watcher::again()

@@ -1,3 +1,50 @@
+1999-03-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Cut version 0.31 for PerlClinic.
+
+1999-03-05  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Simplified typemap in an attempt to squash bugs.
+
+1999-03-04  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Search @INC in Event::MakeMaker.
+
+1999-03-03  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Make io timers non-repeating.
+
+	* Relax io watchers more.  Now they can be started with either
+ 	e_fd or e_timeout or both or neither.
+
+1999-03-02  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Allow creation of io watchers without a valid e_fd.  Should
+ 	probably do the same with the rest of the watcher types.
+
+	* Added e_suspend.  Do we keep the 'suspend' and 'resume' methods?
+
+1999-02-26  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fixed refcnt problem triggered by deleting hash entries.  Added
+ 	test.
+
+1999-02-25  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Avoid qr// in keys.t.
+
+1999-02-12  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Reroute C-API croak through Carp::croak. Added test.
+
+1999-02-11  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Removed backward compatibility up to 0.24 (inclusive).
+
+	* Factored event init/dtor code.
+
+	* Added 'callback' hooks.  Updated docs.
+
 1999-02-03  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.30.

@@ -10,4 +10,4 @@ O_WATCHER
 OUTPUT
 
 O_WATCHER
-	$arg = watcher_2sv($var);
+	$arg = SvREFCNT_inc(watcher_2sv($var));

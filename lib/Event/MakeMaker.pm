@@ -11,7 +11,11 @@ $installsitearch =~ s,$Config{prefix},$ENV{PERL5PREFIX}, if
 
 sub event_args {
     my %arg = @_;
-    $arg{INC} .= " -I$installsitearch/Event";
+    my $dir;
+    for my $d ($installsitearch, @INC) {
+	$dir = $d if -e "$d/Event/EventAPI.h";
+    }
+    $arg{INC} .= " -I$dir/Event";
     %arg;
 }
 

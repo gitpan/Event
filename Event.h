@@ -63,21 +63,21 @@ struct pe_tied {
 
 typedef struct pe_base_vtbl pe_base_vtbl;
 struct pe_base_vtbl {
-  void (*Fetch)(void *, SV *key);
-  void (*Store)(void *, SV *key, SV *nval);
-  void (*Firstkey)(void *);
-  void (*Nextkey)(void *);
-  void (*Delete)(void *, SV *key);
-  int (*Exists)(void *, SV *key);
+    int is_event;   /* watcher=0, event=1 */
+    void (*Fetch)(void *, SV *key);
+    void (*Store)(void *, SV *key, SV *nval);
+    void (*Firstkey)(void *);
+    void (*Nextkey)(void *);
+    void (*Delete)(void *, SV *key);
+    int (*Exists)(void *, SV *key);
 };
 
-struct pe_event_vtbl {  /* should be pure virtual XXX */
+struct pe_event_vtbl {
   pe_base_vtbl base;
   HV *keymethod;
   pe_event *(*new_event)(pe_watcher *);
   void (*dtor)(pe_event *);
 
-  /* should be pure virtual XXX */
   pe_ring freelist;
 };
 

@@ -18,16 +18,4 @@ sub new {
     $o;
 }
 
-{
-    # deprecated
-    no strict 'refs';
-    my $warn = 5;
-    for my $f (qw(R W E T)) {
-	*{$f} = sub {
-	    Carp::carp "Please use Event::$f instead" if --$warn >= 0;
-	    &{"Event::$f"};
-	};
-    }
-}
-
 1;

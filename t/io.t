@@ -8,12 +8,12 @@ BEGIN {
     }
 }
 
-use Test; plan tests => 2;
+use Test; plan tests => 3;
 use Event qw(loop unloop);
-BEGIN { Event::Watcher->import(qw(R W)) }
+use Event::Watcher qw(R W);
 use Symbol;
 
-# $Event::DebugLevel = 1;
+#$Event::DebugLevel = 3;
 
 sub new_pipe {
     my ($cnt) = @_;
@@ -21,28 +21,32 @@ sub new_pipe {
     pipe($p1,$p2);
 
     for my $p ($p1,$p2) {
-	Event->io(e_fd => $p, e_poll => 'rw', e_cb => sub {
-		      my $e = shift;
-		      if ($e->{e_got} & R) {
-			  my $buf;
-			  sysread $p, $buf, 1;
-			  ++$$cnt;
-		      }
-		      if ($e->{e_got} & W) {
-			  syswrite $p, ".", 1;
-		      }
-	      }, e_desc => "pair $p");
+	my $io = Event->io(e_poll => 'rw', e_cb => sub {
+			       my $e = shift;
+			       if ($e->{e_got} & R) {
+				   my $buf;
+				   sysread $e->{e_fd}, $buf, 1;
+				   ++$$cnt;
+			       }
+			       if ($e->{e_got} & W) {
+				   syswrite $e->{e_fd}, '.', 1;
+			       }
+			   }, e_desc => "pair $p");
+	$io->{e_fd} = $p;
     }
 }
 
 my $count = 0;
 new_pipe(\$count);
-ok 1;
 
-Event->timer(e_interval => .5, e_cb => sub {
-		 unloop if $count > 50;
-	     });
+my $hit=0;
+my $once = Event->io(e_timeout => .01, e_cb => sub { ++$hit });
+
+Event->io(e_timeout => .1, e_cb => sub {
+	      ok $count > 0;
+	      ok $hit, 1;
+	      ok $once->{e_timeout}, 0;
+	      unloop;
+	  });
 
 loop();
-
-ok 1;

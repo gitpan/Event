@@ -9,6 +9,7 @@ README
 TODO
 WARNING
 c/event.c
+c/hook.c
 c/idle.c
 c/io.c
 c/queue.c
@@ -38,6 +39,7 @@ lib/Event/var.pm
 patches/leak.fix
 patches/time-hires
 t/bored.t
+t/delete.t
 t/eval.t
 t/hook.t
 t/idle.t

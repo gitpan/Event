@@ -38,7 +38,7 @@ sub _alarm {
 	$o->{e_prev_test} = $qt;
     }
     my $left = $o->{e_prev_test} + $o->{e_interval} - time;
-    if ($left > 0) {  #EPSILON XXX
+    if ($left > 0.0002) {  #EPSILON XXX
 	$o->{e_at} = time + $left;
     } else {
 	queue($o);

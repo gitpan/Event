@@ -1,6 +1,7 @@
 # stop -*-perl-*- ?
 
-use Test; plan tests => 12;
+use Carp 'verbose';
+use Test; plan tests => 13;
 use Event qw(all_running loop unloop sweep);
 # $Event::DebugLevel = 3;
 
@@ -26,8 +27,12 @@ $Event::DIED = sub {
 
 # simple stuff
 delete $die->{bogus};
-eval { delete $die->{e_cb} };
-ok $@, '/delete/';
+eval {
+    package Triumph; #peturb Carp
+    delete $die->{e_cb}
+};
+ok $@, '/delete key/';
+ok $@ =~ s/at t\/eval\.t line \d+/glooph/g, 2; #Carp verbose?
 ok exists $die->{e_cb};
 ok !exists $die->{bogus};
 

@@ -213,6 +213,20 @@ WKEYMETH(_watcher_running)
     croak("'e_running' is read-only");
 }
 
+WKEYMETH(_watcher_suspend)
+{
+    if (!nval) {
+	dSP;
+	XPUSHs(boolSV(EvSUSPEND(ev)));
+	PUTBACK;
+    } else {
+	if (sv_true(nval))
+	    pe_watcher_suspend(ev);
+	else
+	    pe_watcher_resume(ev);
+    }
+}
+
 /********************************** *******************************/
 
 static void pe_watcher_FETCH(void *vptr, SV *svkey)
@@ -303,7 +317,7 @@ static void pe_watcher_DELETE(void *vptr, SV *svkey)
   ret = hv_delete_ent(ev->FALLBACK, svkey, 0, 0);
   if (ret && GIMME_V != G_VOID) {
     dSP;
-    XPUSHs(sv_2mortal(ret));
+    XPUSHs(ret);  /* already mortalized */
     PUTBACK;
   }
 }
@@ -340,6 +354,7 @@ static void boot_pe_watcher()
   struct pe_watcher_vtbl *vt;
   PE_RING_INIT(&AllWatchers, 0);
   vt = &pe_watcher_base_vtbl;
+  vt->base.is_event = 0;
   vt->base.Fetch = pe_watcher_FETCH;
   vt->base.Store = pe_watcher_STORE;
   vt->base.Firstkey = pe_watcher_FIRSTKEY;
@@ -359,6 +374,7 @@ static void boot_pe_watcher()
   hv_store(vt->keymethod, "e_reentrant", 11, newSViv((IV)_watcher_reentrant), 0);
   hv_store(vt->keymethod, "e_repeat",     8, newSViv((IV)_watcher_repeat), 0);
   hv_store(vt->keymethod, "e_running",    9, newSViv((IV)_watcher_running), 0);
+  hv_store(vt->keymethod, "e_suspend",    9, newSViv((IV)_watcher_suspend), 0);
   vt->dtor = pe_watcher_dtor;
   vt->start = pe_watcher_nostart;
   vt->stop = pe_watcher_nostop;
@@ -434,7 +450,6 @@ static void pe_watcher_resume(pe_watcher *ev)
 static void pe_watcher_on(pe_watcher *wa, int repeat)
 {
   if (EvPOLLING(wa) || EvSUSPEND(wa)) return;
-  assert(EvACTIVE(wa));
   (*wa->vtbl->start)(wa, repeat);
   EvPOLLING_on(wa); /* must happen nowhere else!! */
 }
@@ -453,8 +468,8 @@ static void pe_watcher_start(pe_watcher *ev, int repeat)
     return;
   if (EvDEBUGx(ev) >= 4)
     warn("Event: active ON '%s'\n", SvPV(ev->desc,n_a));
-  EvACTIVE_on(ev); /* must happen nowhere else!! */
   pe_watcher_on(ev, repeat);
+  EvACTIVE_on(ev); /* must happen nowhere else!! */
   ++ActiveWatchers;
 }
 
@@ -465,8 +480,8 @@ static void pe_watcher_stop(pe_watcher *ev, int cancel_events)
     return;
   if (EvDEBUGx(ev) >= 4)
     warn("Event: active OFF '%s'\n", SvPV(ev->desc,n_a));
-  EvACTIVE_off(ev); /* must happen nowhere else!! */
   pe_watcher_off(ev);
+  EvACTIVE_off(ev); /* must happen nowhere else!! */
   if (cancel_events) pe_watcher_cancel_events(ev);
   --ActiveWatchers;
 }

@@ -16,20 +16,12 @@ use ExtUtils::MakeMaker;
 push @Safe, OPTIMIZE => '-g' if 0;
 push @Safe, CC => 'insure', LD => 'insure' if 0;
 
-@PREFIX = (PREFIX => $ENV{PERL5PREFIX})
-    if exists $ENV{PERL5PREFIX};
-
-my @opt=(@PREFIX,
-	 PREREQ_PM => { Test => 1 },
+my @opt=(PREREQ_PM => { Test => 1 },
 	 VERSION_FROM	=> "./lib/Event.pm",
 	 NAME      	=> "Event",
 	 INC		=> '-Ic -Ilib/Event',
-	 H		=> [glob("c/*"), glob("*.h"),
-			    "lib/Event/EventAPI.h"],
+	 H		=> [glob("c/*"), glob("*.h"), "lib/Event/EventAPI.h"],
 	 @Safe,
-	 
-	 'linkext' 	=> {LINKTYPE => 'dynamic' }, #maybe static ok?
-	 
 	 'clean'   	=> {FILES => join(" ",
 					  map { "$_ */$_ */*/$_" }
 					  qw(*% *.html *.b[ac]k *.old *.orig))

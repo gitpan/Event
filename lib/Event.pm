@@ -13,7 +13,7 @@ use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
 use vars qw(%KEY_REMAP);
-$VERSION = '0.30';
+$VERSION = '0.31';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -211,46 +211,6 @@ if (1) {
 		  signal         => 'e_signal',
 		  timeout        => 'e_timeout',
 		  variable       => 'e_var');
-
-    # 0.24
-    *Event::all_events = sub {
-	carp "all_events renamed to all_watchers" if --$backward_noise >0;
-	&all_watchers
-    };
-
-    # 0.18
-    *Event::queueEvent = sub {
-	carp "queueEvent renamed to queue" if --$backward_noise > 0;
-	&queue;
-    };
-
-    # 0.12
-    for my $m (qw(QUEUES PRIO_HIGH PRIO_NORMAL queueEvent)) {
-	*{"Event::Loop::$m"} = sub {
-	    carp "$m moved to Event" if --$backward_noise > 0;
-	    &$m;
-	};
-    }
-    for my $m (qw(ACTIVE SUSPEND QUEUED RUNNING)) {
-	*{"Event::$m"} = sub {
-	    carp "$m moved to Event::Watcher" if --$backward_noise > 0;
-	    &{"Event::Watcher::".$m};
-	};
-    }
-    my %fix = (events => 'all_events',
-	       running => 'all_running',
-	       listQ => 'all_queued',
-	       doOneEvent => 'one_event',
-	       doEvents => 'loop',
-	       Loop => 'loop',
-	       exitLoop => 'unloop',
-	      );
-    while (my ($o,$n) = each %fix) {
-	*{"Event::Loop::$o"} = sub {
-	    carp "$o renamed to Event::$n" if --$backward_noise > 0;
-	    &$n;
-	};
-    }
 }
 
 1;

@@ -1,4 +1,5 @@
-#define MAX_CB_NEST 95 /* 100 levels triggers manditory warning from perl */
+/* 100 levels will trigger a manditory warning from perl */
+#define MAX_CB_NEST 95
 
 static double QueueTime[PE_QUEUES];
 
@@ -6,6 +7,37 @@ static pe_cbframe CBFrame[MAX_CB_NEST];
 static int CurCBFrame = -1;
 
 pe_event_vtbl event_vtbl, ioevent_vtbl;
+
+static void pe_event_init(pe_event *ev, pe_watcher *wa)
+{
+  assert(wa);
+  ev->up = wa;
+  ev->mysv = 0;
+  PE_RING_INIT(&ev->peer, ev);
+  PE_RING_UNSHIFT(&ev->peer, &wa->events);
+  ev->count = 0;
+  ev->priority = wa->priority;
+}
+
+static void pe_event_dtor(pe_event *ev)
+{
+    STRLEN n_a;
+    pe_watcher *wa = ev->up;
+    if (EvDEBUGx(wa) >= 3)
+	warn("Event=0x%x '%s' destroyed (SV=0x%x)",
+	     ev, SvPV(wa->desc, n_a), ev->mysv? SvRV(ev->mysv) : 0);
+    if (ev->mysv) {
+	invalidate_sv(ev->mysv);
+	ev->mysv=0;
+    }
+    ev->up = 0;
+    ev->count = 0;
+    PE_RING_DETACH(&ev->peer);
+    PE_RING_DETACH(&ev->que);
+    PE_RING_UNSHIFT(&ev->que, &event_vtbl.freelist);
+}
+
+/*****************************************************************/
 
 static pe_event *pe_event_allocate(pe_watcher *wa)
 {
@@ -21,33 +53,8 @@ static pe_event *pe_event_allocate(pe_watcher *wa)
   else {
     PE_RING_POP(&event_vtbl.freelist, ev);
   }
-  assert(wa);
-  ev->up = wa;
-  ev->mysv = 0;
-  PE_RING_INIT(&ev->peer, ev);
-  PE_RING_UNSHIFT(&ev->peer, &wa->events);
-  ev->count = 0;
-  ev->priority = wa->priority;
+  pe_event_init(ev, wa);
   return ev;
-}
-
-static void pe_event_dtor(pe_event *ev)
-{
-    /* FACTOR XXX */
-    STRLEN n_a;
-    pe_watcher *wa = ev->up;
-    if (EvDEBUGx(wa) >= 3)
-	warn("Event=0x%x '%s' destroyed (SV=0x%x)",
-	     ev, SvPV(wa->desc, n_a), ev->mysv? SvRV(ev->mysv) : 0);
-    if (ev->mysv) {
-	invalidate_sv(ev->mysv);
-	ev->mysv=0;
-    }
-    ev->up = 0;
-    ev->count = 0;
-    PE_RING_DETACH(&ev->peer);
-    PE_RING_DETACH(&ev->que);
-    PE_RING_UNSHIFT(&ev->que, &event_vtbl.freelist);
 }
 
 EKEYMETH(_event_hits)
@@ -76,33 +83,9 @@ static pe_event *pe_ioevent_allocate(pe_watcher *wa)
   else {
     PE_RING_POP(&ioevent_vtbl.freelist, ev);
   }
-  assert(wa);
-  ev->base.up = wa;
-  ev->base.mysv = 0;
-  PE_RING_INIT(&ev->base.peer, ev);
-  PE_RING_UNSHIFT(&ev->base.peer, &wa->events);
-  ev->base.count = 0;
-  ev->base.priority = wa->priority;
+  pe_event_init(&ev->base, wa);
   ev->got = 0;
-  return (pe_event*) ev;
-}
-
-static void pe_ioevent_dtor(pe_event *ev)
-{
-    STRLEN n_a;
-    pe_watcher *wa = ev->up;
-    if (EvDEBUGx(wa) >= 3)
-	warn("Event=0x%x '%s' destroyed (SV=0x%x)",
-	     ev, SvPV(wa->desc, n_a), ev->mysv? SvRV(ev->mysv) : 0);
-    if (ev->mysv) {
-	invalidate_sv(ev->mysv);
-	ev->mysv=0;
-    }
-    ev->up = 0;
-    ev->count = 0;
-    PE_RING_DETACH(&ev->peer);
-    PE_RING_DETACH(&ev->que);
-    PE_RING_UNSHIFT(&ev->que, &ioevent_vtbl.freelist);
+  return &ev->base;
 }
 
 EKEYMETH(_event_got)
@@ -147,7 +130,7 @@ static void pe_callback_died(pe_cbframe *fp)
   if (EvDEBUGx(wa) >= 4)
     warn("Event: '%s' died with: %s\n", SvPV(wa->desc,n_a), SvPV(ERRSV,n_a));
   PUSHMARK(SP);
-  XPUSHs(sv_2mortal(watcher_2sv(wa)));  /* pass event instead? XXX */
+  XPUSHs(event_2sv(fp->ev));
   XPUSHs(err);
   PUTBACK;
   perl_call_sv(eval, G_EVAL|G_DISCARD);
@@ -234,13 +217,16 @@ static void pe_event_invoke(pe_event *ev)
     warn("Event: [%d]invoking '%s' (prio %d)\n",
 	 CurCBFrame, SvPV(wa->desc,n_a),ev->priority);
 
+  if (!PE_RING_EMPTY(&Callback)) pe_map_check(&Callback);
+
   if (EvPERLCB(wa)) {
     SV *cb = SvRV((SV*)wa->callback);
     int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
     dSP;
+    SV *evsv = event_2sv(ev);
     if (SvTYPE(cb) == SVt_PVCV) {
       PUSHMARK(SP);
-      XPUSHs(sv_2mortal(event_2sv(ev)));
+      XPUSHs(evsv);
       PUTBACK;
       perl_call_sv(wa->callback, pcflags);
     } else {
@@ -249,7 +235,7 @@ static void pe_event_invoke(pe_event *ev)
       assert(SvTYPE(cb) == SVt_PVAV);
       PUSHMARK(SP);
       XPUSHs(*av_fetch(av, 0, 0));
-      XPUSHs(sv_2mortal(event_2sv(ev)));
+      XPUSHs(evsv);
       PUTBACK;
       perl_call_method(SvPV(*av_fetch(av, 1, 0),n_a), pcflags);
     }
@@ -391,7 +377,7 @@ static void pe_event_DELETE(void *vptr, SV *svkey)
   ret = hv_delete_ent(wa->FALLBACK, svkey, 0, 0);
   if (ret && GIMME_V != G_VOID) {
     dSP;
-    XPUSHs(sv_2mortal(ret));
+    XPUSHs(ret);  /* already mortalized */
     PUTBACK;
   }
 }
@@ -414,6 +400,7 @@ static void boot_pe_event()
   pe_event_vtbl *vt;
 
   vt = &event_vtbl;
+  vt->base.is_event = 1;
   vt->base.Fetch = pe_event_FETCH;
   vt->base.Store = pe_event_STORE;
   vt->base.Firstkey = pe_event_FIRSTKEY;
@@ -432,7 +419,7 @@ static void boot_pe_event()
   vt->keymethod = newHVhv(event_vtbl.keymethod);
   hv_store(vt->keymethod, "e_got", 5, newSViv((IV)_event_got), 0);
   vt->new_event = pe_ioevent_allocate;
-  vt->dtor = pe_ioevent_dtor;
+  vt->dtor = pe_event_dtor;
   PE_RING_INIT(&vt->freelist, 0);
 
   memset(QueueTime, 0, sizeof(QueueTime));

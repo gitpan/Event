@@ -63,7 +63,7 @@ block until forever or until $timeout.  Use of this API is not
 recommended because it doesn't trap exceptions and is not very
 efficient.
 
-=item all_events()
+=item all_watchers()
 
 Returns a list of all watchers (including stopped events).
 
@@ -71,10 +71,6 @@ Returns a list of all watchers (including stopped events).
 
 Returns a list of all watchers with active callbacks.  Watchers are
 returned in order of most recent to least recent.
-
-=item all_queued()
-
-Return all queued watchers in order of priority.
 
 =item all_idle()
 
@@ -137,18 +133,7 @@ event specific.
 
 Perhaps you are wondering what happens if something goes wrong and an
 untrapped C<die> occurs within your callback?  C<$Event::DIED> is just
-for this purpose.  When you call C<loop> or C<sweep>, an exception
-context is established that lasts throughout event processing. If an
-exception is detected then C<$Event::DIED> is invoked like this:
- 
-  $Event::DIED->($watcher, $@);
- 
-The default hook uses C<warn> to print the exception.  After C<DIED>
-returns, event processing continues as if nothing happened.  If you'd
-like to see more detailed output you can use the verbose handler
-(below) or write your own.
-
-  $Event::DIED = \&Event::verbose_exception_handler;
+for this purpose.  See the full description of C<DIED> below.
 
 =item e_clump => $bool
 
@@ -331,10 +316,57 @@ Not implemented.
 
 =back
     
+=head1 CUSTOMIZATION
+
+While the bulk of Event's implementation is in C (for maximum
+performance), a broad range of customization hooks are available.
+
+=over 4
+
+=item * $Event::DebugLevel
+
+Enables progressively more debugging output.  Meaningful levels range
+from 1 (least output) to 5 (most output). Also see e_debug.
+
+=item * $Event::Eval
+
+Strictly for debugging.  Do not enable this unless you know what you
+are doing.
+
+=item * $Event::DIED
+
+When C<loop> or C<sweep> is called, an exception context is established
+that lasts throughout event processing. If an exception is detected
+then C<$Event::DIED> is invoked:
+ 
+  $Event::DIED->($watcher, $@);
+ 
+The default hook uses C<warn> to print the exception.  After the DIED
+handler returns, event processing continues as if nothing happened.
+If you'd like to see more detailed output you can use the verbose
+handler (below) or write your own.
+
+  $Event::DIED = \&Event::verbose_exception_handler;
+
+=item * Event->add_hooks(key => sub { ... }, ...);
+
+The C<add_hooks> method allows customization at key junctures in the
+optimized event processes core.  The currently support hooks are
+listed below:
+
+  hook          purpose
+  ------------- ----------------------------------------------
+  prepare	returns minimum time to block (timeable)
+  check		assess state after normal return from select/poll
+  asynccheck	check for signals, etc
+  callback	invoked before each event callback
+
+=back
+
 =head1 C API
 
-Event also has a direct C API for high-performance events.  See
-L<Event::MakeMaker>.
+Event also has a direct C API for high-performance event dispatching.
+See L<Event::MakeMaker>.
 
 =head1 WHAT ABOUT THREADS?
 
@@ -391,6 +423,17 @@ sure that a particular threads implementation supports the features
 you need.  It is likely that all platforms will have a solid
 implementation soon, but at this point in history it is best to double
 check.
+
+=head1 BUGS
+
+C<bless> does not work with watchers.  If you attempt to C<bless> a
+watcher into a different class, the blessing will not stick.  The
+class will revert back to the original class.  Unfortunately, this
+cannot really be fixed properly until perl has better support for
+custom data types.
+
+The meaning of $io->{e_timeout}=0 might change.  Use C<undef> to unset
+the timeout.
 
 =head1 ALSO SEE
 

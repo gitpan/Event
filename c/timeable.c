@@ -49,7 +49,6 @@ static void pe_timeable_start(pe_timeable *tm)
   pe_watcher *ev = (pe_watcher*) tm->ring.self;
   pe_timeable *rg = (pe_timeable*) Timeables.ring.next;
   assert(!EvSUSPEND(ev));
-  assert(EvACTIVE(ev));
   assert(PE_RING_EMPTY(&tm->ring));
   if (EvDEBUGx(ev)) {
     double left = tm->at - EvNOW(1);

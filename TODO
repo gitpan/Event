@@ -1,6 +1,4 @@
-t/inactivity.t still fails on occation!
-
-pe_event_base_vtbl
+wait for new Time::HiRes & 5.005_03 to be available
 
 comp.lang.perl.announce prerequisites
   portability?  wait for Win32?
@@ -8,9 +6,9 @@ comp.lang.perl.announce prerequisites
 rethink EvNOW
 
 debugging: SIGALRM hook to capture perl stack trace of unresponsive
-callbacks?
+callbacks?  maximum time per callback
 
-croak should route through Carp!
+t/inactivity.t still fails on occation!
 
 documentation
   how to design new event types (in perl)
@@ -18,10 +16,15 @@ documentation
 
 optimization
   update io event-mask without invalidating cache
-  use fancy profiler tricks to figure out how to improve performance!
+  determine IntervalEpsilon dynamically & make available from perl
+  queue events from both sides
+  use fancy profiler tricks to figure out how to boost performance
 
 loop
   StarvePrio?
+
+-----------------------------------------------------------------------
+-----------------------------------------------------------------------
 
 make subclassing work as well as possible
 

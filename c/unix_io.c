@@ -9,35 +9,35 @@
 
 static int pe_sys_fileno(pe_io *ev)
 {
-  SV *sv = ev->handle;
-  IO *io;
-  PerlIO *fp;
-  
-  if (!sv)
-    return ev->fd;
-  if (SvGMAGICAL(sv))
-    mg_get(sv);
-  if (SvROK(sv))
-    sv = SvRV(sv);
-  else if (SvIOK(sv)) /* maybe non-portable but nice for unixen */
-    return SvIV(sv);
-  if (SvTYPE(sv) == SVt_PVGV) {
-    if (!(io=GvIO((GV*)sv)) || !(fp = IoIFP(io))) {
-      warn("GLOB(0x%x) isn't a valid IO", sv);
-      return -1;
+    STRLEN n_a;
+    SV *sv = ev->handle;
+    IO *io;
+    PerlIO *fp;
+    
+    if (!sv)
+	croak("Event %s: no filehandle available", SvPV(ev->base.desc, n_a));
+    if (SvGMAGICAL(sv))
+	mg_get(sv);
+    if (SvIOK(sv)) /* maybe non-portable but nice for unixen */
+	return SvIV(sv);
+    if (SvROK(sv))
+	sv = SvRV(sv);
+    if (SvTYPE(sv) == SVt_PVGV) {
+	if (!(io=GvIO((GV*)sv)) || !(fp = IoIFP(io))) {
+	    croak("Event '%s': GLOB(0x%x) isn't a valid IO",
+		  SvPV(ev->base.desc, n_a), sv);
+	}
+	return PerlIO_fileno(fp);
     }
-    return PerlIO_fileno(fp);
-  }
-  
-  warn("Can't find fileno");
-  sv_dump(ev->handle);
-  return -1;
+    sv_dump(sv);
+    croak("Event '%s': can't find fileno", SvPV(ev->base.desc,n_a));
+    return -1;
 }
 
 static void _queue_io(pe_io *wa, int got)
 {
   pe_ioevent *ev;
-  got &= wa->events;
+  got &= wa->poll;
   if (!got) {
     if (EvDEBUGx(wa) >= 3)
       warn("Event: io '%s' queued nothing", SvPV(wa->base.desc,PL_na));
@@ -96,9 +96,9 @@ static void pe_sys_multiplex(double timeout)
       ev->xref = -1;
       if (fd >= 0) {
 	int bits=0;
-	if (ev->events & PE_R) bits |= (POLLIN | POLLRDNORM);
-	if (ev->events & PE_W) bits |= (POLLOUT | POLLWRNORM | POLLWRBAND);
-	if (ev->events & PE_E) bits |= (POLLRDBAND | POLLPRI);
+	if (ev->poll & PE_R) bits |= (POLLIN | POLLRDNORM);
+	if (ev->poll & PE_W) bits |= (POLLOUT | POLLWRNORM | POLLWRBAND);
+	if (ev->poll & PE_E) bits |= (POLLRDBAND | POLLPRI);
 	if (bits) {
 	  int ok=0;;
 	  for (xx = 0; xx < Nfds; xx++) {
@@ -196,9 +196,9 @@ static void pe_sys_multiplex(double timeout)
       int fd = ev->fd;
       if (fd >= 0) {
 	int bits=0;
-	if (ev->events & PE_R) { FD_SET(fd, &Rfds); ++bits; }
-	if (ev->events & PE_W) { FD_SET(fd, &Wfds); ++bits; }
-	if (ev->events & PE_E) { FD_SET(fd, &Efds); ++bits; }
+	if (ev->poll & PE_R) { FD_SET(fd, &Rfds); ++bits; }
+	if (ev->poll & PE_W) { FD_SET(fd, &Wfds); ++bits; }
+	if (ev->poll & PE_E) { FD_SET(fd, &Efds); ++bits; }
 	if (bits && fd > Nfds) Nfds = fd;
       }
       ev = ev->ioring.next->self;

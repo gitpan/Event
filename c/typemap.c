@@ -1,120 +1,89 @@
-static HV *WatcherInnerStash;
-static HV *EventStash;
-
 static void invalidate_sv(SV *ref)
 {
   SV *iobj;
   assert(ref);
   assert(SvROK(ref));
   iobj = SvRV(ref);
-  assert(SvTYPE(iobj) == SVt_PVMG);
+  assert(SvTYPE(iobj) == SVt_PVHV);
   assert(SvOBJECT(iobj));
-  sv_setiv(iobj, 0);
-  /* croak("Couldn't invalidate SV=%x", sv); /**/
+  HvNAME(iobj) = 0;
+  /*warn("Invalidate (%s=0x%x)", HvNAME(SvSTASH(iobj)), iobj); /**/
 }
 
-static SV *unwrap_self_tied_hash(SV *sv)
+static void unwrap_obj(SV *sv, void **vpp, int *is_event)
 {
+    SV *origsv = sv;
+    assert(vpp);
+    *vpp=0;
     if (sv && SvROK(sv)) {
 	sv = SvRV(sv);
 	assert(sv);
-	if (SvOBJECT(sv)) {
-	    if (SvTYPE(sv) == SVt_PVHV) {
-		MAGIC *magic = mg_find(sv, '~');
-		SV *ref, *iobj;
-		assert(magic);
-		ref = magic->mg_obj;
-		assert(ref);
-		assert(SvROK(ref));
-		iobj = SvRV(ref);
-		if (SvTYPE(iobj) == SVt_PVMG) {
-		    assert(SvOBJECT(iobj));
-		    assert(SvIOK(iobj));
-		    return iobj;
-		}
-	    }
+	if (SvOBJECT(sv) && SvTYPE(sv) == SVt_PVHV) {
+	    /* also can try xhv_array? */
+	    *vpp = HvNAME(sv);
 	}
+    } else {
+	croak("Not a reference?");
     }
-    return 0;
-}
-
-static void unwrap_obj(SV *sv, void **vpp, HV **stpp)
-{
-    SV *iobj = unwrap_self_tied_hash(sv);
-    if (!iobj) {
-	sv_dump(sv);
-	croak("unwrap_obj");
-    }
-    assert(vpp);
-    *vpp = (void*) SvIVX(iobj);
     if (!*vpp)
-	croak("Attempt to use destroyed object (%s=0x%x)",
-	      HvNAME(SvSTASH(iobj)), iobj);
-    if (stpp) *stpp = SvSTASH(iobj);
+	croak("Attempt to use destroyed object (RV=0x%x %s=0x%x)",
+	      origsv, HvNAME(SvSTASH(sv)), sv);
+    if (is_event) *is_event = ((pe_watcher*)*vpp)->vtbl->base.is_event;
 }
 
 static void decode_sv(SV *sv, pe_watcher **wap, pe_event **evp)
 {
   void *vp;
-  HV *stash;
-  unwrap_obj(sv, &vp, &stash);
+  int is_event;
+  unwrap_obj(sv, &vp, &is_event);
   assert(vp);
-  if (stash == WatcherInnerStash) {
+  if (!is_event) {
     assert(wap);
     *wap = (pe_watcher *) vp;
     if (evp) *evp=0;
   }
-  else if (stash == EventStash) {
+  else {
     pe_event *ev = (pe_event*) vp;
     assert(wap || evp);
     if (evp) *evp = ev;
     if (wap) *wap = ev->up;
-  } else {
-    sv_dump(sv);
-    croak("decode_sv");
   }
 }
 
-static void get_base_vtbl(SV *sv, void **vp, pe_base_vtbl **vt)
+static SV *wrap_tiehash(void *ptr, HV *stash)
 {
+  SV *tied = (SV*) newHV();
+  HvNAME(tied) = ptr;
+  /* HvARRAY(tied) = 0x12341234; /**/
+  sv_magic(tied, Nullsv, 'P', 0, 0);
+  return sv_bless(newRV_noinc(tied), stash);
+}
+
+static SV *watcher_2sv(pe_watcher *wa) {
+    if (!wa->mysv) {
+	wa->mysv = wrap_tiehash(wa, wa->stash);
+    }
+    return wa->mysv;
+}
+
+static SV *event_2sv(pe_event *ev) {
+    if (!ev->mysv) {
+	STRLEN n_a;
+	ev->mysv = wrap_tiehash(ev, ev->up->stash);
+	if (EvDEBUGx(ev) >= 4)
+	    warn("Event=0x%x '%s' wrapped with SV=0x%x",
+		 ev, SvPV(ev->up->desc, n_a), SvRV(ev->mysv)); /**/
+    }
+    return ev->mysv;
+}
+
+static void get_base_vtbl(SV *sv, void **vp, pe_base_vtbl **vt) {
   assert(vp && vt);
   unwrap_obj(sv, vp, 0);
   *vt = **(pe_base_vtbl***)vp;
 }
 
-static SV *make_inner_sv(void *ptr, HV *inner_stash)
-{
-  SV *obj = sv_setref_pv(newSV(0), 0, ptr);
-  assert(inner_stash);
-  sv_bless(obj, inner_stash);
-  --obj->sv_refcnt;
-  return obj;
-}
-
-static SV *wrap_tiehash(SV *inner_sv, HV *stash)
-{
-  SV *tied = (SV*) newHV();
-  sv_magic(tied, inner_sv, '~', Nullch, 0);	/* magic tied, '~', $mgobj */
-  sv_magic(tied, Nullsv, 'P', 0, 0);
-  return sv_bless(newRV_noinc(tied), stash);
-}
-
-static SV *watcher_2sv(pe_watcher *wa)
-{
-  if (!wa->mysv) {
-    wa->mysv = make_inner_sv(wa, WatcherInnerStash);
-    /* warn("%x mysv=%x", wa, wa->mysv); /**/
-  }
-  return wrap_tiehash(wa->mysv, wa->stash);
-}
-
-static SV *event_2sv(pe_event *ev)
-{
-    if (!ev->mysv) {
-	ev->mysv = make_inner_sv(ev, EventStash);
-    }
-    return wrap_tiehash(ev->mysv, ev->up->stash);
-}
+/***************************************************************/
 
 static int sv_2interval(SV *in, double *out)
 {
@@ -157,7 +126,7 @@ static SV* events_mask_2sv(int mask)
   return ret;
 }
 
-static int sv_2events_mask(SV *sv, int bits) /*poll mask XXX*/
+static int sv_2events_mask(SV *sv, int bits)
 {
   if (SvPOK(sv)) {
     UV got=0;
@@ -189,8 +158,5 @@ static int sv_2events_mask(SV *sv, int bits) /*poll mask XXX*/
 
 static void boot_typemap()
 {
-  EventStash = gv_stashpv("Event::Event", 1);
-  SvREFCNT_inc(EventStash);
-  WatcherInnerStash = gv_stashpv("Event::Watcher::Inner", 1);
-  SvREFCNT_inc(WatcherInnerStash);
+    /* nuke? XXX */
 }
