@@ -36,7 +36,7 @@ static char *pe_idle_start(pe_watcher *ev, int repeating) {
 	WaCBTIME_off(ev);
     if (!repeating) ev->cbtime = NVtime();
     now = WaHARD(ev)? ev->cbtime : NVtime();
-    if (sv_2interval(ip->min_interval, &min)) {
+    if (sv_2interval("min", ip->min_interval, &min)) {
 	ip->tm.at = min + now;
 	pe_timeable_start(&ip->tm);
 	D_IDLE(warn("min %.2f setup '%s'\n", min, SvPV(ev->desc,na)));
@@ -44,7 +44,7 @@ static char *pe_idle_start(pe_watcher *ev, int repeating) {
     else {
 	PE_RING_UNSHIFT(&ip->iring, &Idle);
 	D_IDLE(warn("idle '%s'\n", SvPV(ev->desc,na)));
-	if (sv_2interval(ip->max_interval, &max)) {
+	if (sv_2interval("max", ip->max_interval, &max)) {
 	    D_IDLE(warn("max %.2f setup '%s'\n", max, SvPV(ev->desc,na)));
 	    ip->tm.at = max + now;
 	    pe_timeable_start(&ip->tm);
@@ -58,7 +58,7 @@ static void pe_idle_alarm(pe_watcher *wa, pe_timeable *_ignore) {
     double min,max,left;
     pe_idle *ip = (pe_idle*) wa;
     pe_timeable_stop(&ip->tm);
-    if (sv_2interval(ip->min_interval, &min)) {
+    if (sv_2interval("min", ip->min_interval, &min)) {
 	left = wa->cbtime + min - now;
 	if (left > IntervalEpsilon) {
 	    ++TimeoutTooEarly;
@@ -72,7 +72,7 @@ static void pe_idle_alarm(pe_watcher *wa, pe_timeable *_ignore) {
 	PE_RING_UNSHIFT(&ip->iring, &Idle);
 	D_IDLE(warn("idle '%s'\n", SvPV(wa->desc,na)));
     }
-    if (sv_2interval(ip->max_interval, &max)) {
+    if (sv_2interval("max", ip->max_interval, &max)) {
 	left = wa->cbtime + max - now;
 	if (left < IntervalEpsilon) {
 	    pe_event *ev;
@@ -108,6 +108,7 @@ WKEYMETH(_idle_max_interval) {
 	SV *old = ip->max_interval;
 	ip->max_interval = SvREFCNT_inc(nval);
 	if (old) SvREFCNT_dec(old);
+	VERIFYINTERVAL("max", ip->max_interval);
     }
 }
 
@@ -121,6 +122,7 @@ WKEYMETH(_idle_min_interval) {
 	SV *old = ip->min_interval;
 	ip->min_interval = SvREFCNT_inc(nval);
 	if (old) SvREFCNT_dec(old);
+	VERIFYINTERVAL("min", ip->min_interval);
     }
 }
 

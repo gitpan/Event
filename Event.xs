@@ -23,6 +23,23 @@ extern "C" {
 #  define whichsig Perl_whichsig   /* ? */
 #endif
 
+/* lexical warnings -- waiting for appropriate magic from
+   paul.marquess@bt.com */
+#if 0
+static void Event_warn(const char* pat, ...) {
+    dTHX;
+    va_list args;
+    va_start(args, pat);
+    if (!ckWARN_d(WARN_ALL))
+	return;
+    Perl_vwarner(aTHX_ WARN_ALL, pat, &args);
+    va_end(args);
+}
+
+#  undef warn
+#  define warn Event_warn
+#endif
+
 #ifdef croak
 #  undef croak
 #endif

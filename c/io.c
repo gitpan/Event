@@ -14,7 +14,7 @@ static pe_watcher *pe_io_allocate(HV *stash, SV *temple) {
     ev->fd = -1;
     ev->timeout = 0;
     ev->handle = &PL_sv_undef;
-    ev->poll = 0;
+    ev->poll = PE_R;
     ev->tm_callback = 0;
     ev->tm_ext_data = 0;
     WaINVOKE1_off(ev);
@@ -43,7 +43,7 @@ static char *pe_io_start(pe_watcher *_ev, int repeat) {
        assigning anything to the 'handle'.  This should be more
        officially supported but maybe it is too unix specific. */
 
-    if (ev->fd >= 0) {
+    if (ev->fd >= 0 && (ev->poll & ~PE_T)) {
 	if (!ev->base.callback)
 	    return "without io callback";
 	PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
@@ -132,7 +132,7 @@ WKEYMETH(_io_poll) {
 	XPUSHs(sv_2mortal(events_mask_2sv(io->poll)));
 	PUTBACK;
     } else {
-	int nev = sv_2events_mask(nval, PE_R|PE_W|PE_E|PE_T);
+	int nev = sv_2events_mask(nval, PE_R|PE_W|PE_E);
 	if (io->timeout) nev |=  PE_T;
 	else             nev &= ~PE_T;
 	if (io->poll != nev) {

@@ -187,6 +187,7 @@ __DATA__
 #ifndef dTHX
 #  define dTHX dTHR
 #  define pTHX_
+#  define aTHX_
 #endif
 
 #ifndef boolSV

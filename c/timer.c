@@ -29,7 +29,7 @@ static char *pe_timer_start(pe_watcher *ev, int repeat) {
 	   the appropriate time increment. */
 	double interval;
 
-	if (!sv_2interval(tm->interval, &interval))
+	if (!sv_2interval("timer", tm->interval, &interval))
 	    return "repeating timer has no interval";
 
 	tm->tm.at = interval + (WaHARD(ev)? tm->tm.at : NVtime());
@@ -74,6 +74,7 @@ WKEYMETH(_timer_interval) {
 	SV *old = tp->interval;
 	tp->interval = SvREFCNT_inc(nval);
 	SvREFCNT_dec(old);
+	VERIFYINTERVAL("timer", tp->interval);
 	/* recalc expiration XXX */
     }
 }

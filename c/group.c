@@ -35,7 +35,7 @@ static char *pe_group_start(pe_watcher *ev, int repeat) {
 
     if (!ev->callback)
 	return "without callback";
-    if (!sv_2interval(gp->timeout, &timeout))
+    if (!sv_2interval("group", gp->timeout, &timeout))
 	return "repeating group has no timeout";
 
     gp->since = WaHARD(ev)? gp->tm.at : NVtime();
@@ -62,7 +62,7 @@ static void pe_group_alarm(pe_watcher *wa, pe_timeable *tm) {
 	}
     }
 
-    if (!sv_2interval(gp->timeout, &timeout))
+    if (!sv_2interval("group", gp->timeout, &timeout))
 	croak("Event: can't extract timeout"); /* impossible */
 
     remaining = gp->since + timeout - now;
@@ -125,6 +125,7 @@ WKEYMETH(_group_timeout) {
 	SV *old = gp->timeout;
 	gp->timeout = SvREFCNT_inc(nval);
 	SvREFCNT_dec(old);
+	VERIFYINTERVAL("group", gp->timeout);
 	/* recalc expiration XXX */
     }
 }

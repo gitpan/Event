@@ -55,6 +55,8 @@ static void* sv_2watcher(SV *sv) {
     sv = SvRV(sv);
     if (SvTYPE(sv) < SVt_PVMG)
 	croak("sv_2watcher: not a watcher");
+    if (!SvOBJECT(sv))
+	croak("sv_2watcher: not an object");
     mg = mg_find(sv, '~');
     if (mg) {
 	if (mg->mg_private != MG_PRIVATE_CODE) {
@@ -62,8 +64,7 @@ static void* sv_2watcher(SV *sv) {
 	}
 	return (void*) mg->mg_obj;
     }
-    croak("Attempt to use destroyed object (RV=0x%x %s=0x%x)",
-	  origsv, HvNAME(SvSTASH(sv)), sv);
+    croak("sv_2watcher: can't decode SV=0x%x", origsv);
     return 0;
 }
 
@@ -102,7 +103,10 @@ static void *sv_2event(SV *sv) {
 
 /***************************************************************/
 
-static int sv_2interval(SV *in, double *out) {
+#define VERIFYINTERVAL(name, f) \
+ STMT_START { double ign; sv_2interval(name, f, &ign); } STMT_END
+
+static int sv_2interval(char *label, SV *in, double *out) {
     SV *sv = in;
     if (!sv) return 0;
     if (SvGMAGICAL(sv))
@@ -110,7 +114,10 @@ static int sv_2interval(SV *in, double *out) {
     if (!SvOK(sv)) return 0;
     if (SvROK(sv))
 	sv = SvRV(sv);
-    if (SvNOK(sv)) {
+    if (!SvOK(sv)) {
+	warn("Event: %s interval undef", label);
+	*out = 0;
+    } else if (SvNOK(sv)) {
 	*out = SvNVX(sv);
     } else if (SvIOK(sv)) {
 	*out = SvIVX(sv);
@@ -118,11 +125,13 @@ static int sv_2interval(SV *in, double *out) {
 	*out = SvNV(sv);
     } else {
 	sv_dump(in);
-	croak("Interval must be a number of reference to a number");
+	croak("Event: %s interval must be a number or reference to a number",
+	      label);
 	return 0;
     }
     if (*out < 0) {
-	warn("Event: negative timeout (%.2f) clipped to zero", *out);
+	warn("Event: %s has negative timeout %.2f (clipped to zero)",
+	     label, *out);
 	*out = 0;
     }
     return 1;

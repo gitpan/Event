@@ -1,3 +1,19 @@
+2000-02-15  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.68.
+
+2000-02-14  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* More careful checking of
+ 	intervals. (suggested by Jochen.Stenzel.gp@icn.siemens.de)
+
+2000-02-10  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix yet another typemap bug. (Jochen.Stenzel.gp@icn.siemens.de)
+
+	* Make io default to poll=r; more stringent start test;
+ 	fix demo/stdin.t (suggested by Jochen.Stenzel.gp@icn.siemens.de)
+
 2000-02-09  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.67.  Hopefully this release will prove stable.

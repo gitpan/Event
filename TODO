@@ -1,26 +1,18 @@
+finish up lexical warnings
+
 deprecate inactivity completely?
 
-add timeout for var watchers?
+omitting parked=>1 should be a warning, not an error
 
-increase the number of priority levels?
-  ASYNC    0    1    2    3    4    5    6    7    8    9   IDLE
-                         HIGH           NORM
+attribute set methods should return the new value
+
+add timeout for var watchers?
 
 find owner for Win32 port
 
 documentation
   how to design new event types (in perl)
   how to design new event types (in C)??
-
-optimization
-  update io event-mask without invalidating cache
-  determine IntervalEpsilon dynamically & make available from perl
-  use fancy profiler tricks to figure out how to boost performance
-    queue events from both sides?
-  try to hoist system calls from the inner loop
-
-rethink
-  pe_check_recovery & ENTER/LEAVE points
 
 mjtg@cus.cam.ac.uk signal discussion:
   The API rsignal overrides the current signal handler.  If the signal
@@ -30,11 +22,25 @@ mjtg@cus.cam.ac.uk signal discussion:
   up Event watchers so maybe Event should refuse to watch a signal if a
   handler is already installed.
 
+optimization
+  update io event-mask without invalidating cache
+  determine IntervalEpsilon dynamically & make available from perl
+  use fancy profiler tricks to figure out how to boost performance
+    queue events from both sides?
+  try to hoist system calls from the inner loop
+
 there seems to be some sort of bug in the shutdown phase
-> Attempt to free unreferenced scalar during global destruction.
-> Use of uninitialized value during global destruction.
-> Explicit blessing to '' (assuming package main) during global
-> destruction.
+  Attempt to free unreferenced scalar during global destruction.
+  Use of uninitialized value during global destruction.
+  Explicit blessing to '' (assuming package main) during global
+  destruction.
+
+rethink
+  pe_check_recovery & ENTER/LEAVE points
+
+increase the number of priority levels?
+  ASYNC    0    1    2    3    4    5    6    7    8    9   IDLE
+                         HIGH           NORM
 
 loop
   StarvePrio?

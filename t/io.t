@@ -8,12 +8,18 @@ BEGIN {
     }
 }
 
-use Test; plan tests => 6;
+use Test; plan tests => 8;
 use Event qw(loop unloop);
 use Event::Watcher qw(R W);
 use Symbol;
 
 #$Event::DebugLevel = 3;
+
+eval { Event->io };
+ok $@, "/nothing to watch/";
+
+eval { Event->io(fd => \*STDIN, cb => \&die, poll => 0) };
+ok $@, "/nothing to watch/";
 
 my $noticed_bogus_fd=0;
 my $bogus_timeout=0;
