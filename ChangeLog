@@ -1,3 +1,17 @@
+2000-03-24  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.73.
+
+	* Fix for 5.6.0 with implicit context enabled.
+
+2000-03-21  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Rename unix_io.c -> unix.c in anticipation of Win32 support.
+
+2000-03-14  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Offer assurance about future compatibility (docs).
+
 2000-03-10  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.72.

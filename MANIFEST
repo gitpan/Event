@@ -20,7 +20,7 @@ c/tied.c
 c/timeable.c
 c/timer.c
 c/typemap.c
-c/unix_io.c
+c/unix.c
 c/var.c
 c/watcher.c
 demo/echo.t

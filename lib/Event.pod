@@ -685,6 +685,17 @@ descriptors.
 
   http://www.usenix.org/events/usenix99/full_papers/banga/banga_html/index.html
 
+=head1 THE FUTURE
+
+Even if this module does not end up being the One and True Event Loop,
+the author will insure that it is source compatible with its
+successor, or arrange for gradual migration.  Back in the early days,
+the Event programming API was changing at every release.  Care was
+taken to allow the old API to continue to work, and the transistion
+was eased by printing out lots of warnings about the new usage.  So
+you shouldn't sit on your hands in anticipation of the One and True
+Event Loop.  Just start coding!
+
 =head1 ALSO SEE
 
 L<Time::HiRes>, L<NetServer::Portal>, L<IPC::LDT>, L<Event-tcp>,

@@ -1,8 +1,13 @@
+integrate with IPC::Open2/3
+
 finish up lexical warnings
 
 omitting parked=>1 should be a warning, not an error?
 
 attribute set methods should return the new value?
+
+demo/tail-f
+  see File::Tail or GNU textutils for implementation examples
 
 add timeout for var watchers?
 

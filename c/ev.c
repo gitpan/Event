@@ -185,7 +185,7 @@ static void pe_callback_died(pe_cbframe *fp) {
     }
 }
 
-static void _resume_watcher(pTHX_ void *vp) {
+static void _resume_watcher(void *vp) {
     pe_watcher *wa = (pe_watcher *)vp;
     pe_watcher_resume(wa);
 }

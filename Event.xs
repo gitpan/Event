@@ -74,7 +74,7 @@ static void Event_croak(const char* pat, ...) {
 
 /*
 	Many operating systems claim to support poll yet they
-	actually emulate it with select.  c/unix_io.c supports
+	actually emulate it with select.  c/unix.c supports
 	either poll or select but it doesn't know which one to
 	use.  Here we try to detect if we have a native poll
 	implementation.  If we do, we use it.  Otherwise,
@@ -250,7 +250,7 @@ double null_loops_per_second(int sec)
 #include "idle.c"
 #include "timer.c"
 #include "io.c"
-#include "unix_io.c"
+#include "unix.c"
 #include "var.c"
 #include "signal.c"
 #include "tied.c"
