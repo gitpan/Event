@@ -10,6 +10,8 @@ my %MSG;
 my $LABEL = "msg000000";
 
 sub new {
+    use attrs qw(locked method);
+
     my $class = shift;
     my %arg = @_;
     my $msg = $arg{'-msg'};
@@ -36,6 +38,7 @@ sub cancel {
 }
 
 sub prepare { 3600 }
+
 
 sub check {
     my $obj;

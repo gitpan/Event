@@ -112,6 +112,9 @@ static void
 var__watchvar(obj)
     SV * obj;
 {
+#ifdef dTHR
+    dTHR;
+#endif
     struct ufuncs *ufp;
     MAGIC **mgp;
     MAGIC *mg;
@@ -183,7 +186,6 @@ int sig;
 #else
     pid = wait(&status);
 #endif
-
     chld_buf[slot].pid = pid;
     chld_buf[slot].status = status;
 
@@ -318,4 +320,4 @@ PPCODE:
 
 
 BOOT:
-	initialize();
+	initialize(); 

@@ -1,68 +1,60 @@
-
-package Event::io;
-
-use Event;
 use strict;
-use IO::Poll qw(/POLL/);
-use vars qw(@EXPORT_OK @ISA);
-use Exporter ();
+package Event::io;
+BEGIN { 'Event::Loop'->import(qw(PRIO_NORMAL queueEvent)); }
 
-@EXPORT_OK = @IO::Poll::EXPORT_OK;
-@ISA = qw(Exporter);
+'Event'->register;
 
-register Event;
-
-my %cb = ();
+my (%cb,@cb);
 
 sub new {
-    my $class = shift;
+#    lock %Event::;
+
+    shift;
     my %arg = @_;
-    my $io = $arg{'-handle'};
-    my $events = $arg{'-events'};
-    my $callback = $arg{'-callback'};
+    for (qw(handle events callback)) {
+	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
+    }
 
-    my $obj = bless {
-	handle	  => $io,
-	callback  => $callback,
-	events	  => $events,
-	cancelled => 0
-    }, $class;
-
+    $arg{priority} = PRIO_NORMAL + ($arg{priority} or 0);
+    my $obj = bless \%arg, __PACKAGE__;
     $cb{$obj} = $obj;
-
-    $obj;
+    @cb = values %cb;
+    Event::OS::AddSource($obj->{'handle'}, $obj->{'events'});
+    Event::init($obj);
 }
 
 sub cancel {
+#    lock %Event::;
+
     my $self = shift;
     delete $cb{$self};
+    @cb = values %cb;
+    Event::OS::RemoveSource($self->{'handle'}, $self->{'events'});
     $self->{'cancelled'} = 1;
 }
 
-sub prepare {
-    my $self;
-    foreach $self (values %cb) {
-	Event::OS->AddSource($self->{'handle'}, $self->{'events'});
-    }
-    3600;
-}
+sub prepare { 3600 }
 
 sub check {
-    my $self;
-    foreach $self (values %cb) {
-	my $ev = Event::OS->SourceEvents($self->{'handle'}) & $self->{'events'};
+    # have a faster mapping from file descriptor to event object? XXX
 
-	next unless $ev;
+    for my $o (@cb) {
+	next unless Event::OS::GotEvent($o->{'handle'}, $o->{'events'});
 
-	my $priority = ($self->{'priority'} || ($ev & (POLLRDBAND | POLLWRBAND)))
-		? 6 : 5;
-	my @args = ($self,$self->{'handle'},$ev);
-	my $sub = $self->{'callback'};
-	Event->queuePriorityEvent($priority,
-	    sub {
-		$sub->(@args);
-	    }
-	);
+	my $cb = $o->{'callback'};
+	my $sub;
+	if (!$Event::DebugLevel) {
+	    $sub = sub {
+		$cb->($o);
+	    };
+	} else {
+	    $sub = sub {
+		Event::invoking($o);
+		$cb->($o);
+		Event::completed($o);
+	    };
+	}
+	queueEvent($o->{'priority'}, $sub);
     }
 }
 

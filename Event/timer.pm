@@ -1,123 +1,128 @@
-
-package Event::timer;
-
-use Event;
 use strict;
+package Event::timer;
+use Carp;
+use Time::HiRes qw(time);
+BEGIN { 'Event::Loop'->import(qw(PRIO_NORMAL queueEvent)); }
 
-register Event;
+'Event'->register;
 
 my @timer = ();
 
 sub new {
-    my $self = shift;
+#    lock %Event::;
+
+    shift;
     my %arg = @_;
-    my $callback = $arg{'-callback'};
-    my $when = 0;
-    my $interval = 0;
-    my $repeat = 0;
-    my $obj;
 
-    if(exists $arg{-after}) {
-	$interval = $arg{-after};
-	$when = time() + $interval;
-    }
-    elsif(exists $arg{-at}) {
-	$when = 0 + $arg{-at};
+    for (qw(repeat after at interval hard callback)) {
+	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
     }
 
-    if(exists $arg{-interval}) {
-	$interval = $arg{-interval};
-	$when = time() + $interval
-	    unless $when;
-	$repeat = 1;
+    $arg{repeat} = 0 if !exists $arg{repeat};
+
+    if (exists $arg{after}) {
+	croak "'after' and 'at' are mutually exclusive"
+	    if exists $arg{at};
+	$arg{when} = time() + $arg{after};
+	$arg{interval} = $arg{after} if
+	    ($arg{repeat} and !exists $arg{interval});
+    }
+    elsif (exists $arg{at}) {
+	$arg{when} = 0 + $arg{at};
     }
 
-    return undef
-	unless $when;
+    if (exists $arg{interval}) {
+	$arg{when} = time() + $arg{interval}
+	    unless $arg{when};
+	$arg{repeat} = 1;
+    }
 
-    $obj = bless {
-	when      => $when,
-	callback  => $callback,
-	interval  => $interval,
-	repeat    => $repeat,
-	queued    => 0,
-	cancelled => 0
-    }, $self;
+    croak "Event->timer with incomplete specification"
+	unless $arg{when};
 
-    _insert($obj);
+    $arg{priority} = PRIO_NORMAL + ($arg{priority} or 0);
+    $arg{hard} ||= 0;
 
-    $obj;
+    my $o = bless \%arg, __PACKAGE__;
+    _insert($o);
+    Event::init($o);
 }
 
 sub prepare { 
-    while(@timer) {
-	last unless $timer[0]->{'cancelled'};
+    while (@timer) {
+	last if !$timer[0]->{'cancelled'};
 	shift @timer;
     }
-    @timer
-	? $timer[0]->{'when'} - time()
-	: 3600;
+    @timer? $timer[0]->{'when'} - time() : 3600;
 }
 
 sub check {
-    my($name,$timer);
-    my @del;
-    my $pos = 0;
-
-    while(@timer && ($timer[0]->{'when'} <= time())) {
+    my $now = time();
+    while (@timer and $timer[0]->{'when'} <= $now) {
 	my $timer = shift @timer;
-	$timer->{'queued'} = 0;
 	next if $timer->{'cancelled'};
-	Event->queueEvent( 
-	    sub {
-		$timer->{'callback'}->($timer,$timer->{'when'})
-	    }
-	);
-	$timer->again
-	    if $timer->{'repeat'};
-    }
 
-    1;
+	my $cb = $timer->{'callback'};
+	my $sub;
+	if (!$Event::DebugLevel) {
+	    $sub = sub {
+		$cb->($timer,$timer->{'when'});
+	    };
+	} else {
+	    $sub = sub {
+		Event::invoking($timer);
+		$cb->($timer,$timer->{'when'});
+		Event::completed($timer);
+	    };
+	}
+	queueEvent($timer->{'priority'}, $sub);
+	$timer->again if $timer->{'repeat'};
+    }
 }
 
 sub _insert {
     my $obj = shift;
 
-    return
-	if ($obj->{'queued'} || $obj->{'cancelled'});
+    # should do binary insertion sort? XXX
 
-
-    my $pos = 0;
-    if(@timer) {
-	my $time = $obj->{'when'};
-	for( ; $pos < length(@timer) ; $pos++) {
-	    last if $timer[$pos]->{'when'} >= $time;
+    my $pos=0;
+    if (@timer) {
+	my $when = $obj->{'when'};
+	for (; $pos < @timer; $pos++) {
+	    last if $when < $timer[$pos]->{'when'};
 	}
     }
-    splice(@timer,$pos,0,$obj);
-    $obj->{'queued'} = 1;
+    splice @timer,$pos,0,$obj;
+
+    # sloppy, but correct
+#    @timer = sort { $$a{when} <=> $$b{when} } @timer, $obj;
+
+    if ($Event::DebugLevel >= 3) {
+	my @sorted = sort { $$a{when} <=> $$b{when} } @timer;
+	for (my $x=0; $x < @sorted; $x++) {
+	    if ($sorted[$x] != $timer[$x]) {
+		warn "timers out of order!\n";
+		for (my $z=0; $z < @sorted; $z++) {
+		    my ($s,$u) = ($sorted[$z], $timer[$z]);
+		    warn "$$s{when} -- $$u{when}\n";
+		}
+		last;
+	    }
+	}
+    }
 }
 
 sub again {
     my $timer = shift;
 
-    if($timer->{'interval'} &&
-	    !($timer->{'queued'} || $timer->{'cancelled'})) {
-	$timer->{'when'} += $timer->{'interval'};
-	_insert($timer);
-    }
-}
+    croak "$timer->again: is cancelled"
+	if $timer->{'cancelled'};
+    croak "$timer->again: no interval specified"
+	unless exists $timer->{'interval'};
 
-sub cancel {
-    my $self = shift;
-    my $pos;
-    for($pos = 0 ; $pos < @timer ; $pos++) {
-	if($timer[$pos] == $self) {
-	    $self->{'cancelled'} = 0;	# cancel repeating
-	    splice(@timer,$pos,1);	# remove it
-	    last;
-	}
-    }
+    $timer->{'when'} = $timer->{'interval'} +
+	($timer->{'hard'} ? $timer->{'when'} : time());
+    _insert($timer);
 }
 
 1;

@@ -1,15 +1,12 @@
-
-package Event::signal;
-
-use Event;
 use strict;
+package Event::signal;
+BEGIN { 'Event::Loop'->import(qw(PRIO_HIGH queueEvent)); }
 
-registerAsync Event;
+'Event'->registerAsync;
 
 my %sig;
 
 BEGIN {
-
     # populate %sig
 
     my @sig = grep { /^[A-Z]/ } map { RealSigName($_) } keys %SIG;
@@ -28,35 +25,40 @@ BEGIN {
 }
 
 sub new {
-    my $self = shift;
+    # lock %Event::
+
+    shift;
     my %arg = @_;
-    my $name = $arg{'-signal'};
-    my $cb = $arg{'-callback'};
+    for (qw(signal callback)) {
+	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
+    }
+
+    my $name = $arg{'signal'};
 
     # only accept callbacks for signals in %sig
-    return undef
-	unless exists $sig{$name};
+    return unless exists $sig{$name};
 
-    my $obj = bless {
-	signal   => $name,
-	callback => $cb,
-	canceled => 0
-    }, $self;
+    $arg{priority} = PRIO_HIGH + ($arg{priority} or 0);
 
-    push( @{$sig{$name} ||= []}, $obj);
+    my $obj = bless \%arg, __PACKAGE__;
+
+    push @{$sig{$name} ||= []}, $obj;
 
     _watch_signal($name);
 
-    $obj;
+    Event::init($obj);
 }
 
 sub cancel {
-    my $self = shift;
-    my $name = $self->{'signal'};
-    $self->{'canceled'} = 1;
-    $sig{$name} = [ grep { $_ == $self ? undef : $_ } @{$sig{$name}} ];
-    _unwatch_signal($name)
-	unless @{$sig{$name}};
+    # lock %Event::
+
+    my $o = shift;
+    my $name = $o->{'signal'};
+
+    $sig{$name} = [ grep { $_ == $o ? undef : $_ } @{$sig{$name}} ];
+    _unwatch_signal($name) if @{$sig{$name}} == 0;
+
+    $o->SUPER::cancel();
 }
 
 sub check {
@@ -64,20 +66,24 @@ sub check {
 
     while(@val) {
 	my($name,$count) = splice(@val,0,2);
-	if (defined $sig{$name}) {
-	    my $cb;
-	    while($count--) {
-		foreach $cb (@{$sig{$name}}) {
-		    next if $cb->{'canceled'};
+	next if !exists $sig{$name}; #?
 
-		    my $sub = $cb->{'callback'};
-		    Event->queueAsyncEvent(
-			sub {
-			    $sub->($cb,$name)
-			}
-		    );
-		}
+	for my $e (@{$sig{$name}}) {
+	    
+	    my $cb = $e->{'callback'};
+	    my $sub;
+	    if (!$Event::DebugLevel) {
+		$sub = sub {
+		    $cb->($e, $name, $count);
+		};
+	    } else {
+		$sub = sub {
+		    Event::invoking($e);
+		    $cb->($e, $name, $count);
+		    Event::completed($e);
+		};
 	    }
+	    queueEvent($e->{priority}, $sub);
 	}
     }
 }

@@ -1,32 +1,35 @@
+# signalling all -*-perl-*- programmers...
 
+use Test;
+BEGIN { plan tests => 4 }
 use Event;
 
-print "1..4\n";
+#$Event::DebugLevel = 3;
 
 my $count = 3;
 
 Event->signal(
-    -signal => 'INT',
-    -callback =>
+    signal => 'USR1',
+    callback =>
 	sub {
-	    my($cb, $sig) = @_;
+	    my($cb, $sig, $count) = @_;
 
-	    print "ok 2\n";
-	    
-	    print "not " unless $sig eq "INT";
-	    print "ok 3\n";
+	    ok $sig, 'USR1';
+	    ok $count, 2;
 
 	    Event->exit
 	}
 );
 
-Event->idle(
-    sub {
-	print "ok 1\n";
-	kill 'INT',$$
-    },
+my $idle;
+$idle = Event->idle(
+    callback => sub {
+	kill 'USR1',$$;
+	kill 'USR1',$$;
+	ok 1;
+    }
 );
 
 Event->Loop;
 
-print "ok 4\n";
+ok 1;

@@ -1,0 +1,36 @@
+Change 144 on 1998/05/31 by <gbarr@pobox.com> (Graham Barr)
+
+	Event::watchvar
+	- Now passes $ref to callback
+	
+	All
+	- added use attrs qw(locked method) to all subs, and code to
+	ensure this will work on pre-threaded perl
+
+Change 143 on 1998/05/31 by <gbarr@pobox.com> (Graham Barr)
+
+	Event.xs
+	- Fixed so will compile with threaded perl
+	
+	Event::timer
+	- Added -hard option
+
+Change 124 on 1998/04/04 by <gbarr@pobox.com> (Graham Barr)
+
+	new files
+
+Change 123 on 1998/04/04 by <gbarr@pobox.com> (Graham Barr)
+
+	Event
+	- Tweaks to keys dispatchAsyncEvents()
+
+Change 121 on 1998/04/01 by <gbarr@pobox.com> (Graham Barr)
+
+	Event::timer
+	- added Time::HiRes
+	
+	Event::idle, Event
+	- moved idle events into sub-module
+	
+	Makefile.PL
+	- Removed INSTALLDIRS => 'perl'

@@ -20,8 +20,13 @@ sub MY::libscan
 }
 
 WriteMakefile(
-	VERSION_FROM	=> "Event.pm",
-	NAME      	=> "Event",
+	      PREREQ_PM => {
+			    builtin => .01,
+			    IO => 1.19,
+			    Test => 1,
+			   },
+	      VERSION_FROM	=> "Event.pm",
+	      NAME      	=> "Event",
  
 	'linkext' 	=> {LINKTYPE => 'dynamic' },
 	'dist'    	=> {COMPRESS => 'gzip -9f',
@@ -33,5 +38,4 @@ WriteMakefile(
 					map { "$_ */$_ */*/$_" }
 					qw(*% *.html *.b[ac]k *.old *.orig))
 			   },
-	'macro'		=> { INSTALLDIRS => 'perl' },
 );

@@ -1,14 +1,27 @@
+use strict;
+
+BEGIN {
+    eval { require attrs; } or do {
+	$INC{'attrs.pm'} = "";
+	*attrs::import = sub {};
+    }
+}
 
 package Event;
-
-use strict;
-use vars qw(@ISA $VERSION);
 use Carp;
+use Time::HiRes qw(time);  #can be optional? XXX
+use vars qw($VERSION $DebugLevel %Set);
+$VERSION = '0.03';
 
-$VERSION = "0.01";
+# 0    FAST, FAST, FAST!
+# 1    COLLECT SOME STATISTICS
+# 2    MINIMAL DEBUGGING OUTPUT
+# 3    EXCESSIVE DEBUGGING OUTPUT
+
+$DebugLevel = 0;
 
 BOOT_XS: {
-    # If I inherit DynaLoader then I inherit AutoLoader and I DON'T WANT TO
+    # If I inherit DynaLoader then I inherit AutoLoader; Bletch!
     require DynaLoader;
 
     # DynaLoader calls dl_load_flags as a static method.
@@ -21,37 +34,66 @@ BOOT_XS: {
     }->(__PACKAGE__);
 }
 
-if(eval "require Event::OS::" . $^O ) {
-    @Event::OS::ISA = ( "Event::OS::" . $^O );
-}
-elsif( $@ =~ /Can't locate Event/ ) {
-    require Event::OS::default;
-    @Event::OS::ISA = qw(Event::OS::default);
-}
-else {
-    die $@;
+sub init {
+    croak "Event::init wants 1 arg" if @_ != 1;
+    local $Carp::CarpLevel = 1;
+    my ($o) = @_;
+
+    # sanity checks (?breaks abstraction)
+    croak "no priority" if !exists $o->{priority};
+    croak "no callback" if !exists $o->{callback};
+
+    $o->{cancelled} = 0;
+    if ($o->can('again')) {
+	$o->{repeat} = 1 if !exists $o->{repeat};
+    }
+
+    if ($DebugLevel) {
+	croak "re-initialized" if $o->{initialized};
+	$o->{initialized} = 1;
+
+	# pick a style and stick with it!
+	my @old = grep /^-/, keys %$o;
+	carp "noticed old style keys (".join(',',@old).")" if @old;
+
+	$o->{desc} ||= join(':', (caller 1)[1,2]); # 1 ok?
+	warn "Event::init($o) at $o->{desc}\n"
+	    if $DebugLevel >= 2;
+
+	for (qw(ran elapse total_elapse)) {
+	    $o->{$_} = 0;
+	}
+	$Set{ 0+$o } = $o;
+    }
+    $o;
 }
 
-my @queue;		# the queues
-my %source = ();	# Event source package names
-my %asyncsource = ();	# AsyncEvent source package names
-my $maxSleep = 60;	# maximum sleep time
-my $exit = undef;	# set to exit event loop
-my $idleCount;		# max number of idle events to process
-my $asyncCount;		# max number of async events to process
-my $queueCount;		# total number of queued events
-my @atexit = ();	# list of callbacks to call on exit
-
-sub IDLE_QUEUE    () {  0 }
-sub DEFAULT_QUEUE () {  5 }
-sub ASYNC_QUEUE   () { 10 }
-
-INIT: {
-    for (IDLE_QUEUE .. ASYNC_QUEUE) { push @queue, [] }
-    $queueCount = 0;
+sub cancel {
+    my $e = shift;
+    $e->{'cancelled'}=1;
+    delete $Set{ 0+$e } if $DebugLevel;
 }
 
-# we use AUTOLOAD to load the Event source packages, so
+#----------- these should only be called if $DebugLevel >= 1
+my $start_time;
+sub invoking {
+    my ($e) = @_;
+    warn "Event: invoking '$e->{desc}'\n"
+	if $DebugLevel >= 2;
+    $start_time = time;
+}
+
+sub completed {
+    my ($e) = @_;
+    warn "Event: completed '$e->{desc}'\n"
+	if $DebugLevel >= 3;
+    ++$e->{ran};
+    $e->{elapse} = time - $start_time;
+    $e->{total_elapse} += $e->{elapse};
+}
+
+
+# We use AUTOLOAD to load the Event source packages, so
 # Event->process will load Event::process and create a new
 # sub which will call Event::process->new(@_);
 
@@ -59,221 +101,227 @@ sub AUTOLOAD {
     my $sub = ($Event::AUTOLOAD =~ /(\w+)$/)[0];
 
     eval { require "Event/" . $sub . ".pm" }
-	or croak "$@, Undefined subroutine &" . $Event::AUTOLOAD;
+	or croak $@ . ', Undefined subroutine &' . $Event::AUTOLOAD;
 
-    croak "Badly defined Event package Event::${sub}"
+    croak "Cannot find Event package Event::${sub}"
 	unless defined &{$Event::AUTOLOAD};
 
     goto &{$Event::AUTOLOAD};
 }
 
-# Fake Event::idle
-sub idle {
-    shift;
-    Event->queueIdleEvent(@_);
+use vars qw(%Source @Sources @AsyncSources);
+sub _register {
+    no strict 'refs';
+    my $package = shift;
+
+    die "$package is already loaded" if $Source{$package};
+    $Source{$package} = 1;
+
+    my $name = $package;
+    $name =~ s/^.*:://;
+    my $sub = \&{"$package\::new"};
+    die "can't find $package\::new"
+	if !$sub;
+    *{$name} = $sub;
 }
 
 sub register {
-    my $source = caller;
-    $source{$source} = 1;
-    my $sub = $source;
-    $sub =~ s/^Event:://i;
-
-    no strict 'refs';
-
-    *{$sub} = sub { shift; $source->new(@_) };
+    my $package = caller;
+    _register($package);
+    push @Sources, $package;
+}
+sub registerAsync {
+    my $package = caller;
+    _register($package);
+    push @AsyncSources, $package;
 }
 
-sub registerAsync {
-    my $source = caller;
-    $asyncsource{$source} = 1;
-    my $sub = $source;
-    $sub =~ s/^Event:://i;
+#----------------------------------- Event 0.02 compatibility
 
-    no strict 'refs';
+sub Loop {
+    confess "please use Event::Loop::Loop"
+	if shift ne 'Event';
+    &Event::Loop::Loop;
+}
 
-    *{$sub} = sub { shift; $source->new(@_) };
+sub exit { shift; &Event::Loop::exitLoop }
+
+package Event::Loop;
+use Carp;
+use builtin qw(min);
+use vars qw(@ISA @EXPORT_OK
+	    @Queue $queueCount @Idle $MaxSleep);
+@ISA = 'Exporter';
+@EXPORT_OK = qw(initQueue waitForEvents queueEvent emptyQueue
+		doOneEvent Loop exitLoop
+		QUEUES PRIO_HIGH PRIO_NORMAL);
+
+# avoid inheritance XXX
+if (eval "require Event::OS::" . $^O ) {
+    #ok
+}
+elsif ($@ =~ /Can\'t locate/ ) {
+    require Event::OS::default;
+}
+else { die }
+
+# Hard to imagine a need for more than 10 queues...
+sub QUEUES() { 10 }
+
+sub PRIO_HIGH() { 3 }
+sub PRIO_NORMAL() { 6 }
+
+sub initQueue {
+    for (0 .. QUEUES-1) { $Queue[$_] = [] }
+    $queueCount = 0;
+    @Idle = ();
+    $MaxSleep = 60;
+}
+initQueue();
+
+#--------------------------------------- Queue
+
+sub waitForEvents {
+    my $wait = $queueCount ? 0 : $MaxSleep;
+    $wait = min $wait, (map { $_->prepare } @Event::Sources);
+
+    warn "Event::waitForEvents: wait=$wait\n"
+	if $Event::DebugLevel >= 3;
+    Event::OS::WaitForEvent($wait);
+
+    for my $e (@Event::Sources) { $e->check }
 }
 
 sub queueEvent {
-    shift;
-    push @{$queue[DEFAULT_QUEUE]}, @_;
+    my $prio = shift;
+    push @{$Queue[$prio]}, @_;
     $queueCount += @_;
-}
 
-sub queueAsyncEvent {
-    shift;
-    push @{$queue[ASYNC_QUEUE]}, @_;
-    $queueCount += @_;
-}
-
-sub queueIdleEvent {
-    shift;
-    push @{$queue[IDLE_QUEUE]}, @_;
-    $queueCount += @_;
-}
-
-sub queuePriorityEvent {
-    shift;
-    my $priority = int(shift);
-    $priority = 0 if $priority < 0;
-    $priority = ASYNC_QUEUE if $priority > ASYNC_QUEUE;
-    push @{$queue[$priority]}, @_;
-    $queueCount += @_;
-}
-
-sub dispatchIdleEvents () {
-    $idleCount = @{$queue[IDLE_QUEUE]};
-
-    return 0
-	unless $idleCount;
-
-    my $cb;
-
-    while($idleCount--) {
-	$queueCount--;
-	shift( @{$queue[IDLE_QUEUE]} )->();
+    if ($Event::DebugLevel >= 3) {
+	my $pk = caller;
+	warn "Event: queuing event(s) from $pk at priority $prio\n";
     }
-
-    return 1;
 }
 
-sub dispatchEvent () {
-    my $q;
+sub emptyQueue {
+    use integer;
+    my ($max) = @_;
+    if (!defined $max) {
+	$max = QUEUES 
+    } else {
+	$max = QUEUES if $max > QUEUES;
+    }
+    for (my $pri = 0; $pri < $max; $pri++) {
+	my $q = $Queue[$pri];
+	if (@$q) {
+	    # This might queue more events, so we must restart the
+	    # search from the beginning.
 
-    # stop before the IDLE_QUEUE as we do not want to proces idle events here
-    for($q = ASYNC_QUEUE ; $q > IDLE_QUEUE ; $q--) {
-	if(@{$queue[$q]}) {
+	    (shift @$q)->();
 	    $queueCount--;
-	    shift(@{$queue[$q]})->();
-	    return 1;
+	    return 1
 	}
     }
-    return 0;
+    0
 }
 
-sub dispatchAsyncEvents () {
+sub doOneEvent {
+    for my $e (@Event::AsyncSources) { $e->check }
 
-    my $ret = 0;
+    return 1 if emptyQueue();
 
-    # loop untill we cannot find anymore async events.
+    waitForEvents();
 
-    while(1) {
-	map { $_->check } keys %asyncsource;
+    return 1 if emptyQueue();
 
-	last
-	    unless @{$queue[ASYNC_QUEUE]};
+    while (my $idle = shift @Idle) {
+	next if $idle->{'cancelled'};
 
-	# process all that are found.
-
-	$asyncCount = @{$queue[ASYNC_QUEUE]};
-
-	last
-	    unless $asyncCount;
-
-	$ret = 1;
-
-	while($asyncCount--) {
-	    $queueCount--;
-	    shift( @{$queue[10]} )->();
+	if (!$Event::DebugLevel) {
+	    $idle->{'callback'}->($idle);
+	} else {
+	    Event::invoking($idle);
+	    $idle->{'callback'}->($idle);
+	    Event::completed($idle);
 	}
+	return 1;
+    }
+    0;
+}
 
+#--------------------------------------- Loop
+
+use vars qw($LoopLevel $ExitLevel $Result);
+$LoopLevel = $ExitLevel = 0;
+
+sub Loop {
+    use integer;
+    local $Result = 'abnormal';
+    local $LoopLevel = $LoopLevel+1;
+    ++$ExitLevel;
+    doOneEvent() while $ExitLevel >= $LoopLevel;
+    $Result;
+}
+
+sub exitLoop {
+    $Result = shift;
+    --$ExitLevel;
+}
+
+#--------------------------------------- idle
+
+package Event::idle;
+use Carp;
+use builtin qw(min);
+use vars qw(@ISA @Idle);
+@ISA = 'Event';
+*Idle = \@Event::Loop::Idle;
+
+'Event'->register;
+
+my $arg_warning=0;
+sub new {
+#    lock %Event::;
+
+    shift;
+    my %arg = (repeat => 0);
+    if (@_ == 1) {
+	$arg{callback} = shift;
+	carp "pls change to Event->idle(callback => \$callback)"
+	    if !$arg_warning++;
+    }
+    else { %arg = @_ }
+
+    for (qw(callback)) {
+	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
     }
 
-    $ret;
+    croak "idle event has no callback" unless $arg{callback};
+
+    # Fancy scheduling of idle events can be accomplished by
+    # routing all your idle time through the fancy idle scheduler
+    # of your choice.
+    $arg{priority} = Event::Loop::QUEUES + 1;  #fool init
+
+    my $o = bless \%arg, __PACKAGE__;
+    push @Idle, $o;
+    Event::init($o);
 }
 
-sub min (@) {
-    return shift if @_ < 2;
-    my $v = shift;
-    while(@_) {
-	my $a = shift;
-	$v = $a if $a < $v
-    }
-    $v;
-}
-sub reduce (&@) {
-    my $sub = shift;
-    return shift if @_ <= 1;
-    my $ret = shift;
-    $ret = &{$sub}($ret,shift)
-	while(@_);
-    return $ret;
+sub prepare {
+    return 3600 if !@Idle;
+    0
+
+# Hm...?
+#    min map {
+#	my $x = $_->can('prepare');
+#	$x? $x->prepare : 3600;
+#    } @Idle;
+
 }
 
-sub queuePendingEvents () {
-    my $wait = $queueCount ? 0 : $maxSleep;
+sub check {}
 
-	# first prepare the sources, to find the max wait time
-
-    Event::OS->PrepareSource;
-
-    $wait = min $wait, map { $_->prepare } keys %source;
-
-	# wait if we have to
-
-    Event::OS->WaitForEvent($wait);
-
-	# check for any events that happened
-
-    map { $_->check } keys %source;
-
-	# We do not want to hold extra references to objects
-	# if we can help it.
-
-    Event::OS->ClearSource;
-
-    1;
-}
-
-sub DoOneEvent () {
-		# abort if we have been asked to exit the loop
-    return 0
-	if defined($exit);
-
-		# First check for any async events (eg signals)
-    return 1
-	if dispatchAsyncEvents();
-
-		# process one queued event
-    return 1
-	if dispatchEvent();
-
-		# OK, no events are queued, so check for any pending
-    queuePendingEvents();
-
-		# process one queued event
-    return 1
-	if dispatchEvent();
-
-		# OK, no events were queued, or found so do the idle events
-    dispatchIdleEvents();
-}
-
-
-sub Loop () {
-    DoOneEvent
-	until(defined $exit);
-    my($atexit,$cb);
-    while($atexit = shift @atexit) {
-	$cb->()
-	    if defined($cb = $$atexit);
-    }
-    return $exit;
-}
-
-sub exit ($) {
-    shift if @_ > 1; # method call
-    $exit = shift;
-}
-
-sub atexit {
-    shift; # class
-    require Event::atexit;
-    my $obj = new Event::atexit(-callback => shift);
-    push(@atexit,$obj);
-    $obj;
-}
+sub again { push @Idle, shift }
 
 1;
-

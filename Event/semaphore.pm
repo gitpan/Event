@@ -10,6 +10,8 @@ my $LABEL = "sem000000";
 my %SEM = ();
 
 sub new {
+    use attrs qw(locked method);
+
     my $class = shift;
     my %arg = @_;
     my $sem = $arg{'-semaphore'};

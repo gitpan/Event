@@ -11,7 +11,7 @@ Event->watchvar(
     -variable => \$var1,
     -callback =>
 	sub {
-	    print "ok ",$var1,"\n";
+	    print "ok ",${$_[1]},"\n";
 	    $var2++
 	}
 );
@@ -36,7 +36,7 @@ Event->watchvar(
 );
 
 Event->idle(
-    sub {
+    -callback => sub {
 	print "ok ",$var1,"\n";
 	$var1++;
     }

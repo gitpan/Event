@@ -1,33 +1,33 @@
-
-package Event::process;
-
-use Event;
 use strict;
+package Event::process;
+BEGIN { 'Event::Loop'->import(qw(PRIO_HIGH queueEvent)); }
 
-registerAsync Event;	# register ourself with Event.pm
+'Event'->registerAsync;
 
 my %cb = ();		# hash of pid/callbacks
 
 sub new {
-    my $self = shift;
+    #lock %Event::;
+
+    shift;
     my %arg = @_;
-    my $cb = $arg{'-callback'};
+    for (qw(callback pid)) {
+	$arg{$_} = $arg{"-$_"} if exists $arg{"-$_"};
+    }
 
-    my $child = exists $arg{'-pid'} ? 0+$arg{'-pid'} : "0";
+    $arg{priority} = PRIO_HIGH + ($arg{priority} or 0);
+    $arg{pid} = exists $arg{'pid'} ? 0+$arg{'pid'} : "0";
 
-    my $obj = bless {
-	child    => $child,
-	callback => $cb,
-	canceled => 0
-    },$self;
+    my $obj = bless \%arg, __PACKAGE__;
 
-    push(@{$cb{$child} ||= []}, $obj);
+    push @{$cb{ $obj->{pid} } ||= []}, $obj;
 
-    $obj;
+    Event::init($obj);
 }
 
 sub check {
     my @val = _reap();
+
     while(@val) {
 	my($pid,$status) = splice(@val,0,2);
 
@@ -37,12 +37,21 @@ sub check {
 		? $cb{"0"}
 		: undef;
 
-	if($cbq) {
-	    my $cb;
-	    foreach $cb (@$cbq) {
-		my @a = ($cb, $pid, $status);
-		Event->queueAsyncEvent( sub { $cb->{'callback'}->(@a) })
-		    unless $cb->{'cancelled'};
+	if ($cbq) {
+	    for my $e (@$cbq) {
+		my @a = ($e, $pid, $status);
+		my $cb = $e->{'callback'};
+		my $sub;
+		if (!$Event::DebugLevel) {
+		    $sub = sub { $cb->(@a); };
+		} else {
+		    $sub = sub {
+			Event::invoking($e);
+			$cb->(@a);
+			Event::completed($e);
+		    };
+		}
+		queueEvent($e->{priority}, $sub);
 	    }
 	}
     }
@@ -50,12 +59,11 @@ sub check {
 
 sub cancel {
     my $self = shift;
-    my $child = $self->{'child'};
+    my $child = $self->{'pid'};
 
-    $self->{'canceled'} = 1;
+    $cb{$child} = [grep { $_ == $self ? undef : $_ } @{$cb{$child}} ];
 
-    $cb{$child} = [grep { $_ == $self ? undef : $_ } @{$cb{$child}} ]
-	if(defined $cb{$child});
+    $self->SUPER::cancel();
 }
 
 1;

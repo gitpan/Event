@@ -1,0 +1,4 @@
+freeze the design and re-implement in C!
+  see util/event.h
+
+more time() caching?
