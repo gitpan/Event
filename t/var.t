@@ -1,6 +1,6 @@
 # watch -*-perl-*-
 
-use Event;
+use Event qw(loop unloop);
 
 # $Event::DebugLevel = 2;
 
@@ -26,7 +26,7 @@ Event->watchvar(
 	sub {
 	    $var3 = 3;
 	    print "ok ",$var2,"\n";
-	    Event->exit;
+	    unloop;
 	},
 		desc => "var2"
 );
@@ -49,6 +49,6 @@ Event->idle(
 	    desc => "idle"
 );
 
-Event->Loop;
+loop;
 
 print "ok 5\n";

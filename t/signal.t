@@ -1,7 +1,7 @@
 # signal -*-perl-*-
 
 use Test; plan tests => 4;
-use Event;
+use Event qw(loop unloop);
 
 #$Event::DebugLevel = 3;
 
@@ -16,7 +16,7 @@ Event->signal(
 	    ok $e->{signal}, 'USR1';
 	    ok $e->{count}, 2;
 
-	    Event->exit
+	    unloop;
 	}
 );
 
@@ -29,6 +29,6 @@ $idle = Event->idle(
     }
 );
 
-Event->Loop;
+loop;
 
 ok 1;

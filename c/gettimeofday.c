@@ -1,8 +1,35 @@
+static SV *NowSV=0;
+
+static void boot_gettimeofday()
+{
+  NowSV = perl_get_sv("Event::Now", 1);
+}
+
+/*
+  Make virtual method for:
+  - alternate time encodings
+  - changing speed of time
+  - for year 2000 testing :-)
+*/
+static void pe_cache_now()
+{
+  double got;
+  struct timeval now_tm;
+  gettimeofday(&now_tm, 0);
+  got = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
+  if (!SvNOK(NowSV))
+    sv_setnv(NowSV, got);
+  else
+    SvNVX(NowSV) = got;
+}
+
 #ifdef WIN32
 #include <time.h>
 #else
 #include <sys/time.h>
 #endif
+
+/* Shamelessly stolen from Time::HiRes... */
 
 #if !defined(HAS_GETTIMEOFDAY) && defined(WIN32)
 #define HAS_GETTIMEOFDAY

@@ -1,9 +1,9 @@
 # idle daydreams of -*-perl-*-
 
 use Test;
-BEGIN { plan tests => 6 }
+BEGIN { plan tests => 7 }
 
-use Event;
+use Event qw(loop unloop);
 ok 1;
 
 $Event::Eval = 1;
@@ -17,7 +17,7 @@ sub idle {
     my ($o,$e) = @_;
     if (!$myobj) {
 	ok $o, 'myobj';
-	ok $e->isa('Event');
+	ok $e->isa('Event::Watcher');
 	ok $e->{desc}, __PACKAGE__;
     }
     ++$myobj;
@@ -33,7 +33,7 @@ my $idle = Event->idle(callback =>
 			   my $e = shift;
 			   ++$count;
 			   if ($count > 2 && $myobj) {
-			       Event->exit;
+			       unloop();
 			   } else {
 			       #$e->again;
 			   }
@@ -49,7 +49,7 @@ Event->idle(callback => sub { $idle->again },
 	    repeat => 1,
 	    desc => "again");
 
-Event->Loop;
+ok !defined loop();
 
 ok 1;
 

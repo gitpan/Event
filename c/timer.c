@@ -1,7 +1,4 @@
 static struct pe_event_vtbl pe_timer_vtbl;
-static pe_ring Timers;
-/* static double BaseTime; /* make everything relative? XXX */
-static double Now=0; /* EXPORT XXX */
 
 static pe_event *
 pe_timer_allocate()
@@ -10,9 +7,9 @@ pe_timer_allocate()
   New(PE_NEWID, ev, 1, pe_timer);
   assert(ev);
   ev->base.vtbl = &pe_timer_vtbl;
-  PE_RING_INIT(&ev->tmring, ev);
+  PE_RING_INIT(&ev->tm.ring, ev);
+  ev->tm.at = 0;
   ev->hard = 0;
-  ev->at = 0;
   ev->interval = newSVnv(0);
   pe_event_init((pe_event*) ev);
   return (pe_event*) ev;
@@ -25,42 +22,9 @@ static void pe_timer_dtor(pe_event *ev)
   (*ev->vtbl->up->dtor)(ev);
 }
 
-static void
-cacheNow()
-{
-  struct timeval now_tm;
-  gettimeofday(&now_tm, 0);
-  Now = now_tm.tv_sec + now_tm.tv_usec / 1000000.0;
-}
-
-static void
-checkTimers()
-{
-  pe_ring *rg = Timers.next;
-  while (rg->self && ((pe_timer*)rg->self)->at < Now) {
-    pe_ring *nxt = rg->next;
-    PE_RING_DETACH(rg);
-    EvACTIVE_off(rg->self);
-    queueEvent(rg->self, 1);
-    rg = nxt;
-  }
-}
-
-static double
-timeTillTimer()
-{
-  pe_ring *rg = Timers.next;
-  if (!rg->self)
-    return 3600;
-  cacheNow();
-  return ((pe_timer*) rg->self)->at - Now;
-}
-
-static void
-pe_timer_start(pe_event *ev, int repeat)
+static void pe_timer_start(pe_event *ev, int repeat)
 {
   pe_timer *tm = (pe_timer*) ev;
-  pe_ring *rg;
   if (EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   if (repeat) {
@@ -84,22 +48,16 @@ pe_timer_start(pe_event *ev, int repeat)
       croak("Timer has non-positive interval");
 
     if (tm->hard) {
-      tm->at = interval + tm->at;
+      tm->tm.at = interval + tm->tm.at;
     } else {
-      cacheNow();
-      tm->at = interval + Now;
+      pe_cache_now();
+      tm->tm.at = interval + SvNVX(NowSV);
     }
   }
-  if (!tm->at)
+  if (!tm->tm.at)
     croak("Timer unset");
-  /* Binary insertion sort?  No.  Long-term timers deserve the
-     performance hit.  Code should be optimal for short-term
-     timers. */
-  rg = Timers.next;
-  while (rg->self && ((pe_timer*)rg->self)->at < tm->at) {
-    rg = rg->next;
-  }
-  PE_RING_ADD_BEFORE(&tm->tmring, rg);
+
+  pe_timeable_start(ev);
   EvACTIVE_on(ev);
 }
 
@@ -109,7 +67,7 @@ pe_timer_stop(pe_event *ev)
   pe_timer *tm = (pe_timer *) ev;
   if (!EvACTIVE(ev) || EvSUSPEND(ev))
     return;
-  PE_RING_DETACH(&tm->tmring);
+  pe_timeable_stop(ev);
   EvACTIVE_off(ev);
 }
 
@@ -125,7 +83,7 @@ pe_timer_FETCH(pe_event *_ev, SV *svkey)
   switch (key[0]) {
   case 'a':
     if (len == 2 && memEQ(key, "at", 2)) {
-      ret = sv_2mortal(newSVnv(ev->at));
+      ret = sv_2mortal(newSVnv(ev->tm.at));
       break;
     }
     break;
@@ -138,7 +96,7 @@ pe_timer_FETCH(pe_event *_ev, SV *svkey)
   case 'w':
     if (len == 4 && memEQ(key, "when", 4)) {
       warn("Please use 'at' instead of 'when'");
-      ret = sv_2mortal(newSVnv(ev->at));
+      ret = sv_2mortal(newSVnv(ev->tm.at));
       break;
     }
     break;
@@ -173,12 +131,13 @@ pe_timer_STORE(pe_event *_ev, SV *svkey, SV *nval)
     break;
   case 'a':
     if (len == 2 && memEQ(key, "at", 2)) {
+      int active = EvACTIVE(ev);
       ok=1;
-      ev->at = SvNV(nval);
-      if (EvACTIVE(ev)) {
+      if (active)
 	pe_timer_stop(_ev);
+      ev->tm.at = SvNV(nval);
+      if (active)
 	pe_timer_start(_ev, 0);
-      }
       break;
     }
     break;
@@ -195,8 +154,7 @@ pe_timer_STORE(pe_event *_ev, SV *svkey, SV *nval)
   if (!ok) (ev->base.vtbl->up->STORE)(_ev, svkey, nval);
 }
 
-static void
-boot_timer()
+static void boot_timer()
 {
   static char *keylist[] = {
     "hard",
@@ -212,7 +170,6 @@ boot_timer()
     BaseTime = SvIV(bt);
   }
 */
-  PE_RING_INIT(&Timers, 0);
   memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
   vt->up = &pe_event_base_vtbl;
   vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::timer",1));

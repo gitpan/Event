@@ -22,7 +22,7 @@ pe_event_init(pe_event *ev)
   NextID = (NextID+1) & 0x7fff; /* make it look like the kernel :-, */
   ev->id = NextID;
   ev->refcnt = 0;  /* maybe can remove later? XXX */
-  ev->desc = newSVpvf("Event-0x%x", ev);
+  ev->desc = newSVpvn("??",0);
   ev->count = 0;
   ev->priority = PE_QUEUES;
   ev->perl_callback[0] = 0;
@@ -89,7 +89,7 @@ pe_event_FETCH(pe_event *ev, SV *svkey)
     break;
   case 'f':
     if (len == 5 && memEQ(key, "flags", 5)) {
-      ret = sv_2mortal(newSViv(ev->flags));
+      ret = sv_2mortal(newSViv(ev->flags & PE_VISIBLE_FLAGS));
       break;
     }
     break;
@@ -177,11 +177,8 @@ pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
     }
     break;
   case 'f':
-    if (len == 5 && memEQ(key, "flags", 5)) {
-      /* can only write to some flags */
-      ev->flags = ((ev->flags & PE_INTERNAL_FLAGS) |
-		   (SvIV(nval) & ~PE_INTERNAL_FLAGS));
-    }
+    if (len == 5 && memEQ(key, "flags", 5))
+      croak("'flags' are read-only");
     break;
   case 'i':
     if (len == 2 && memEQ(key, "id", 2))
@@ -309,16 +306,18 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
     warn("Event: '%s' invoked recursively (skipped)\n");
     return;
   }
+  ENTER;
   if (Stats)
     gettimeofday(&start_tm, 0);
+  if (EvCBTIME(ev)) {
+    pe_cache_now();
+    ev->cbtime = SvNVX(NowSV);
+  }
   EvRUNNING_on(ev);
-  /* can't make event specific because of c_callback XXX */
   if (SvIVX(Eval) || EvDEBUG(ev))
     flags |= G_EVAL;
-  /* ignore return value? */
   if (ev->perl_callback[0]) {
     dSP;
-    ENTER;
     SAVETMPS;
     if (!ev->perl_callback[1]) {
       PUSHMARK(SP);
@@ -337,19 +336,17 @@ static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
       SV *eval = perl_get_sv("Event::DIED", 1);
       dSP;
       PUSHMARK(SP);
-      XPUSHs(sv_2mortal(event_2sv(ev)));
-      XPUSHs(sv_mortalcopy(ERRSV));
       PUTBACK;
       perl_call_sv(eval, G_EVAL|G_KEEPERR|G_DISCARD);
     }
     FREETMPS;
-    LEAVE;
   } else if (ev->c_callback) {
     (*ev->c_callback)(ev->ext_data);
   } else {
     croak("No callback for event '%s'", SvPV(ev->desc,na));
   }
-  ev->count = 0;
+  LEAVE;
+  ev->count = 0; /* reentrant problem XXX */
   EvRUNNING_off(ev);
   if (Stats) {
     struct timeval done_tm;
@@ -411,7 +408,7 @@ boot_pe_event()
     "debug",
     "flags"
   };
-  HV *stash = gv_stashpv("Event", 1);
+  HV *stash = gv_stashpv("Event::Watcher", 1);
   struct pe_event_vtbl *vt;
   PE_RING_INIT(&AllEvents, 0);
   vt = &pe_event_base_vtbl;
@@ -433,7 +430,6 @@ boot_pe_event()
   newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
   newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));
   newCONSTSUB(stash, "RUNNING", newSViv(PE_RUNNING));
-  newCONSTSUB(stash, "INVOKE1", newSViv(PE_INVOKE1));
 }
 
 static void

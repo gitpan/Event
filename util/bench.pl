@@ -2,15 +2,14 @@
 
 use strict;
 use Config;
-use Event 0.08;
-use Time::HiRes qw(time);
+use Event qw(time loop unloop);
 use vars qw($VERSION $TestTime);
-$VERSION = '0.04';
+$VERSION = '0.05';
 $TestTime = 11;
 
 # $Event::DebugLevel = 3;
 
-Event->timer(callback => sub { Event->exit }, after => $TestTime);
+Event->timer(callback => \&unloop, after => $TestTime);
 
 #------------------------------ Timer
 use vars qw($TimerCount $TimerExpect);
@@ -70,7 +69,7 @@ $idle = Event->idle(callback => sub {
 
 sub run {
     my $start = time;
-    Event->Loop;
+    loop();
     time - $start;
 }
 my $elapse = &run;
@@ -81,12 +80,12 @@ sub pct {
 }
 
 warn "Timing a null loop...\n";
-my $null = Event::Loop::null_loops_per_second(7);
+my $null = Event::null_loops_per_second(7);
 
 chomp(my $uname = `uname -a`);
 print "
  benchmark: $VERSION
- Time::HiRes: $Time::HiRes::VERSION, Event: $Event::VERSION
+ Event: $Event::VERSION
 
  perl $]
  uname=$uname

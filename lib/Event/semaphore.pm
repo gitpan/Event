@@ -1,3 +1,4 @@
+die "SysV semaphores are not implemented yet.  Send email to perl-loop@perl.org if you think this is a problem.  Thanks!\n";
 
 package Event::semaphore;
 

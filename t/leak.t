@@ -1,6 +1,6 @@
 # leak -*-perl-*-
 use Test; plan test => 1, todo => [1];
-use Event;
+use Event qw(all_events);
 
 Event->idle()->cancel;
 Event->io()->cancel;
@@ -9,5 +9,5 @@ Event->timer(at => time)->cancel;
 my $var = 1;
 Event->watchvar(variable => \$var)->cancel;
 
-my $got = join(', ', map { ref } Event::Loop::events()) || 'None';
+my $got = join(', ', map { ref } all_events()) || 'None';
 ok($got, 'None');

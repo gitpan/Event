@@ -45,6 +45,7 @@ static void pe_event_start(pe_event *ev, int repeat);
 
 #include "typemap.c"
 #include "gettimeofday.c"  /* hack XXX */
+#include "timeable.c"
 #include "event_vtbl.c"
 #include "idle.c"
 #include "timer.c"
@@ -64,6 +65,8 @@ PROTOTYPES: DISABLE
 BOOT:
   DebugLevel = SvREFCNT_inc(perl_get_sv("Event::DebugLevel", 1));
   Eval = SvREFCNT_inc(perl_get_sv("Event::Eval", 1));
+  boot_gettimeofday();
+  boot_timeable();
   boot_pe_event();
   boot_idle();
   boot_timer();
@@ -78,7 +81,7 @@ BOOT:
     SV *apisv;
     New(PE_NEWID, api, 1, struct EventAPI);
     api->Ver = EventAPI_VERSION;
-    api->doOneEvent = doOneEvent;
+    api->one_event = one_event;
     api->start = pe_event_start;
     api->queue = queueEvent;
     api->now = pe_event_now;
@@ -94,6 +97,123 @@ BOOT:
     sv_setiv(apisv, (IV)api);
     SvREADONLY_on(apisv);
   }
+
+int
+_sizeof()
+	CODE:
+	RETVAL = sizeof(pe_event);
+	OUTPUT:
+	RETVAL
+
+void
+time()
+	PROTOTYPE:
+	PPCODE:
+	pe_cache_now();
+	XPUSHs(NowSV);
+
+double
+null_loops_per_second(sec)
+	int sec
+	CODE:
+	struct timeval start_tm, done_tm;
+	double elapse;
+	unsigned count=0;
+	gettimeofday(&start_tm, 0);
+	do {
+	  /* This should be more realistic... XXX */
+#ifdef HAS_POLL
+	  struct pollfd junk;
+	  poll(&junk, 0, 0);
+#elif defined(HAS_SELECT)
+	  struct timeval null;
+	  null.tv_sec = 0;
+	  null.tv_usec = 0;
+	  select(0,0,0,0,&null);
+#else
+#  error
+#endif
+	  ++count;
+	  gettimeofday(&done_tm, 0);
+	  elapse = (done_tm.tv_sec - start_tm.tv_sec +
+		    (done_tm.tv_usec - start_tm.tv_usec) / 1000000);
+	} while(elapse < sec);
+	RETVAL = count/sec;
+	OUTPUT:
+	RETVAL
+
+void
+all_events()
+	PROTOTYPE:
+	PPCODE:
+	pe_event *ev = AllEvents.next->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  ev = ev->all.next->self;
+	}
+
+void
+all_running()
+	PROTOTYPE:
+	PPCODE:
+	pe_event *ev = AllEvents.next->self;
+	while (ev) {
+	  if (EvRUNNING(ev)) {
+	    XPUSHs(sv_2mortal(event_2sv(ev)));
+	    if (GIMME_V != G_ARRAY)
+	      break;
+	  }
+	  ev = ev->all.next->self;
+	}
+
+void
+all_queued()
+	PROTOTYPE:
+	PPCODE:
+	int xx;
+	pe_event *ev;
+	for (xx=0; xx < PE_QUEUES; xx++) {
+	  ev = Queue[xx].prev->self;
+	  while (ev) {
+	    XPUSHs(sv_2mortal(event_2sv(ev)));
+	    ev = ev->que.prev->self;
+	  }
+	}
+	ev = Idle.prev->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  ev = ev->que.prev->self;
+	}
+
+void
+pe_event::queueEvent(...)
+	PROTOTYPE: $;$
+	PREINIT:
+	int cnt = 1;
+	CODE:
+	if (items == 2) cnt = SvIV(ST(1));
+	queueEvent(THIS, cnt);
+
+int
+one_event(...)
+	PROTOTYPE: ;$
+	CODE:
+	double maxtm = 60;
+	if (items == 1) maxtm = SvNV(ST(0));
+	RETVAL = one_event(maxtm);
+	OUTPUT:
+	RETVAL
+
+void
+_loop()
+	PROTOTYPE:
+	CODE:
+	SV *exitL = perl_get_sv("Event::ExitLevel", 1);
+	SV *loopL = perl_get_sv("Event::LoopLevel", 1);
+	while (SvIVX(exitL) >= SvIVX(loopL))
+	  one_event(60);
+
+MODULE = Event		PACKAGE = Event::Watcher
 
 void
 DESTROY(ref)
@@ -275,96 +395,6 @@ DESTROY()
 	CODE:
 	pe_stat_stop();
 
-MODULE = Event		PACKAGE = Event::Loop
-
-double
-null_loops_per_second(sec)
-	int sec
-	CODE:
-	struct timeval start_tm, done_tm;
-	double elapse;
-	unsigned count=0;
-	gettimeofday(&start_tm, 0);
-	do {
-	  /* This should be more realistic... XXX */
-#ifdef HAS_POLL
-	  struct pollfd junk;
-	  poll(&junk, 0, 0);
-#else
-# ifdef HAS_SELECT
-	  select(0,0,0,0,0);
-# else
-#  error
-# endif
-#endif
-	  ++count;
-	  gettimeofday(&done_tm, 0);
-	  elapse = (done_tm.tv_sec - start_tm.tv_sec +
-		    (done_tm.tv_usec - start_tm.tv_usec) / 1000000);
-	} while(elapse < sec);
-	RETVAL = count/sec;
-	OUTPUT:
-	RETVAL
-
-void
-events()
-	PPCODE:
-	pe_event *ev = AllEvents.next->self;
-	while (ev) {
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
-	  ev = ev->all.next->self;
-	}
-
-void
-running()
-	PPCODE:
-	pe_event *ev = AllEvents.next->self;
-	while (ev) {
-	  if (EvRUNNING(ev)) {
-	    XPUSHs(sv_2mortal(event_2sv(ev)));
-	    if (GIMME_V != G_ARRAY)
-	      break;
-	  }
-	  ev = ev->all.next->self;
-	}
-
-void
-listQ()
-	PPCODE:
-	int xx;
-	pe_event *ev;
-	for (xx=0; xx < PE_QUEUES; xx++) {
-	  ev = Queue[xx].prev->self;
-	  while (ev) {
-	    XPUSHs(sv_2mortal(event_2sv(ev)));
-	    ev = ev->que.prev->self;
-	  }
-	}
-	ev = Idle.prev->self;
-	while (ev) {
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
-	  ev = ev->que.prev->self;
-	}
-
-void
-pe_event::queueEvent(...)
-	PREINIT:
-	int cnt = 1;
-	CODE:
-	if (items == 2) cnt = SvIV(ST(1));
-	queueEvent(THIS, cnt);
-
-int
-doOneEvent()
-
-void
-doEvents()
-	CODE:
-	SV *exitL = perl_get_sv("Event::Loop::ExitLevel", 1);
-	SV *loopL = perl_get_sv("Event::Loop::LoopLevel", 1);
-	while (SvIVX(exitL) >= SvIVX(loopL))
-	  doOneEvent();
-
 MODULE = Event		PACKAGE = Event::idle
 
 pe_event *
@@ -376,23 +406,6 @@ allocate()
 
 
 MODULE = Event		PACKAGE = Event::timer
-
-void
-List()
-	PPCODE:
-	int xx;
-	pe_event *ev;
-	ev = Timers.next->self;
-	while (ev) {
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
-	  ev = ev->que.next->self;
-	}
-
-void
-checkTimers()
-
-double
-timeTillTimer()
 
 pe_event *
 allocate()
@@ -410,12 +423,6 @@ allocate()
 	RETVAL = pe_io_allocate();
 	OUTPUT:
 	RETVAL
-
-void
-waitForEvent(timeout)
-	double timeout;
-	CODE:
-	pe_io_waitForEvent(timeout);
 
 
 MODULE = Event		PACKAGE = Event::watchvar

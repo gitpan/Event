@@ -1,22 +1,91 @@
+reentrant
+  EvRUNNING
+  count
+  exception reporting (what caused exception?)
+*
+  keep trace of events that are running without eval protection
+  if one_event detects exception, report it and continue
+
+io watchers
+  -timeout
+  -tailpoll
+  -got 't' (needed to contrast with 'now' method)
+  [+-] notation to modify the event mask
+
+idle watchers
+  at_least_every
+  not_more_often_than
+
+screensaver watchers
+  by priority?
+
 croak should route through Carp!
 
+nuke suspend/resume?  maybe not
+
 documentation
-  meaning of queue priorities
   how to design new event types
   exception handling
-  how to use Event::API
+  how to use $Event::API
+  io events 'got' has both alpha & numeric encoding
 
 optimization
   update io event-mask without invalidating cache
   use fancy profiler tricks to improve performance?
 
-remove dependencies on
-  Time::HiRes?
-  IO::* ?
+time
+  CORE::time?
+  alternate time encodings
+  changing speed of time
+  for year 2000 testing :-)
 
+configuration of StarvePrio?
+
+accept "%f minutes" & "%f hours" for all time specifications?
+
+---------------------------------------
+
+From: nick@ni-s.u-net.com
+Subject: Re: perl 5.004 compatible?
+ 
+Joshua Pritikin <joshua.pritikin@db.com> writes:
+>On Fri, 25 Sep 1998 gisle@aas.no wrote:
+>> I think we should not do anything that prevents it from working on
+>> perl5.004.
+>
+>I think my opinion is going to be unpopular.
+ 
+Not with me:
+ 
+Adding a non-CORE module to Tk's dependancies will make it harder to install,
+so Tk would like Event::* in the core. It is not in the core of 5.004.
+Also I suspect we need speed and space clean Event. If 5.005+'s features
+assist that use them.
+ 
+Finally it has been shown people only upgrade when the new version has  
+features they need (or lacks bugs they don't need), Event could be such  
+a feature.
 
 -------------------------------------
 
+ benchmark: 0.05
+ Event: 0.13
+ 
+ perl 5.00502
+ uname=SunOS eq1062.wks.na.deuba.com 5.5.1 Generic_103640-19 sun4u sparc SUNW,Ultra-1
+ cc='cc', optimize='-xO3 -g'
+ ccflags='-DDEBUGGING -I/usr/local/include'
+ 
+ Please mail benchmark results to perl-loop@perl.org.  Thanks!
+ 
+Elapse Time:     99.48% of 11 seconds
+Timer/sec:       98.18% (765 total)
+Io/sec:          3742.786 (40955 total)
+Signals/sec      1.92
+Events/sec       4048.570
+Null/sec         176565
+
+-------------------------------------
 
  benchmark: 0.04
  Time::HiRes: 01.18, Event: 0.10

@@ -1,12 +1,13 @@
 # process -*-perl-*-
 
 use Test; plan tests => 5;
-use Event;
+use Event qw(loop unloop);
 
-# $Event::DebugLevel = 3;
+#$Event::Eval = 1;
+#$Event::DebugLevel = 3;
 
 my $got=0;
-sub maybe_done { Event->exit if ++$got >= 2 }
+sub maybe_done { unloop if ++$got >= 2 }
 
 my $child1;
 unless($child1 = fork) { sleep 1; exit 5 }
@@ -28,7 +29,7 @@ Event->process(pid => $child2, callback => sub {
 		   maybe_done();
 	       });
 
-Event->Loop;
+loop;
 ok 1;
 
 # try repeating? XXX

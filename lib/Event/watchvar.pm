@@ -1,17 +1,17 @@
 use strict;
 package Event::watchvar;
 
-'Event'->register;
+'Event::Watcher'->register;
 
 sub new {
     # lock %Event::;
 
-    shift;
+    shift if @_ & 1;
     my %arg = @_;
 
     my $o = allocate();
 
-    Event::init($o, ['variable'], \%arg);
+    $o->init(['variable'], \%arg);
     $o->start;
     $o;
 }

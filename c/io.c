@@ -112,8 +112,11 @@ pe_io_STORE(pe_event *_ev, SV *svkey, SV *nval)
 	}
 #ifdef HAS_POLL
       } else if (SvIOK(nval)) {
-	/* backward compatible support for POLL constants */
-	int mask = SvIV(nval);
+	int mask;
+	warn("please set events mask with a string");
+	/* backward compatible support for POLL constants;
+	   want to switch to our own constants! */
+	mask = SvIV(nval);
 	if (mask & (POLLIN | POLLRDNORM))
 	  ev->events |= PE_IO_R;
 	if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND))
@@ -180,10 +183,11 @@ boot_io()
     "events",
     "got"
   };
+  HV *stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::io",1));
   pe_event_vtbl *vt = &pe_io_vtbl;
   memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
   vt->up = &pe_event_base_vtbl;
-  vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::io",1));
+  vt->stash = stash;
   vt->keys = sizeof(keylist)/sizeof(char*);
   vt->keylist = keylist;
   vt->dtor = pe_io_dtor;
@@ -191,6 +195,9 @@ boot_io()
   vt->STORE = pe_io_STORE;
   vt->start = pe_io_start;
   vt->stop = pe_io_stop;
+  newCONSTSUB(stash, "R", newSViv(PE_IO_R));
+  newCONSTSUB(stash, "W", newSViv(PE_IO_W));
+  newCONSTSUB(stash, "E", newSViv(PE_IO_E));
   PE_RING_INIT(&IOWatch, 0);
   IOWatch_OK = 0;
   IOWatchCount = 0;

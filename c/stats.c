@@ -1,3 +1,9 @@
+/*
+  All the stats code uses getttimeofday directly instead of using
+  pe_cache_now.  Me thinks you want normal, accurate stats regardless of
+  how the clock is being manipulated.
+ */
+
 static pe_stat totalStats;
 static struct timeval total_tm;
 static pe_timer *RollTimer=0;
@@ -126,10 +132,10 @@ static void pe_stat_restart()
     pe_stat_init(&idleStats);
     pe_stat_init(&totalStats);
     
-    cacheNow();
+    pe_cache_now();
     if (!RollTimer)
       RollTimer = (pe_timer*) pe_timer_allocate();
-    RollTimer->at = Now;
+    RollTimer->tm.at = SvNVX(NowSV);
     sv_setnv(RollTimer->interval, PE_STAT_SECONDS);
     ev = (pe_event*) RollTimer;
     EvREPEAT_on(ev);

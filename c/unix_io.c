@@ -110,7 +110,7 @@ pe_io_waitForEvent(double timeout)
       if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_IO_W;
       if (mask & (POLLRDBAND | POLLPRI)) got |= PE_IO_E;
       if (got & ev->events) {
-	ev->got |= got;      /* got is reset when the callback returns */
+	ev->got = got;
 	queueEvent((pe_event*) ev, 1);
 	--ret;
       }
@@ -124,7 +124,6 @@ pe_io_waitForEvent(double timeout)
 /************************************************* SELECT */
 #if defined(HAS_SELECT) && !PE_IO_WAIT
 #define PE_IO_WAIT 1
-#include <sys/select.h>
 
 static int Nfds;
 static fd_set Rfds, Wfds, Efds;
@@ -205,7 +204,7 @@ pe_io_waitForEvent(double timeout)
       if (FD_ISSET(fd, &wfds)) got |= PE_IO_W;
       if (FD_ISSET(fd, &efds)) got |= PE_IO_E;
       if (got & ev->events) {
-	ev->got |= got;      /* got is reset when the callback returns */
+	ev->got = got;
 	queueEvent((pe_event*) ev, 1);
 	--ret;
       }

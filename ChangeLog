@@ -1,5 +1,19 @@
+1998-09-27  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.13.
+	
+	* Moved and renamed lots of methods.  Yet, added code to ease
+ 	backward compatibility.
+
+1998-09-24  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Integrated rewritten documentation contributed by perl-loop
+ 	participants (Thanks!).
+
 1998-09-21  Joshua Pritikin  <joshua.pritikin@db.com>
 
+	* Release 0.12.
+	
 	* Event::MakeMaker & event_api.h.
 
 1998-09-14  Joshua Pritikin  <joshua.pritikin@db.com>

@@ -16,10 +16,7 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
 	      @PREFIX,
-	      PREREQ_PM => {
-			    IO => '1.19',
-			    Test => 1,
-			   },
+	      PREREQ_PM => { Test => 1, },
 	      VERSION_FROM	=> "./lib/Event.pm",
 	      NAME      	=> "Event",
 	      INC => '-Ic -Ilib/Event',

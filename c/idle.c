@@ -14,8 +14,7 @@ pe_idle_allocate()
   return ev;
 }
 
-static int
-runIdle()
+static int runIdle()
 {
   pe_event *ev;
   if (PE_RING_EMPTY(&Idle))
@@ -27,12 +26,10 @@ runIdle()
   return 1;
 }
 
-static int
-wantIdle()
+static int wantIdle()
 { return !PE_RING_EMPTY(&Idle); }
 
-static void
-pe_idle_start(pe_event *ev, int repeat)
+static void pe_idle_start(pe_event *ev, int repeat)
 {
   if (EvACTIVE(ev) || EvQUEUED(ev) || EvSUSPEND(ev))
     return;
@@ -48,8 +45,7 @@ pe_idle_start(pe_event *ev, int repeat)
   PE_RING_UNSHIFT(&ev->que, &Idle);
 }
 
-static void
-pe_idle_stop(pe_event *ev)
+static void pe_idle_stop(pe_event *ev)
 {
   if (PE_RING_EMPTY(&ev->que))
     return;
@@ -63,8 +59,7 @@ pe_idle_stop(pe_event *ev)
   PE_RING_DETACH(&ev->que);
 }
 
-static void
-boot_idle()
+static void boot_idle()
 {
   pe_event_vtbl *vt = &pe_idle_vtbl;
   PE_RING_INIT(&Idle, 0);

@@ -2,12 +2,13 @@ static pe_ring Queue[PE_QUEUES];
 static int queueCount = 0;
 static pe_stat idleStats;
 static AV *Prepare, *Check, *AsyncCheck;
+static int StarvePrio = PE_QUEUES - 2;
 
 static void
 boot_queue()
 {
   int xx;
-  HV *stash = gv_stashpv("Event::Loop", 1);
+  HV *stash = gv_stashpv("Event", 1);
   for (xx=0; xx < PE_QUEUES; xx++) {
     PE_RING_INIT(&Queue[xx], 0);
   }
@@ -15,13 +16,13 @@ boot_queue()
   newCONSTSUB(stash, "PRIO_NORMAL", newSViv(PE_PRIO_NORMAL));
   newCONSTSUB(stash, "PRIO_HIGH", newSViv(PE_PRIO_HIGH));
 
-  Prepare = perl_get_av("Event::Loop::Prepare", 0);
+  Prepare = perl_get_av("Event::Prepare", 0);
   assert(Prepare);
   SvREFCNT_inc(Prepare);
-  AsyncCheck = perl_get_av("Event::Loop::AsyncCheck", 0);
+  AsyncCheck = perl_get_av("Event::AsyncCheck", 0);
   assert(AsyncCheck);
   SvREFCNT_inc(AsyncCheck);
-  Check = perl_get_av("Event::Loop::Check", 0);
+  Check = perl_get_av("Event::Check", 0);
   assert(Check);
   SvREFCNT_inc(Check);
 }
@@ -35,8 +36,7 @@ static void dequeEvent(pe_event *ev)
   --queueCount;
 }
 
-static void
-queueEvent(pe_event *ev, int count)
+static void queueEvent(pe_event *ev, int count)
 {
   int prio = ev->priority;
   int debug = SvIVX(DebugLevel) + EvDEBUG(ev);
@@ -62,8 +62,7 @@ queueEvent(pe_event *ev, int count)
   ++queueCount;
 }
 
-static int
-emptyQueue(int max)
+static int emptyQueue(int max)
 {
   int qx;
   if (!queueCount)
@@ -80,8 +79,6 @@ emptyQueue(int max)
   }
   return 0;
 }
-
-static unsigned doe_enter=0, doe_leave=0;
 
 static void pe_map_check(AV *av)
 {
@@ -122,11 +119,11 @@ static void pe_map_check(AV *av)
   return 0
  */
 
-static int
-doOneEvent()
+static unsigned doe_enter=0, doe_leave=0;
+
+static int one_event(double tm)
 {
   int debug = SvIVX(DebugLevel);
-  double tm, timer;
 
   if (doe_enter != doe_leave) {
     pe_event *ev;
@@ -151,14 +148,18 @@ doOneEvent()
   pe_signal_asynccheck();
   if (av_len(AsyncCheck) >= 0) pe_map_check(AsyncCheck);
 
-  if (emptyQueue(PE_QUEUES-2)) {
+  if (emptyQueue(StarvePrio)) {
     ++doe_leave;
     return 1;
   }
 
-  tm = queueCount + wantIdle()? 0 : 60;
-  timer = timeTillTimer();
-  if (timer < tm) tm = timer;
+  if (queueCount || wantIdle()) {
+    tm = 0;
+  }
+  else {
+    double t1 = timeTillTimer();
+    if (t1 < tm) tm = t1;
+  }
   if (av_len(Prepare) >= 0) {
     /* untested XXX */
     int xx;

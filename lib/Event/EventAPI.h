@@ -1,3 +1,16 @@
+/*
+  Three Rings for the Elven-kings under the sky,
+    Seven for the Dwarf-lords in their halls of stone,
+  Nine for Mortal Men doomed to die,
+    One for the Dark Lord on his dark throne
+  In the Land of Mordor where the Shadows lie.
+    One Ring to rule them all, One Ring to find them,
+    One Ring to bring them all and in the darkness bind them
+  In the Land of Mordor where the Shadows lie.
+
+  s/ring/loop/ig;
+ */
+
 #ifndef _event_api_H_
 #define _event_api_H_
 
@@ -26,7 +39,8 @@ struct pe_event {
   int priority;
   SV *desc;
 
-  int count;           /* number of times queued */
+  double cbtime;
+  int count;	/* reentrant problem XXX */
   SV *perl_callback[2];
   void (*c_callback)();
   void *ext_data;
@@ -34,10 +48,19 @@ struct pe_event {
   pe_stat *stats;
 };
 
+/* This must be placed directly after pe_event so the memory
+   layouts are always compatible. */
+typedef struct pe_timeable pe_timeable;
+struct pe_timeable {
+  pe_ring ring;
+  double at;
+};
+
 /* PUBLIC FLAGS */
-#define PE_DEBUG	0x10
-#define PE_REPEAT	0x20
-#define PE_INVOKE1	0x40
+#define PE_DEBUG	0x100
+#define PE_REPEAT	0x200
+#define PE_INVOKE1	0x400
+#define PE_CBTIME	0x800
 
 #define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 1:0) /*arthimetical*/
 #define EvDEBUG_on(ev)		(EvFLAGS(ev) |= PE_DEBUG)
@@ -51,6 +74,10 @@ struct pe_event {
 #define EvINVOKE1_on(ev)	(EvFLAGS(ev) |= PE_INVOKE1)
 #define EvINVOKE1_off(ev)	(EvFLAGS(ev) &= ~PE_INVOKE1)
 
+#define EvCBTIME(ev)		(EvFLAGS(ev) & PE_CBTIME)
+#define EvCBTIME_on(ev)		(EvFLAGS(ev) |= PE_CBTIME)
+#define EvCBTIME_off(ev)	(EvFLAGS(ev) &= ~PE_CBTIME)
+
 /* QUEUE INFO */
 #define PE_QUEUES 7	/* Hard to imagine a need for more than 7 queues... */
 #define PE_PRIO_HIGH	2
@@ -60,14 +87,16 @@ struct pe_event {
 #define PE_IO_R 1
 #define PE_IO_W 2
 #define PE_IO_E 4
+/*#define PE_IO_T 8 */
 
 typedef struct pe_io pe_io;
 struct pe_io {
   pe_event base;
+  pe_timeable tm;
   pe_ring ioring;
   SV *handle;
   int events;
-  int got;
+  int got;	/* CB */
 /* ifdef UNIX */
   int fd;
   int xref;  /*private: for poll*/
@@ -84,9 +113,8 @@ struct pe_signal {
 typedef struct pe_timer pe_timer;
 struct pe_timer {
   pe_event base;
-  pe_ring tmring;
+  pe_timeable tm;
   int hard;
-  double at;
   SV *interval;
 };
 
@@ -97,11 +125,11 @@ struct pe_watchvar {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 0
+#define EventAPI_VERSION 2
   I32 Ver;
 
   /* PUBLIC API */
-  int (*doOneEvent)();
+  int (*one_event)(double block_tm);
   void (*start)(pe_event *ev, int repeat);
   void (*queue)(pe_event *ev, int count);
   void (*now)(pe_event *ev);

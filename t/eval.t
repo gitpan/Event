@@ -1,7 +1,7 @@
 # stop -*-perl-*- ?
 
 use Test; plan tests => 8;
-use Event;
+use Event qw(all_running loop unloop);
 #$Event::DebugLevel = 3;
 
 my $status = 'ok';
@@ -9,7 +9,8 @@ my $status = 'ok';
 my $die = Event->idle(callback => sub { die "died\n" }, desc => 'killer');
 
 $Event::DIED = sub {
-    my ($e,$why) = @_;
+    my $e = all_running();
+    my $why = $@;
 
     ok $e->{desc}, 'killer';
     chop $why;
@@ -19,7 +20,7 @@ $Event::DIED = sub {
 	$Event::Eval = 1;
 	$die->again
     } elsif ($Event::Eval == 1) {
-	Event::Loop::exitLoop($status);
+	unloop $status;
     }
 };
 
@@ -30,4 +31,4 @@ ok $@, '/delete/';
 ok exists $die->{callback};
 ok !exists $die->{bogus};
 
-ok Event::Loop::Loop(), $status;
+ok loop(), $status;

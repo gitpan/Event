@@ -79,18 +79,14 @@ static void pe_stat_init(pe_stat *st);
 static void pe_stat_record(pe_stat *st, double elapse);
 
 #define EvFLAGS(ev)		((pe_event*)ev)->flags
-#define PE_ACTIVE	0x1
-#define PE_SUSPEND	0x2
-#define PE_QUEUED	0x4
-#define PE_RUNNING	0x8
-/*--public
-#define PE_DEBUG	0x10
-#define PE_REPEAT	0x20
-#define PE_INVOKE1	0x40
-*/
+#define PE_ACTIVE	0x01
+#define PE_SUSPEND	0x02
+#define PE_QUEUED	0x04
+#define PE_RUNNING	0x08
+#define PE_REENTRANT	0x10
 
-#define PE_INTERNAL_FLAGS \
-(PE_QUEUED | PE_SUSPEND | PE_RUNNING | PE_DEBUG | PE_REPEAT)
+#define PE_VISIBLE_FLAGS \
+(PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
 
 /* ACTIVE: waiting for something to happen that might cause queueEvent */
 /* controlled by start/stop methods */
