@@ -1,5 +1,7 @@
 wait for new Time::HiRes & 5.005_03 to be available
 
+figure out less dangerous typemap fix
+
 comp.lang.perl.announce prerequisites
   portability?  wait for Win32?
 

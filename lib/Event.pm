@@ -13,7 +13,7 @@ use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
 use vars qw(%KEY_REMAP);
-$VERSION = '0.31';
+$VERSION = '0.32';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;

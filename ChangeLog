@@ -1,3 +1,9 @@
+1999-03-15  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.32.
+
+	* Apply typemap fix as per gsar@activestate.com.
+
 1999-03-09  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Cut version 0.31 for PerlClinic.

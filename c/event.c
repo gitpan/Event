@@ -23,6 +23,7 @@ static void pe_event_dtor(pe_event *ev)
 {
     STRLEN n_a;
     pe_watcher *wa = ev->up;
+    HV *fb = wa->FALLBACK;
     if (EvDEBUGx(wa) >= 3)
 	warn("Event=0x%x '%s' destroyed (SV=0x%x)",
 	     ev, SvPV(wa->desc, n_a), ev->mysv? SvRV(ev->mysv) : 0);
@@ -30,6 +31,14 @@ static void pe_event_dtor(pe_event *ev)
 	invalidate_sv(ev->mysv);
 	ev->mysv=0;
     }
+    if (fb) {
+	HE *ent;
+	hv_iterinit(fb);
+	while ((ent = hv_iternext(fb))) {
+	    if (HeVAL(ent))
+		mg_free(HeVAL(ent));
+	}
+    } /**/
     ev->up = 0;
     ev->count = 0;
     PE_RING_DETACH(&ev->peer);
