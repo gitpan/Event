@@ -2,7 +2,7 @@
 #include <signal.h>
 #endif
 
-static struct pe_event_vtbl pe_signal_vtbl;
+static struct pe_watcher_vtbl pe_signal_vtbl;
 
 /* GLOBALS: Sigvalid Sigring Sigstat Sigslot */
 
@@ -30,20 +30,20 @@ static Signal_t process_sighandler(int sig)
   ++st->hits[sig];
 }
 
-static pe_event *pe_signal_allocate()
+static pe_watcher *pe_signal_allocate()
 {
   pe_signal *ev;
   New(PE_NEWID, ev, 1, pe_signal);
   ev->base.vtbl = &pe_signal_vtbl;
   PE_RING_INIT(&ev->sring, ev);
   ev->signal = 0;
-  pe_event_init((pe_event*) ev);
+  pe_watcher_init((pe_watcher*) ev);
   EvREPEAT_on(ev);
   EvINVOKE1_off(ev);
-  return (pe_event*) ev;
+  return (pe_watcher*) ev;
 }
 
-static void pe_signal_start(pe_event *_ev, int repeat)
+static void pe_signal_start(pe_watcher *_ev, int repeat)
 {
   pe_signal *ev = (pe_signal*) _ev;
   int sig = ev->signal;
@@ -54,7 +54,7 @@ static void pe_signal_start(pe_event *_ev, int repeat)
   PE_RING_UNSHIFT(&ev->sring, &Sigring[sig]);
 }
 
-static void pe_signal_stop(pe_event *_ev)
+static void pe_signal_stop(pe_watcher *_ev)
 {
   pe_signal *ev = (pe_signal*) _ev;
   int sig = ev->signal;
@@ -63,77 +63,43 @@ static void pe_signal_stop(pe_event *_ev)
     rsignal(sig, SIG_DFL);
 }
 
-static void pe_signal_FETCH(pe_event *_ev, SV *svkey)
+WKEYMETH(_signal_signal)
 {
-  pe_signal *ev = (pe_signal*) _ev;
-  SV *ret=0;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 's':
-    if (len == 6 && memEQ(key, "signal", 6)) {
-      ret = ev->signal > 0? sv_2mortal(newSVpv(Perl_sig_name[ev->signal],0))
-	: &PL_sv_undef;
-      break;
-    }
-    break;
-  }
-  if (ret) {
+  pe_signal *sg = (pe_signal*) ev;
+  if (!nval) {
     dSP;
-    XPUSHs(ret);
+    XPUSHs(sg->signal > 0?
+	   sv_2mortal(newSVpv(Perl_sig_name[sg->signal],0)) : &PL_sv_undef);
     PUTBACK;
   } else {
-    (*ev->base.vtbl->up->FETCH)(_ev, svkey);
+    int active = EvACTIVE(ev);
+    int sig = Perl_whichsig(SvPV(nval,PL_na));
+    /*warn("whichsig(%s) = %d", SvPV(nval,na), sig); /**/
+    if (sig == 0)
+      croak("Unrecognized signal '%s'", SvPV(nval,PL_na));
+    if (!PE_SIGVALID(sig))
+      croak("Signal '%s' cannot be caught", SvPV(nval,PL_na));
+    if (active) pe_watcher_stop(ev);
+    sg->signal = sig;
+    if (active) pe_watcher_start(ev, 0);
   }
 }
-
-static void pe_signal_STORE(pe_event *_ev, SV *svkey, SV *nval)
-{
-  pe_signal *ev = (pe_signal*) _ev;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  int ok=0;
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 's':
-    if (len == 6 && memEQ(key, "signal", 6)) {
-      int active = EvACTIVE(ev);
-      int sig = Perl_whichsig(SvPV(nval,PL_na));
-      /*warn("whichsig(%s) = %d", SvPV(nval,na), sig); /**/
-      ok=1;
-      if (sig == 0)
-	croak("Unrecognized signal '%s'", SvPV(nval,PL_na));
-      if (!PE_SIGVALID(sig))
-	croak("Signal '%s' cannot be caught", SvPV(nval,PL_na));
-      if (active)
-	pe_event_stop(_ev);
-      ev->signal = sig;
-      if (active)
-	pe_event_start(_ev, 0);
-      break;
-    }    
-    break;
-  }
-  if (!ok) (_ev->vtbl->up->STORE)(_ev, svkey, nval);
-}
-
 
 static void _signal_asynccheck(pe_sig_stat *st)
 {
   int xx, got;
-  pe_event *ev;
+  pe_watcher *wa;
 
   for (xx = 1; xx < NSIG; xx++) {
     if (!st->hits[xx])
       continue;
     got = st->hits[xx];
-    ev = Sigring[xx].next->self;
-    while (ev) {
-      queueEvent(ev, got);
-      ev = ((pe_signal*)ev)->sring.next->self;
+    wa = Sigring[xx].next->self;
+    while (wa) {
+      pe_event *ev = (*wa->vtbl->new_event)(wa);
+      ev->count += got;
+      queueEvent(ev);
+      wa = ((pe_signal*)wa)->sring.next->self;
     }
     st->hits[xx] = 0;
   }
@@ -160,13 +126,10 @@ static void boot_signal()
   int xx;
   int sig;
   char **sigp;
-  static char *keylist[] = {
-    "signal"
-  };
   static char *nohandle[] = {
     "KILL", "STOP", "ZERO", 0
   };
-  pe_event_vtbl *vt = &pe_signal_vtbl;
+  pe_watcher_vtbl *vt = &pe_signal_vtbl;
   Zero(&Sigstat[0], 1, pe_sig_stat);
   Zero(&Sigstat[1], 1, pe_sig_stat);
   Sigslot = 0;
@@ -182,15 +145,11 @@ static void boot_signal()
     if (sig) PE_SIGVALID_off(sig);
     ++sigp;
   }
-  memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
-  vt->up = &pe_event_base_vtbl;
-  vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::signal",1));
-  vt->keys = sizeof(keylist)/sizeof(char*);
-  vt->keylist = keylist;
-  vt->FETCH = pe_signal_FETCH;
-  vt->STORE = pe_signal_STORE;
+  memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
+  vt->keymethod = newHVhv(vt->keymethod);
+  hv_store(vt->keymethod, "signal", 6, newSViv((IV)_signal_signal), 0);
   vt->start = pe_signal_start;
   vt->stop = pe_signal_stop;
-  pe_register_vtbl(vt);
+  pe_register_vtbl(vt, gv_stashpv("Event::signal",1), &event_vtbl);
 }
 

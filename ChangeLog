@@ -1,3 +1,35 @@
+1998-11-01  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.24.  [Massive code changes; caution advised.]
+
+	* Reengineered hash-object implementation to use HVs.
+
+1998-10-31  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Removed tailpoll support from io watchers.  File::Tail can just
+ 	hook up with timers & a generic "block on read" API can be built
+ 	on top of that if need arises.  Nick, this okay?
+
+	* Split watchers & events into separate C structures.
+
+1998-10-24  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fixed misbehaving autoload code.
+
+	* END hook to cancel all events before global destruction.  Still
+ 	needs more work to be sure the memory is freed.
+
+	* Fixed bad arithmetic in io timeout code.  Renamed interval
+ 	epsilon and added better diagnostics (see Event::_timeout_too_early).
+
+1998-10-20  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Timers cancelled within their callback weren't!  Fixed.
+
+1998-10-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix typo in c/queue.c (thanks again Jan!).
+
 1998-10-18  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.23.

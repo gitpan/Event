@@ -2,7 +2,7 @@
 use Test; plan test => 7;
 use Event qw(loop unloop one_event all_running);
 
-# $Event::DebugLevel = 3;
+# $Event::DebugLevel = 2;
 
 # deep recursion
 my $idle = Event->idle(repeat => 1, min_interval => undef,

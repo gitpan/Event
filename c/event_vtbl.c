@@ -1,244 +1,287 @@
 static int NextID = 0;
-static pe_ring AllEvents;
-static struct pe_event_vtbl pe_event_base_vtbl;
+static pe_ring AllWatchers;
+static struct pe_watcher_vtbl pe_watcher_base_vtbl;
 
-#define MAX_CB_NEST 95 /* 100 is already detected by perl itself! */
-
-static pe_cbframe CBFrame[MAX_CB_NEST];
-static int CurCBFrame = -1;
-
-static void pe_event_init(pe_event *ev)
+static void pe_watcher_init(pe_watcher *ev)
 {
   assert(ev);
   assert(ev->vtbl);
   if (!ev->vtbl->stash)
-    croak("sub-class VTBL must have a stash (doesn't)");
+    croak("sub-class VTBL must have a stash (doesn't!)");
   if (!ev->vtbl->did_require) {
+    SV *tmp;
     char *name = HvNAME(ev->vtbl->stash);
     if (memEQ(name, "Event::", 7))
       name += 7;
+    tmp = sv_2mortal(newSVpvf("Event/%s.pm", name));
+    perl_require_pv(SvPV(tmp, PL_na));
+    if (sv_true(ERRSV))
+      croak("Event: could not load perl support code for Event::%s: %s",
+	    name, SvPV(ERRSV,PL_na));
     ++ev->vtbl->did_require;
-    gv_fetchmethod(gv_stashpv("Event", 1), name);
   }
   ev->stash = ev->vtbl->stash;
   PE_RING_INIT(&ev->all, ev);
-  PE_RING_UNSHIFT(&ev->all, &AllEvents);
-  PE_RING_INIT(&ev->que, ev);
+  PE_RING_UNSHIFT(&ev->all, &AllWatchers);
   EvFLAGS(ev) = 0;
   EvINVOKE1_on(ev);
   EvREENTRANT_on(ev);
+  EvCLUMP_on(ev);
   ev->FALLBACK = 0;
   NextID = (NextID+1) & 0x7fff; /* make it look like the kernel :-, */
   ev->id = NextID;
   ev->refcnt = 0;  /* maybe can remove later? XXX */
   ev->desc = newSVpvn("??",0);
+  ev->ev1 = 0;
   ev->running = 0;
   ev->cbtime = 0;
-  ev->count = 0;
   ev->priority = PE_QUEUES;
   ev->callback = 0;
   ev->ext_data = 0;
   ev->stats = 0;
 }
 
-static void pe_event_dtor(pe_event *ev)
+static void pe_watcher_dtor(pe_watcher *ev)
 {
   int xx;
   if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
     warn("dtor '%s'", SvPV(ev->desc,PL_na));
   PE_RING_DETACH(&ev->all);
-  PE_RING_DETACH(&ev->que);
   if (ev->FALLBACK)
     SvREFCNT_dec(ev->FALLBACK);
   if (ev->desc)
     SvREFCNT_dec(ev->desc);
   if (EvPERLCB(ev))
     SvREFCNT_dec(ev->callback);
+  if (ev->stats)
+    safefree(ev->stats);
   safefree(ev);
 }
 
-static void pe_event_FETCH(pe_event *ev, SV *svkey)
+WKEYMETH(_watcher_callback)
 {
-  SV *ret=0;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  if (len && key[0] == '-') {
-    if (--WarnCounter >= 0) warn("Please remove leading dash '%s'", key);
-    ++key; --len;
-  }
-  if (!len) return;
-  switch (key[0]) {
-  case 'c':
-    if (len == 8 && memEQ(key, "callback", 8)) {
-      if (EvPERLCB(ev)) {
-	ret = (SV*) ev->callback;
-      } else {
-	ret = sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
-				  ev->callback, ev->ext_data));
-      }
-      break;
-    }
-    if (len == 5 && memEQ(key, "count", 5)) {
-      ret = sv_2mortal(newSViv(ev->count));
-      break;
-    }
-    break;
-  case 'd':
-    if (len == 4 && memEQ(key, "desc", 4)) { ret = ev->desc; break; }
-    if (len == 5 && memEQ(key, "debug", 5)) { ret = boolSV(EvDEBUG(ev)); break; }
-    break;
-  case 'f':
-    if (len == 5 && memEQ(key, "flags", 5)) {
-      ret = sv_2mortal(newSViv((ev->flags & PE_VISIBLE_FLAGS) |
-			       (ev->running? PE_RUNNING : 0) ));
-      break;
-    }
-    break;
-  case 'i':
-    if (len == 2 && memEQ(key, "id", 2)) {
-      ret = sv_2mortal(newSViv(ev->id));
-      break;
-    }
-    break;
-  case 'p':
-    if (len == 8 && memEQ(key, "priority", 8)) {
-      ret = sv_2mortal(newSViv(ev->priority));
-      break;
-    }
-    break;
-  case 'r':
-    if (len == 9 && memEQ(key, "reentrant", 9)) {
-      ret = boolSV(EvREENTRANT(ev));
-      break;
-    }
-    if (len == 6 && memEQ(key, "repeat", 6)) {
-      ret = boolSV(EvREPEAT(ev));
-      break;
-    }
-    if (len == 7 && memEQ(key, "running", 7)) {
-      ret = sv_2mortal(newSViv(ev->running));
-      break;
-    }
-    break;
-  }
-  if (!ret && ev->FALLBACK) {
-    HE *he = hv_fetch_ent(ev->FALLBACK, svkey, 0, 0);
-    if (he)
-      ret = HeVAL(he);
-  }
-  if (ret) {
+  if (!nval) {
+    SV *ret = (EvPERLCB(ev)? (SV*) ev->callback :
+	       sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
+				   ev->callback, ev->ext_data)));
     dSP;
     XPUSHs(ret);
     PUTBACK;
+  } else {
+    SV *sv;
+    SV *old=0;
+    if (EvPERLCB(ev))
+      old = (SV*) ev->callback;
+    EvPERLCB_on(ev);
+    if (!SvROK(nval) ||
+	(SvTYPE(sv=SvRV(nval)) != SVt_PVCV &&
+	 (SvTYPE(sv) != SVt_PVAV || av_len((AV*)sv) != 1))) {
+      sv_dump(sv);
+      croak("Callback must be a code ref or two element array ref");
+    }
+    ev->callback = SvREFCNT_inc(nval);
+    if (old)
+      SvREFCNT_dec(old);
   }
 }
 
-static void pe_event_STORE(pe_event *ev, SV *svkey, SV *nval)
+WKEYMETH(_watcher_clump)
 {
-  int xx;
+  if (!nval) {
+    dSP;
+    XPUSHs(boolSV(EvFLAGS(ev) & PE_CLUMP));
+    PUTBACK;
+  } else {
+    if (sv_true(nval)) EvCLUMP_on(ev); else EvCLUMP_off(ev);
+  }
+}
+
+WKEYMETH(_watcher_desc)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(ev->desc);
+    PUTBACK;
+  } else {
+    sv_setsv(ev->desc, nval);
+  }
+}
+
+WKEYMETH(_watcher_debug)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(boolSV(EvDEBUG(ev)));
+    PUTBACK;
+  } else {
+    if (sv_true(nval)) EvDEBUG_on(ev); else EvDEBUG_off(ev);
+  }
+}
+
+WKEYMETH(_watcher_flags)
+{
+  if (!nval) {
+    dSP;
+    /* PE_QUEUED is not always accurate XXX */
+    XPUSHs(sv_2mortal(newSViv((ev->flags & PE_VISIBLE_FLAGS) |
+			      (ev->running? PE_RUNNING : 0) |
+			      (ev->ev1? PE_QUEUED : 0))));
+    PUTBACK;
+  } else
+    croak("'flags' are read-only");
+}
+
+WKEYMETH(_watcher_id)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(sv_2mortal(newSViv(ev->id)));
+    PUTBACK;
+  } else
+    croak("'id' is read-only");
+}
+
+WKEYMETH(_watcher_priority)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(sv_2mortal(newSViv(ev->priority)));
+    PUTBACK;
+  } else
+    ev->priority = SvIV(nval);
+}
+
+WKEYMETH(_watcher_reentrant)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(boolSV(EvREENTRANT(ev)));
+    PUTBACK;
+  } else {
+    if (sv_true(nval))
+      EvREENTRANT_on(ev);
+    else {
+      if (ev->running > 1)
+	croak("'reentrant' cannot be turned off while nested %d times",
+	      ev->running);
+      EvREENTRANT_off(ev);
+    }
+  }
+}
+
+WKEYMETH(_watcher_repeat)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(boolSV(EvREPEAT(ev)));
+    PUTBACK;
+  } else {
+    if (sv_true(nval)) EvREPEAT_on(ev); else EvREPEAT_off(ev);
+  }
+}
+
+WKEYMETH(_watcher_running)
+{
+  if (!nval) {
+    dSP;
+    XPUSHs(sv_2mortal(newSViv(ev->running)));
+    PUTBACK;
+  } else
+    croak("'running' is read-only");
+}
+
+static void pe_watcher_FETCH(void *vptr, SV *svkey)
+{
+  pe_watcher *ev = (pe_watcher *) vptr;
+  SV **mp;
   STRLEN len;
   char *key = SvPV(svkey, len);
-  int ok=0;
   if (len && key[0] == '-') {
     if (--WarnCounter >= 0) warn("Please remove leading dash '%s'", key);
     ++key; --len;
   }
   if (!len) return;
-  switch (key[0]) {
-  case 'c':
-    if (len == 8 && memEQ(key, "callback", 8)) {
-      SV *sv;
-      SV *old=0;
-      ok=1;
-      if (EvPERLCB(ev))
-	old = (SV*) ev->callback;
-      EvPERLCB_on(ev);
-      if (!SvROK(nval) ||
-	  (SvTYPE(sv=SvRV(nval)) != SVt_PVCV &&
-	   (SvTYPE(sv) != SVt_PVAV || av_len((AV*)sv) != 1))) {
-	sv_dump(sv);
-	croak("Callback must be a code ref or two element array ref");
-      }
-      ev->callback = SvREFCNT_inc(nval);
-      if (old)
-	SvREFCNT_dec(old);
-      break;
-    }
-    if (len == 5 && memEQ(key, "count", 5))
-      croak("'count' is read-only");
-    break;
-  case 'd':
-    if (len == 4 && memEQ(key, "desc", 4)) {
-      ok=1;
-      sv_setsv(ev->desc, nval);
-      break;
-    }
-    if (len == 5 && memEQ(key, "debug",5)) {
-      ok=1;
-      if (SvTRUEx(nval)) EvDEBUG_on(ev); else EvDEBUG_off(ev);
-      break;
-    }
-    break;
-  case 'f':
-    if (len == 5 && memEQ(key, "flags", 5))
-      croak("'flags' are read-only");
-    break;
-  case 'i':
-    if (len == 2 && memEQ(key, "id", 2))
-      croak("'id' is read-only");
-    break;
-  case 'p':
-    if (len == 8 && memEQ(key, "priority",8)) {
-      ok=1;
-      ev->priority = SvIV(nval);
-      break;
-    }
-    break;
-  case 'r':
-    if (len == 9 && memEQ(key, "reentrant", 9)) {
-      ok=1;
-      if (sv_true(nval))
-	EvREENTRANT_on(ev);
-      else {
-	if (ev->running > 1)
-	  croak("'reentrant' cannot be turned off while the callback is nested %d times", ev->running);
-	EvREENTRANT_off(ev);
-      }
-      break;
-    }
-    if (len == 6 && memEQ(key, "repeat",6)) {
-      ok=1;
-      if (SvTRUEx(nval)) EvREPEAT_on(ev); else EvREPEAT_off(ev);
-      break;
-    }
-    if (len == 7 && memEQ(key, "running", 7)) {
-      croak("'running' is read-only");
-    }
-    break;
+  mp = hv_fetch(ev->vtbl->keymethod, key, len, 0);
+  if (mp) {
+    assert(*mp && SvIOK(*mp));
+    ((void(*)(pe_watcher*,SV*)) SvIVX(*mp))(ev,0);
   }
-  if (!ok) {
+  else if (ev->FALLBACK) {
+    SV **svp = hv_fetch(ev->FALLBACK, key, len, 0);
+    if (svp) {
+      dSP;
+      XPUSHs(*svp);
+      PUTBACK;
+    }
+  }
+}
+
+static void pe_watcher_STORE(void *vptr, SV *svkey, SV *nval)
+{
+  pe_watcher *ev = (pe_watcher *) vptr;
+  SV **mp;
+  STRLEN len;
+  char *key = SvPV(svkey, len);
+  if (len && key[0] == '-') {
+    if (--WarnCounter >= 0) warn("Please remove leading dash '%s'", key);
+    ++key; --len;
+  }
+  if (!len) return;
+  mp = hv_fetch(ev->vtbl->keymethod, key, len, 0);
+  if (mp) {
+    assert(*mp && SvIOK(*mp));
+    ((void(*)(pe_watcher*,SV*)) SvIVX(*mp))(ev,nval);
+  }
+  else {
     if (!ev->FALLBACK)
       ev->FALLBACK = newHV();
     hv_store_ent(ev->FALLBACK, svkey, SvREFCNT_inc(nval), 0);
   }
 }
 
-static void pe_event_DELETE(pe_event *ev, SV *svkey)
+static void pe_watcher_FIRSTKEY(void *vptr);
+
+static void pe_watcher_NEXTKEY(void *vptr)
 {
-  char *key = SvPV(svkey, PL_na);
-  SV *ret;
-  pe_event_vtbl *vt = ev->vtbl;
-  int at = 0;
-  while (vt) {
-    if (at < vt->keys) {
-      if (strEQ(key, vt->keylist[at]))
-	croak("Hash field '%s' cannot be deleted", key);
-      ++at;
-    } else {
-      at = 0;
-      vt = vt->up;
-    }
+  pe_watcher *ev = (pe_watcher *) vptr;
+  HE *he=0;
+  switch (ev->iter) {
+  case PE_ITER_WATCHER:
+    he = hv_iternext(ev->vtbl->keymethod);
+    if (he)
+      break;
+    else
+      ev->iter = PE_ITER_FALLBACK;
+  case PE_ITER_FALLBACK:
+    if (ev->FALLBACK)
+      he = hv_iternext(ev->FALLBACK);
+    break;
+  default:
+    pe_watcher_FIRSTKEY(vptr);
+    return;
   }
+  if (he) {
+    dSP;
+    XPUSHs(hv_iterkeysv(he));
+    PUTBACK;
+  }
+}
+
+static void pe_watcher_FIRSTKEY(void *vptr)
+{
+  pe_watcher *ev = (pe_watcher *) vptr;
+  ev->iter = PE_ITER_WATCHER;
+  hv_iterinit(ev->vtbl->keymethod);
+  if (ev->FALLBACK)
+    hv_iterinit(ev->FALLBACK);
+  pe_watcher_NEXTKEY(ev);
+}
+
+static void pe_watcher_DELETE(pe_watcher *ev, SV *svkey)
+{
+  SV *ret;
+  if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0))
+    croak("Cannot delete key '%s'", SvPV(svkey,PL_na));
   if (!ev->FALLBACK)
     return;
   ret = hv_delete_ent(ev->FALLBACK, svkey, 0, 0);
@@ -249,276 +292,56 @@ static void pe_event_DELETE(pe_event *ev, SV *svkey)
   }
 }
 
-static int pe_event_EXISTS(pe_event *ev, SV *svkey)
+static int pe_watcher_EXISTS(pe_watcher *ev, SV *svkey)
 {
-  char *key = SvPV(svkey, PL_na);
-  pe_event_vtbl *vt = ev->vtbl;
-  int at = 0;
-  while (vt) {
-    if (at < vt->keys) {
-      if (strEQ(key, vt->keylist[at]))
-	return 1;
-      ++at;
-    } else {
-      at = 0;
-      vt = vt->up;
-    }
-  }
+  if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0))
+    return 1;
   if (!ev->FALLBACK)
     return 0;
   return hv_exists_ent(ev->FALLBACK, svkey, 0);
 }
 
-static void pe_event_FIRSTKEY(pe_event *ev)
-{
-  ev->iter = 0;
-  if (ev->FALLBACK)
-    hv_iterinit(ev->FALLBACK);
-  (*ev->vtbl->NEXTKEY)(ev);
-}
-
-static void pe_event_NEXTKEY(pe_event *ev)
-{
-  pe_event_vtbl *vt = ev->vtbl;
-  int at = ev->iter++;
-  while (vt) {
-    if (at < vt->keys) {
-      dSP;
-      XPUSHs(sv_2mortal(newSVpv(vt->keylist[at], 0)));
-      PUTBACK;
-      return;
-    } else {
-      at -= vt->keys;
-      vt = vt->up;
-    }
-  }
-  if (ev->FALLBACK) {
-    HE *entry = hv_iternext(ev->FALLBACK);
-    if (entry) {
-      dSP;
-      XPUSHs(hv_iterkeysv(entry));
-      PUTBACK;
-    }
-  }
-}
-
-static void pe_event_died(pe_event *ev)
-{
-  SV *eval = perl_get_sv("Event::DIED", 1);
-  SV *err = sv_true(ERRSV)? sv_mortalcopy(ERRSV) : sv_2mortal(newSVpv("?",0));
-  dSP;
-  if (EvDEBUGx(ev) >= 3)
-    warn("Event: '%s' died with: %s\n",
-	 SvPV(ev->desc,PL_na), SvPV(ERRSV,PL_na));
-  PUSHMARK(SP);
-  XPUSHs(sv_2mortal(event_2sv(ev)));
-  XPUSHs(err);
-  PUTBACK;
-  perl_call_sv(eval, G_EVAL|G_DISCARD);
-  if (sv_true(ERRSV)) {
-    warn("Event: '%s' died and then $Event::DIED died with: %s\n",
-	 SvPV(ev->desc,PL_na), SvPV(ERRSV,PL_na));
-    sv_setpv(ERRSV, "");
-  }
-}
-
-static void pe_check_recovery()
-{
-  pe_event *ev;
-  /* NO ASSERTIONS HERE!  EVAL CONTEXT VERY MESSY */
-  int alert;
-  struct pe_cbframe *fp;
-  if (CurCBFrame < 0) {
-    if (SvIVX(DebugLevel) >= 3)
-      warn("Event: (no nested callback running)\n");
-    return;
-  }
-
-  /* always invalidate most recent callback */
-  fp = CBFrame + CurCBFrame;
-  ev = fp->ev;
-  if (ev->running == fp->run_id) {
-    if (EvREENTRANT(ev)) {
-      if (!fp->cbdone)
-	(*fp->ev->vtbl->postCB)(fp);
-    }
-    else {
-      if (EvREPEAT(ev) && !EvSUSPEND(ev)) {
-	/* temporarily suspend non-reentrant watcher until callback is
-	   finished! */
-	pe_event_suspend(ev);
-	fp->resume = 1;
-      }
-    }
-    if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
-      warn("Event: [%d] '%s' okay (resume=%d)\n", CurCBFrame,
-	   SvPV(ev->desc,PL_na), fp->resume);
-    return;
-  }
-
-  /* exception detected; alert the militia! */
-  alert=0;
-  while (CurCBFrame >= 0) {
-    fp = CBFrame + CurCBFrame;
-    if (fp->ev->running == fp->run_id)
-      break;
-    if (!alert) {
-      alert=1;
-      pe_event_died(fp->ev);
-    }
-    if (!fp->cbdone)
-      (*fp->ev->vtbl->postCB)(fp);
-    --CurCBFrame;
-  }
-  if (!alert)
-    warn("Event: don't know where exception occurred");
-}
-
-static void pe_event_invoke(pe_event *ev)     /* can destroy event! */
-{
-  struct pe_cbframe *frp;
-  struct timeval start_tm;
-
-  pe_check_recovery();
-  if (Stats)
-    gettimeofday(&start_tm, 0);
-
-  /* SETUP */
-  ENTER;
-  SAVEINT(ev->running);
-  frp = &CBFrame[++CurCBFrame];
-  frp->ev = ev;
-  frp->cbdone = 0;
-  frp->resume = 0;
-  frp->run_id = ++ev->running;
-  ev->cbtime = EvNOW(EvCBTIME(ev));
-  /* SETUP */
-
-  if (CurCBFrame+1 >= MAX_CB_NEST) {
-    SV *exitL = perl_get_sv("Event::ExitLevel", 1);
-    sv_setiv(exitL, 0);
-    croak("deep recursion detected; invoking unloop_all()\n");
-  }
-
-  if (EvPERLCB(ev)) {
-    SV *cb = SvRV((SV*)ev->callback);
-    int pcflags = G_VOID | (SvIVX(Eval)? G_EVAL : 0);
-    dSP;
-    SAVETMPS;
-    if (SvTYPE(cb) == SVt_PVCV) {
-      PUSHMARK(SP);
-      XPUSHs(sv_2mortal(event_2sv(ev)));
-      PUTBACK;
-      perl_call_sv(ev->callback, pcflags);
-    } else {
-      AV *av = (AV*)cb;
-      dSP;
-      assert(SvTYPE(cb) == SVt_PVAV);
-      PUSHMARK(SP);
-      XPUSHs(*av_fetch(av, 0, 0));
-      XPUSHs(sv_2mortal(event_2sv(ev)));
-      PUTBACK;
-      perl_call_method(SvPV(*av_fetch(av, 1, 0),PL_na), pcflags);
-    }
-    if ((pcflags & G_EVAL) && SvTRUE(ERRSV))
-      pe_event_died(ev);
-    FREETMPS;
-  } else if (ev->callback) {
-    (* (void(*)(void*)) ev->callback)(ev->ext_data);
-  } else {
-    croak("No callback for event '%s'", SvPV(ev->desc,PL_na));
-  }
-
-  /* clean up */
-  if (!frp->cbdone)
-    (*ev->vtbl->postCB)(frp);
-  LEAVE;
-  --CurCBFrame;
-  /* clean up */
-
-  if (Stats) {
-    struct timeval done_tm;
-    gettimeofday(&done_tm, 0);
-    if (!ev->stats) {
-      New(PE_NEWID, ev->stats, 1, pe_stat);
-      pe_stat_init(ev->stats);
-    }
-    pe_stat_record(ev->stats, (done_tm.tv_sec - start_tm.tv_sec +
-			       (done_tm.tv_usec - start_tm.tv_usec)/1000000.0));
-  }
-
-  if (EvDEBUGx(ev) >= 3)
-    warn("Event: completed '%s'\n", SvPV(ev->desc, PL_na));
-  if (EvCANDESTROY(ev))
-    (*ev->vtbl->dtor)(ev);
-}
-
-static void pe_event_postCB(pe_cbframe *fp)
-{
-  pe_event *ev = fp->ev;
-  assert(!fp->cbdone);
-  fp->cbdone = 1;
-  /* clear all fields that are used to indicate status to the callback */
-  ev->count = 0;
-
-  if (SvIVX(DebugLevel) + EvDEBUG(ev) >= 3)
-    warn("Event: '%s' callback reset; resume=%d\n",
-	 SvPV(ev->desc, PL_na), fp->resume);
-
-  if (fp->resume)
-    pe_event_resume(ev);
-  else if (EvINVOKE1(ev) && EvREPEAT(ev))
-    pe_event_start(ev, 1);
-}
-
-static void pe_event_nomethod(pe_event *ev, char *meth)
+static void pe_watcher_nomethod(pe_watcher *ev, char *meth)
 {
   HV *stash = ev->vtbl->stash;
   assert(stash);
   croak("%s::%s is missing", HvNAME(stash), meth);
 }
 
-static void pe_event_nostart(pe_event *ev, int repeat)
-{ pe_event_nomethod(ev,"start"); }
-static void pe_event_nostop(pe_event *ev)
-{ pe_event_nomethod(ev,"stop"); }
-static void pe_event_alarm(pe_event *ev, pe_timeable *tm)
-{ pe_event_nomethod(ev,"alarm"); }
+static void pe_watcher_nostart(pe_watcher *ev, int repeat)
+{ pe_watcher_nomethod(ev,"start"); }
+static void pe_watcher_nostop(pe_watcher *ev)
+{ pe_watcher_nomethod(ev,"stop"); }
+static void pe_watcher_alarm(pe_watcher *ev, pe_timeable *tm)
+{ pe_watcher_nomethod(ev,"alarm"); }
 
-static void boot_pe_event()
+static void boot_pe_watcher()
 {
-  static char *keylist[] = {
-    "id",
-    "repeat",
-    "priority",
-    "desc",
-    "count",
-    "callback",
-    "debug",
-    "flags",
-    "running",
-    "reentrant"
-  };
   HV *stash = gv_stashpv("Event::Watcher", 1);
-  struct pe_event_vtbl *vt;
-  PE_RING_INIT(&AllEvents, 0);
-  vt = &pe_event_base_vtbl;
-  vt->up = 0;
+  struct pe_watcher_vtbl *vt;
+  PE_RING_INIT(&AllWatchers, 0);
+  vt = &pe_watcher_base_vtbl;
+  vt->base.Fetch = pe_watcher_FETCH;
+  vt->base.Store = pe_watcher_STORE;
+  vt->base.Firstkey = pe_watcher_FIRSTKEY;
+  vt->base.Nextkey = pe_watcher_NEXTKEY;
   vt->stash = 0;
   vt->did_require = 0;
-  vt->dtor = pe_event_dtor;
-  vt->FETCH = pe_event_FETCH;
-  vt->STORE = pe_event_STORE;
-  vt->DELETE = pe_event_DELETE;
-  vt->EXISTS = pe_event_EXISTS;
-  vt->keys = sizeof(keylist)/sizeof(char*);
-  vt->keylist = keylist;
-  vt->FIRSTKEY = pe_event_FIRSTKEY;
-  vt->NEXTKEY = pe_event_NEXTKEY;
-  vt->start = pe_event_nostart;
-  vt->stop = pe_event_nostop;
-  vt->alarm = pe_event_alarm;
-  vt->postCB = pe_event_postCB;
+  vt->keymethod = newHV();
+  hv_store(vt->keymethod, "callback", 8, newSViv((IV)_watcher_callback), 0);
+  hv_store(vt->keymethod, "clump", 5, newSViv((IV)_watcher_clump), 0);
+  hv_store(vt->keymethod, "desc", 4, newSViv((IV)_watcher_desc), 0);
+  hv_store(vt->keymethod, "debug", 5, newSViv((IV)_watcher_debug), 0);
+  hv_store(vt->keymethod, "flags", 5, newSViv((IV)_watcher_flags), 0);
+  hv_store(vt->keymethod, "id", 2, newSViv((IV)_watcher_id), 0);
+  hv_store(vt->keymethod, "priority", 8, newSViv((IV)_watcher_priority), 0);
+  hv_store(vt->keymethod, "reentrant", 9, newSViv((IV)_watcher_reentrant), 0);
+  hv_store(vt->keymethod, "repeat", 6, newSViv((IV)_watcher_repeat), 0);
+  hv_store(vt->keymethod, "running", 7, newSViv((IV)_watcher_running), 0);
+  vt->dtor = pe_watcher_dtor;
+  vt->start = pe_watcher_nostart;
+  vt->stop = pe_watcher_nostop;
+  vt->alarm = pe_watcher_alarm;
   newCONSTSUB(stash, "ACTIVE", newSViv(PE_ACTIVE));
   newCONSTSUB(stash, "SUSPEND", newSViv(PE_SUSPEND));
   newCONSTSUB(stash, "QUEUED", newSViv(PE_QUEUED));
@@ -529,18 +352,43 @@ static void boot_pe_event()
   newCONSTSUB(stash, "T", newSViv(PE_T));
 }
 
-static void pe_register_vtbl(pe_event_vtbl *vt)
+WKEYMETH(_watcher_eonly)
 {
-  /* maybe check more stuff? */
-  assert(vt->up);
-  assert(vt->stash);
+  if (!nval) {
+    dSP;
+    XPUSHs(&PL_sv_undef);
+    PUTBACK;
+  } else
+    croak("event specific");
 }
 
-static void pe_event_now(pe_event *ev)
+static void pe_register_vtbl(pe_watcher_vtbl *vt, HV *stash,
+			     pe_event_vtbl *evt)
 {
-  if (EvSUSPEND(ev)) return;
-  EvRUNNOW_on(ev);
-  queueEvent(ev, 1);
+  HE *entry;
+
+  vt->stash = stash;
+  SvREFCNT_inc(stash);
+  vt->event_vtbl = evt;
+  vt->new_event = evt->new_event;
+
+  hv_iterinit(evt->keymethod);
+  while (entry = hv_iternext(evt->keymethod)) {
+    SV *key = hv_iterkeysv(entry);
+    if (hv_exists_ent(vt->keymethod, key, 0))
+      croak("key collision %s key %s", HvNAME(stash), SvPV(key,PL_na));
+    hv_store_ent(vt->keymethod, key, newSViv((IV)_watcher_eonly), 0);
+  }
+}
+
+static void pe_watcher_now(pe_watcher *wa)
+{
+  pe_event *ev;
+  if (EvSUSPEND(wa)) return;
+  EvRUNNOW_on(wa);
+  ev = (*wa->vtbl->new_event)(wa);
+  ++ev->count;
+  queueEvent(ev);
 }
 
 /******************************************
@@ -548,60 +396,49 @@ static void pe_event_now(pe_event *ev)
   methods that should venture to change these flags!
  */
 
-static void pe_event_cancel(pe_event *ev)
+static void pe_watcher_cancel(pe_watcher *ev)
 {
   if (EvSUSPEND(ev))
-    EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE|PE_QUEUED);
+    EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE);
   else {
-    pe_event_stop(ev);
-    if (EvQUEUED(ev))
-      dequeEvent(ev);
+    pe_watcher_stop(ev);
   }
   if (EvCANDESTROY(ev))
     (*ev->vtbl->dtor)(ev);
 }
 
 
-static void pe_event_suspend(pe_event *ev)
+static void pe_watcher_suspend(pe_watcher *ev)
 {
-  int active, queued;
+  int active;
   if (EvSUSPEND(ev))
     return;
   active = EvACTIVE(ev);
-  queued = EvQUEUED(ev);
   if (EvDEBUGx(ev) >= 4)
-    warn("Event: suspend '%s'%s%s\n", SvPV(ev->desc,PL_na),
-	 active?" ACTIVE":"", queued?" QUEUED":"");
+    warn("Event: suspend '%s'%s\n", SvPV(ev->desc,PL_na), active?" ACTIVE":"");
   if (active)
-    pe_event_stop(ev);
+    pe_watcher_stop(ev);
   if (active || (EvINVOKE1(ev) && EvREPEAT(ev)))
     EvACTIVE_on(ev); /* must happen nowhere else!! */
-  if (queued) {
-    dequeEvent(ev);
-    EvQUEUED_on(ev);
-  }
   EvSUSPEND_on(ev); /* must happen nowhere else!! */
 }
 
-static void pe_event_resume(pe_event *ev)
+static void pe_watcher_resume(pe_watcher *ev)
 {
-  int active, queued;
+  int active;
   if (!EvSUSPEND(ev))
     return;
   active = EvACTIVE(ev);
-  queued = EvQUEUED(ev);
   if (EvDEBUGx(ev) >= 4)
-    warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,PL_na),
-	 active?" ACTIVE":"", queued?" QUEUED":"");
-  EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE|PE_QUEUED);
+    warn("Event: resume '%s'%s%s\n", SvPV(ev->desc,PL_na), active?" ACTIVE":"");
+  EvFLAGS(ev) &= ~(PE_SUSPEND|PE_ACTIVE);
   if (active)
-    pe_event_start(ev, 0);
-  if (queued)
-    queueEvent(ev, 0);
+    pe_watcher_start(ev, 0);
 }
 
-static void pe_event_start(pe_event *ev, int repeat)
+static void pe_watcher_start(pe_watcher *ev, int repeat)
 {
+  /* allow SUSPEND'd watchers to be affected by start/stop? XXX */
   if (EvACTIVE(ev) || EvSUSPEND(ev))
     return;
   if (EvDEBUGx(ev) >= 4)
@@ -611,7 +448,7 @@ static void pe_event_start(pe_event *ev, int repeat)
   ++ActiveWatchers;
 }
 
-static void pe_event_stop(pe_event *ev)
+static void pe_watcher_stop(pe_watcher *ev)
 {
   if (!EvACTIVE(ev) || EvSUSPEND(ev))
     return;

@@ -18,12 +18,11 @@ static void boot_queue()
   newCONSTSUB(stash, "PRIO_HIGH", newSViv(PE_PRIO_HIGH));
 }
 
-static void dequeEvent(pe_event *ev)
+/*inline*/ static void dequeEvent(pe_event *ev)
 {
   assert(ev);
-  assert(!EvSUSPEND(ev));
+  assert(ev->count);
   PE_RING_DETACH(&ev->que);
-  EvQUEUED_off(ev);
   --ActiveWatchers;
 }
 
@@ -37,45 +36,56 @@ static void db_show_queue()
   }
 }
 
-static void prepare_event(pe_event *ev)
+static int prepare_event(pe_event *ev, char *forwhat)
 {
-  assert(!EvSUSPEND(ev));
-  assert(EvREENTRANT(ev) || !ev->running);
-  if (!EvACTIVE(ev)) {
-    if (!EvRUNNOW(ev))
+  pe_watcher *wa = ev->up;
+  if (EvSUSPEND(wa)) {
+    EvRUNNOW_off(wa);
+    (*ev->vtbl->dtor)(ev);
+    return 0;
+  }
+  assert(EvREENTRANT(wa) || !wa->running);
+  if (!EvACTIVE(wa)) {
+    if (!EvRUNNOW(wa))
       croak("Event: attempt to run callback for !ACTIVE watcher '%s'",
-	    SvPV(ev->desc,PL_na));
+	    SvPV(wa->desc,PL_na));
   }
   else {
     /* cannot be done any later because the callback might want
        to call again() on itself or whatever */
-    if (EvINVOKE1(ev) || (!EvINVOKE1(ev) && !EvREPEAT(ev)))
-      pe_event_stop(ev);
+    if (EvINVOKE1(wa)) {
+      pe_watcher_stop(wa);
+      if (EvREPEAT(wa))
+	pe_watcher_start(wa, 1);
+    }
+    else if (!EvREPEAT(wa))
+      pe_watcher_stop(wa);
   }
-  EvRUNNOW_off(ev);
+  EvRUNNOW_off(wa);
+  if (EvDEBUGx(wa) >= 3)
+    warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,PL_na), ev->priority);
+  return 1;
 }
 
-static void queueEvent(pe_event *ev, int count)
+static void queueEvent(pe_event *ev)
 {
-  prepare_event(ev);
-
-  assert(count >= 0);
-  ev->count += count;
+  assert(ev->count);
+  if (!PE_RING_EMPTY(&ev->que)) return; /* already queued */
+  if (!prepare_event(ev, "queue")) return;
 
   if (ev->priority < 0) {  /* invoke the event immediately! */
-    ev->priority = -1;
-    if (EvDEBUGx(ev) >= 2)
-      warn("Event: invoking %s (async)\n", SvPV(ev->desc,PL_na));
-    pe_event_invoke(ev);
+    if (EvSUSPEND(ev->up)) {
+      (*ev->vtbl->dtor)(ev);
+    }
+    else {
+      ev->priority = -1;
+      QueueTime[0] = EvNOW(0);
+      pe_event_invoke(ev);
+    }
     return;
   }
-
-  if (EvQUEUED(ev))
-    return;
   if (ev->priority >= PE_QUEUES)
     ev->priority = PE_QUEUES-1;
-  if (EvDEBUGx(ev) >= 3)
-    warn("Event: queue '%s' prio=%d\n", SvPV(ev->desc,PL_na), ev->priority);
   QueueTime[ev->priority] = EvNOW(0);
   {
     /* queue in reverse direction? XXX */ 
@@ -86,7 +96,6 @@ static void queueEvent(pe_event *ev, int count)
       rg = rg->next;
     PE_RING_ADD_BEFORE(&ev->que, rg);
     /*  warn("=\n"); db_show_queue();/**/
-    EvQUEUED_on(ev);
     ++ActiveWatchers;
   }
 }
@@ -118,7 +127,7 @@ pe_add_hook(char *which, int is_perl, void *cb, void *ext_data)
 }
 
 static pe_qcallback *capi_add_hook(char *which, void *cb, void *ext_data)
-{ pe_add_hook(which, 0, cb, ext_data); }
+{ return pe_add_hook(which, 0, cb, ext_data); }
 
 static void pe_cancel_hook(pe_qcallback *qcb)
 {
@@ -193,12 +202,15 @@ static void pe_map_check(pe_ring *List)
 
 static int pe_empty_queue(maxprio)
 {
-  pe_event *ev = NQueue.next->self;
+  pe_event *ev;
+ RETRY:
+  ev = NQueue.next->self;
   if (ev && ev->priority < maxprio) {
     dequeEvent(ev);
-    if (EvDEBUGx(ev) >= 2)
-      warn("Event: invoking '%s' (prio %d)\n",
-	   SvPV(ev->desc, PL_na), ev->priority);
+    if (EvSUSPEND(ev->up)) {
+      (*ev->vtbl->dtor)(ev);
+      goto RETRY;
+    }
     pe_event_invoke(ev);
     return 1;
   }
@@ -267,15 +279,16 @@ static int one_event(double tm)
 
   if (pe_empty_queue(PE_QUEUES)) return 1;
 
-  {
+  while (1) {
+    pe_watcher *wa;
     pe_event *ev;
     if (PE_RING_EMPTY(&Idle)) return 0;
-    PE_RING_POP(&Idle, ev);
-    prepare_event(ev);
+    PE_RING_POP(&Idle, wa);
+    if (EvSUSPEND(wa)) continue;
+    /* nothing is queued so CLUMP will never be an option */
+    ev = pe_event_allocate(wa);
+    if (!prepare_event(ev, "idle")) continue;
     /* can't queueEvent because we are already missed that */
-    ++ev->count;
-    if (EvDEBUGx(ev) >= 2)
-      warn("Event: invoking '%s' (idle)\n", SvPV(ev->desc, PL_na));
     pe_event_invoke(ev);
     return 1;
   }

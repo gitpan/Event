@@ -1,6 +1,6 @@
 # leak -*-perl-*-
 use Test; plan test => 1;
-use Event qw(all_events);
+use Event qw(all_watchers);
 
 sub thrash {
     Event->idle()->cancel;
@@ -12,5 +12,5 @@ sub thrash {
 }
 for (1..2) { thrash(); }
 
-my $got = join(', ', map { ref } all_events()) || 'None';
+my $got = join(', ', map { ref } all_watchers()) || 'None';
 ok($got, 'None');

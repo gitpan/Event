@@ -1,51 +1,84 @@
-static pe_event *sv_2event(SV *sv)
+static HV *WatcherInnerStash;
+static HV *EventStash;
+
+static void unwrap_obj(SV *sv, void **vpp, HV **stpp)
 {
-  pe_event *ret = 0;
+  assert(vpp);
   if (sv && SvROK(sv)) {
       sv = SvRV(sv);
       assert(sv);
       if (SvOBJECT(sv)) {
 	  if (SvTYPE(sv) == SVt_PVHV) {
 	      MAGIC *magic = mg_find(sv, '~');
-	      SV *ref;
+	      SV *ref, *iobj;
 	      assert(magic);
 	      ref = magic->mg_obj;
 	      assert(ref);
-	      if (SvROK(ref) && SvTYPE(SvRV(ref)) == SVt_PVMG) {
-		  ret = (pe_event*) SvIV((SV*)SvRV(ref));
+	      assert(SvROK(ref));
+	      iobj = SvRV(ref);
+	      if (SvTYPE(iobj) == SVt_PVMG) {
+		assert(SvOBJECT(iobj));
+		*vpp = (void*) SvIV(iobj);
+		if (stpp) *stpp = SvSTASH(iobj);
+		return;
 	      }
 	  }
       }
   }
-  if (!ret) {
-      sv_dump(sv);
-      croak("sv_2event: expected an Event");
+  sv_dump(sv);
+  croak("unwrap_obj");
+}
+
+static void decode_sv(SV *sv, pe_watcher **wap, pe_event **evp)
+{
+  void *vp;
+  HV *stash;
+  unwrap_obj(sv, &vp, &stash);
+  assert(vp);
+  if (stash == WatcherInnerStash) {
+    assert(wap);
+    *wap = (pe_watcher *) vp;
+    if (evp) *evp=0;
   }
+  else if (stash == EventStash) {
+    pe_event *ev = (pe_event*) vp;
+    assert(wap || evp);
+    if (evp) *evp = ev;
+    if (wap) *wap = ev->up;
+  } else {
+    sv_dump(sv);
+    croak("decode_sv");
+  }
+}
+
+void get_base_vtbl(SV *sv, void **vp, pe_base_vtbl **vt)
+{
+  assert(vp && vt);
+  unwrap_obj(sv, vp, 0);
+  *vt = **(pe_base_vtbl***)vp;
+}
+
+static SV *wrap_obj(void *ptr, HV *inner_stash, HV *stash)
+{
+  SV *obj = sv_setref_pv(newSV(0), 0, ptr);
+  SV *tied = (SV*) newHV();
+  sv_bless(obj, inner_stash);
+  sv_magic(tied, obj, '~', Nullch, 0);		/* magic tied, '~', $mgobj */
+  --SvREFCNT(obj);				/* make like ref_noinc */
+  sv_magic(tied, Nullsv, 'P', 0, 0);
+  return sv_bless(newRV_noinc(tied), stash);
+}
+
+static SV *watcher_2sv(pe_watcher *ev)
+{
+  SV *ret = wrap_obj(ev, WatcherInnerStash, ev->stash);
+  ++ev->refcnt;
+  /*warn("id=%d ++refcnt=%d", ev->id, ev->refcnt); /**/
   return ret;
 }
 
 static SV *event_2sv(pe_event *ev)
-{
-  SV *tied, *ret;
-  HV *stash = ev->stash;
-  SV *obj = sv_setref_pv(newSV(0), 0, (void*)ev);
-  sv_bless(obj, stash);
-
-  tied = (SV*) newHV();
-
-  sv_magic(tied, obj, '~', Nullch, 0);		/* magic tied, '~', $mgobj */
-  --SvREFCNT(obj);				/* make like ref_noinc */
-
-  sv_magic(tied, Nullsv, 'P', 0, 0);
-
-  ret = newRV_noinc(tied);
-  sv_bless(ret, stash);
-
-  ++ev->refcnt;
-
-  /*warn("id=%d ++refcnt=%d", ev->id, ev->refcnt); /**/
-  return ret;
-}
+{ return wrap_obj(ev, EventStash, ev->up->stash); }
 
 static int sv_2interval(SV *in, double *out)
 {
@@ -116,4 +149,12 @@ static int sv_2events_mask(SV *sv, int bits)
     croak("Must be a string /[rwet]/ or bit mask");
     return 0; /* NOTREACHED */
   }
+}
+
+static void boot_typemap()
+{
+  EventStash = gv_stashpv("Event::Event", 1);
+  SvREFCNT_inc(EventStash);
+  WatcherInnerStash = gv_stashpv("Event::Watcher::Inner", 1);
+  SvREFCNT_inc(WatcherInnerStash);
 }

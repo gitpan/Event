@@ -1,9 +1,5 @@
 #include "EventAPI.h"
 
-#ifdef DELETE /* DELETE is defined by Win32 as a file access mask XXX */
-#   undef DELETE
-#endif
-
 #define PE_NEWID ('e'+'v')  /* for New() macro */
 
 #define PE_RING_INIT(LNK, SELF) 		\
@@ -52,37 +48,47 @@ STMT_START {					\
 typedef struct pe_cbframe pe_cbframe;
 struct pe_cbframe {
   pe_event *ev;
-  int run_id;
-  int cbdone; /*can pack into flags XXX */
-  int resume;
+  IV run_id;
 };
 
 typedef struct pe_tied pe_tied;
 struct pe_tied {
-  pe_event base;
+  pe_watcher base;
   pe_timeable tm;
 };
 
-struct pe_event_vtbl {
-  /* how does it work for more than 1 level? XXX */
-  /* only used for DELETE, EXISTS, FIRSTKEY, & NEXTKEY */
-  struct pe_event_vtbl *up;
+#define WKEYMETH(M) static void M(pe_watcher *ev, SV *nval)
+#define EKEYMETH(M) static void M(pe_event *ev, SV *nval)
 
+typedef struct pe_base_vtbl pe_base_vtbl;
+struct pe_base_vtbl {
+  void (*Fetch)(void *, SV *key);
+  void (*Store)(void *, SV *key, SV *nval);
+  void (*Firstkey)(void *);
+  void (*Nextkey)(void *);
+};
+
+struct pe_event_vtbl {  /* should be pure virtual XXX */
+  pe_base_vtbl base;
+  HV *keymethod;
+  pe_event *(*new_event)(pe_watcher *);
+  void (*dtor)(pe_event *);
+
+  /* should be pure virtual XXX */
+  pe_ring freelist;
+};
+
+struct pe_watcher_vtbl {
+  pe_base_vtbl base;
   int did_require;
   HV *stash;
-  int keys;
-  char **keylist;
-  void (*dtor)(pe_event *);
-  void (*FETCH)(pe_event *, SV *);
-  void (*STORE)(pe_event *, SV *, SV *);
-  void (*DELETE)(pe_event *, SV *key); /* never overridden? XXX */
-  int (*EXISTS)(pe_event *, SV *key); /* never overridden? XXX */
-  void (*FIRSTKEY)(pe_event *); /* never overridden? XXX */
-  void (*NEXTKEY)(pe_event *); /* never overridden? XXX */
-  void (*start)(pe_event *, int);
-  void (*stop)(pe_event *);
-  void (*alarm)(pe_event *, pe_timeable *);
-  void (*postCB)(pe_cbframe *);
+  HV *keymethod;
+  void (*dtor)(pe_watcher *);
+  void (*start)(pe_watcher *, int);
+  void (*stop)(pe_watcher *);
+  void (*alarm)(pe_watcher *, pe_timeable *);
+  pe_event_vtbl *event_vtbl;
+  pe_event *(*new_event)(pe_watcher *);
 };
 
 typedef struct pe_run pe_run;
@@ -103,20 +109,25 @@ struct pe_stat {
 static void pe_stat_init(pe_stat *st);
 static void pe_stat_record(pe_stat *st, double elapse);
 
-#define EvFLAGS(ev)		((pe_event*)ev)->flags
-#define PE_ACTIVE	0x01
-#define PE_SUSPEND	0x02
-#define PE_QUEUED	0x04
-#define PE_RUNNING	0x08  /* virtual flag */
-#define PE_REENTRANT	0x10
-#define PE_HARD		0x20
-#define PE_PERLCB	0x40
-#define PE_RUNNOW	0x80
+#define EvFLAGS(ev)		((pe_watcher*)ev)->flags
+#define PE_ACTIVE	0x001
+#define PE_SUSPEND	0x002
+#define PE_QUEUED	0x004  /* virtual flag */
+#define PE_RUNNING	0x008  /* virtual flag */
+#define PE_REENTRANT	0x010
+#define PE_HARD		0x020
+#define PE_PERLCB	0x040
+#define PE_RUNNOW	0x080
+#define PE_CLUMP	0x100
 
 #define PE_VISIBLE_FLAGS \
 (PE_ACTIVE | PE_SUSPEND | PE_QUEUED | PE_RUNNING)
 
-#define EvDEBUGx(ev) (SvIVX(DebugLevel) + EvDEBUG(ev))
+#ifdef DEBUGGING
+#  define EvDEBUGx(ev) (SvIV(DebugLevel) + EvDEBUG(ev))
+#else
+#  define EvDEBUGx(ev) 0
+#endif
 
 /* ACTIVE: waiting for something to happen that might cause queueEvent */
 /* controlled by start/stop methods */
@@ -127,10 +138,6 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define EvSUSPEND(ev)		(EvFLAGS(ev) & PE_SUSPEND)
 #define EvSUSPEND_on(ev)	(EvFLAGS(ev) |= PE_SUSPEND)
 #define EvSUSPEND_off(ev)	(EvFLAGS(ev) &= ~PE_SUSPEND)
-
-#define EvQUEUED(ev)		(EvFLAGS(ev) & PE_QUEUED)
-#define EvQUEUED_on(ev)		(EvFLAGS(ev) |= PE_QUEUED)
-#define EvQUEUED_off(ev)	(EvFLAGS(ev) &= ~PE_QUEUED)
 
 #define EvREENTRANT(ev)		(EvFLAGS(ev) & PE_REENTRANT)
 #define EvREENTRANT_on(ev)	(EvFLAGS(ev) |= PE_REENTRANT)
@@ -147,6 +154,10 @@ static void pe_stat_record(pe_stat *st, double elapse);
 #define EvRUNNOW(ev)		(EvFLAGS(ev) & PE_RUNNOW)
 #define EvRUNNOW_on(ev)		(EvFLAGS(ev) |= PE_RUNNOW)
 #define EvRUNNOW_off(ev)	(EvFLAGS(ev) &= ~PE_RUNNOW)
+
+#define EvCLUMP(ev)		(ev->ev1 && (EvFLAGS(ev) & PE_CLUMP))
+#define EvCLUMP_on(ev)		(EvFLAGS(ev) |= PE_CLUMP)
+#define EvCLUMP_off(ev)		(EvFLAGS(ev) &= ~PE_CLUMP)
 
 #define EvCANDESTROY(ev)					\
  (ev->refcnt == 0 && ev->running == 0 &&			\

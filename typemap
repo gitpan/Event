@@ -1,13 +1,13 @@
 TYPEMAP
 
-pe_event *	O_EVENT
+pe_watcher *	O_WATCHER
 
 INPUT
 
-O_EVENT
-	$var = sv_2event($arg);
+O_WATCHER
+	decode_sv($arg, & $var, 0);
 
 OUTPUT
 
-O_EVENT
-	$arg = event_2sv($var);
+O_WATCHER
+	$arg = watcher_2sv($var);

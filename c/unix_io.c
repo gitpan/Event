@@ -3,7 +3,7 @@
 
   Applications with a large number of open fds would benefit by
   an incremental update of the select/poll structures.  Maybe next
-  release!
+  release...!
 
 */
 
@@ -34,6 +34,21 @@ static int pe_sys_fileno(pe_io *ev)
   return -1;
 }
 
+static void _queue_io(pe_io *wa, int got)
+{
+  pe_ioevent *ev;
+  got &= wa->events;
+  if (!got) {
+    if (EvDEBUGx(wa) >= 3)
+      warn("Event: io '%s' queued nothing", SvPV(wa->base.desc,PL_na));
+    return;
+  }
+  ev = (pe_ioevent*) (*wa->base.vtbl->new_event)((pe_watcher*) wa);
+  ++ev->base.count;
+  ev->got |= got;
+  queueEvent((pe_event*) ev);
+}
+
 /************************************************* POLL */
 #if defined(HAS_POLL) && !PE_IO_WAIT
 #define PE_IO_WAIT 1
@@ -47,12 +62,17 @@ static void pe_sys_sleep(double left)
   int ret;
   double t0 = EvNOW(1);
   double t1 = t0 + left;
-  do {
+  while (1) {
     ret = poll(0, 0, left * 1000); /* hope zeroes okay */
     if (ret < 0 && errno != EAGAIN && errno != EINTR)
       croak("poll(%.2f) got errno %d", left, errno);
     left = t1 - EvNOW(1);
-  } while (left > PE_INTERVAL_EPSILON);
+    if (left > IntervalEpsilon) {
+      if (ret==0) ++TimeoutTooEarly;
+      continue;
+    }
+    break;
+  }
 }
 
 static void pe_sys_multiplex(double timeout)
@@ -76,7 +96,7 @@ static void pe_sys_multiplex(double timeout)
       ev->xref = -1;
       if (fd >= 0) {
 	int bits=0;
-	if ((ev->events & PE_R) && !ev->tailpoll) bits |= (POLLIN | POLLRDNORM);
+	if (ev->events & PE_R) bits |= (POLLIN | POLLRDNORM);
 	if (ev->events & PE_W) bits |= (POLLOUT | POLLWRNORM | POLLWRBAND);
 	if (ev->events & PE_E) bits |= (POLLRDBAND | POLLPRI);
 	if (bits) {
@@ -119,20 +139,14 @@ static void pe_sys_multiplex(double timeout)
       if (mask & (POLLIN | POLLRDNORM)) got |= PE_R;
       if (mask & (POLLOUT | POLLWRNORM | POLLWRBAND)) got |= PE_W;
       if (mask & (POLLRDBAND | POLLPRI)) got |= PE_E;
-      if (got) {
-	/* must use | since watcher can trigger more than once
-	   before it is serviced */
-	ev->got = (ev->got | got) & ev->events;
-	if (ev->got) queueEvent((pe_event*) ev, 1);
+      if (got) _queue_io(ev, got);
 	/*
 	  Can only do this if fd-to-watcher is 1-to-1
-	  
 	  if (--ret == 0) { ev=0; continue; }
 	*/
-      }
     }
     ev = ev->ioring.next->self;
-  }  
+  }
 }
 #endif /*HAS_POLL*/
 
@@ -150,14 +164,19 @@ static void pe_sys_sleep(double left)
   double t0 = EvNOW(1);
   double t1 = t0 + left;
   int ret;
-  do {
+  while (1) {
     tm.tv_sec = left;
     tm.tv_usec = (left - tm.tv_sec) * 1000000;
     ret = select(0, 0, 0, 0, &tm);
     if (ret < 0 && errno != EINTR && errno != EAGAIN)
       croak("select(%.2f) got errno %d", left, errno);
     left = t1 - EvNOW(1);
-  } while (left > PE_INTERVAL_EPSILON);
+    if (left > IntervalEpsilon) {
+      if (ret==0) ++TimeoutTooEarly;
+      continue;
+    }
+    break;
+  }
 }
 
 static void pe_sys_multiplex(double timeout)
@@ -177,7 +196,7 @@ static void pe_sys_multiplex(double timeout)
       int fd = ev->fd;
       if (fd >= 0) {
 	int bits=0;
-	if ((ev->events & PE_R) && !ev->tailpoll) { FD_SET(fd, &Rfds); ++bits; }
+	if (ev->events & PE_R) { FD_SET(fd, &Rfds); ++bits; }
 	if (ev->events & PE_W) { FD_SET(fd, &Wfds); ++bits; }
 	if (ev->events & PE_E) { FD_SET(fd, &Efds); ++bits; }
 	if (bits && fd > Nfds) Nfds = fd;
@@ -209,8 +228,7 @@ static void pe_sys_multiplex(double timeout)
 	int fd = ev->fd;
 	struct stat buf;
 	if (fd >= 0 && PerlLIO_fstat(fd, &buf) < 0 && errno == EBADF) {
-	  pe_io_stop((pe_event*) ev);
-	  queueEvent((pe_event*) ev, 1);
+	  pe_io_stop((pe_watcher*) ev);
 	  return;
 	}
 	ev = ev->ioring.next->self;
@@ -233,11 +251,7 @@ static void pe_sys_multiplex(double timeout)
       if (FD_ISSET(fd, &rfds)) got |= PE_R;
       if (FD_ISSET(fd, &wfds)) got |= PE_W;
       if (FD_ISSET(fd, &efds)) got |= PE_E;
-      if (got) {
-	/* must use |= since watcher can trigger more than once
-	   before it is serviced */
-	ev->got = (ev->got | got) & ev->events;
-	if (ev->got) queueEvent((pe_event*) ev, 1);
+      if (got) _queue_io(ev, got);
 	/*
 	  Can only do this if fd-to-watcher is 1-to-1
 	  

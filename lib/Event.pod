@@ -46,8 +46,8 @@ Make the inner-most loop() return with $result.
 =item unloop_all()
 
 Cause all pending loop()s to return immediately.  This is not
-implemented with an exception.  It works by effectly calling
-C<unloop(undef)> for each pending loop.
+implemented with an exception.  It works by effectively calling
+C<unloop(undef)> for all pending loops.
 
 =item sweep([$max_prio])
 
@@ -214,14 +214,22 @@ $watcher->start.
 
 =item $watcher->again
 
-The same as the C<start> method except in the case of events that do
-something special when they repeat.  For example, repeating timers
-recalcuate their alarm time using their C<interval> parameter.
+The same as the C<start> method except in the case of watchers with
+special special repeat behavior.  For example, repeating timers
+recalcuate the alarm time using their C<interval> parameter.
 
 =item $watcher->cancel
 
 Don't look for any events any more.  Note that the watcher can be
 reactivated by calling the C<start> or C<again> methods.
+
+=item $watcher->suspend
+
+A suspended watcher will stop queuing events until it is resumed.
+
+=item $watcher->resume
+
+Revives a watcher that has been suspended.
 
 =item $watcher->now
 

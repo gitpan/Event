@@ -1,31 +1,31 @@
-static struct pe_event_vtbl pe_idle_vtbl;
+static struct pe_watcher_vtbl pe_idle_vtbl;
 static pe_ring Idle;
 
 /*#define D_IDLE(x) x  /**/
 #define D_IDLE(x)  /**/
 
-static pe_event *pe_idle_allocate()
+static pe_watcher *pe_idle_allocate()
 {
   pe_idle *ev;
   New(PE_NEWID, ev, 1, pe_idle);
   ev->base.vtbl = &pe_idle_vtbl;
-  pe_event_init((pe_event*) ev);
+  pe_watcher_init((pe_watcher*) ev);
   PE_RING_INIT(&ev->tm.ring, ev);
   PE_RING_INIT(&ev->iring, ev);
   ev->max_interval = &PL_sv_undef;
   ev->min_interval = newSVnv(.01);
-  return (pe_event*) ev;
+  return (pe_watcher*) ev;
 }
 
-static void pe_idle_dtor(pe_event *ev)
+static void pe_idle_dtor(pe_watcher *ev)
 {
   pe_idle *ip = (pe_idle*) ev;
   SvREFCNT_dec(ip->max_interval);
   SvREFCNT_dec(ip->min_interval);
-  pe_event_dtor(ev);
+  pe_watcher_dtor(ev);
 }
 
-static void pe_idle_start(pe_event *ev, int repeating)
+static void pe_idle_start(pe_watcher *ev, int repeating)
 {
   double now;
   double min,max;
@@ -52,150 +52,106 @@ static void pe_idle_start(pe_event *ev, int repeating)
   }
 }
 
-static void pe_idle_alarm(pe_event *ev, pe_timeable *_ignore)
+static void pe_idle_alarm(pe_watcher *wa, pe_timeable *_ignore)
 {
   double now = EvNOW(1);
   double min,max,left;
-  pe_idle *ip = (pe_idle*) ev;
+  pe_idle *ip = (pe_idle*) wa;
   pe_timeable_stop(&ip->tm);
   if (sv_2interval(ip->min_interval, &min)) {
-    left = ev->cbtime + min - now;
-    if (left > PE_INTERVAL_EPSILON) {
+    left = wa->cbtime + min - now;
+    if (left > IntervalEpsilon) {
+      ++TimeoutTooEarly;
       ip->tm.at = now + left;
       pe_timeable_start(&ip->tm);
-      D_IDLE(warn("min %.2f '%s'\n", left, SvPV(ev->desc,na)));
+      D_IDLE(warn("min %.2f '%s'\n", left, SvPV(wa->desc,na)));
       return;
     }
   }
   if (PE_RING_EMPTY(&ip->iring)) {
     PE_RING_UNSHIFT(&ip->iring, &Idle);
-    D_IDLE(warn("idle '%s'\n", SvPV(ev->desc,na)));
+    D_IDLE(warn("idle '%s'\n", SvPV(wa->desc,na)));
   }
   if (sv_2interval(ip->max_interval, &max)) {
-    left = ev->cbtime + max - now;
-    if (left < PE_INTERVAL_EPSILON) {
-      D_IDLE(warn("max '%s'\n", SvPV(ev->desc,na)));
+    left = wa->cbtime + max - now;
+    if (left < IntervalEpsilon) {
+      pe_event *ev;
+      D_IDLE(warn("max '%s'\n", SvPV(wa->desc,na)));
       PE_RING_DETACH(&ip->iring);
-      queueEvent(ev, 1);
+      ev = (*wa->vtbl->new_event)(wa);
+      ++ev->count;
+      queueEvent(ev);
       return;
     }
     else {
+      ++TimeoutTooEarly;
       ip->tm.at = now + left;
-      D_IDLE(warn("max %.2f '%s'\n", left, SvPV(ev->desc,na)));
+      D_IDLE(warn("max %.2f '%s'\n", left, SvPV(wa->desc,na)));
       pe_timeable_start(&ip->tm);
     }
   }
 }
 
-static void pe_idle_stop(pe_event *ev)
+static void pe_idle_stop(pe_watcher *ev)
 {
   pe_idle *ip = (pe_idle*) ev;
   PE_RING_DETACH(&ip->iring);
   pe_timeable_stop(&ip->tm);
 }
 
-static void pe_idle_FETCH(pe_event *_ev, SV *svkey)
+WKEYMETH(_idle_hard) /* move to timeable XXX */
 {
-  pe_idle *ev = (pe_idle*) _ev;
-  SV *ret=0;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 'h':
-    if (len == 4 && memEQ(key, "hard", 4)) {
-      ret = boolSV(EvHARD(ev));
-      break;
-    }
-    break;
-  case 'm':
-    if (len == 12 && memEQ(key, "max_interval", 12)) {
-      ret = ev->max_interval;
-      break;
-    }
-    if (len == 12 && memEQ(key, "min_interval", 12)) {
-      ret = ev->min_interval;
-      break;
-    }
-    break;
-  }
-  if (ret) {
+  if (!nval) {
     dSP;
-    XPUSHs(ret);
+    XPUSHs(boolSV(EvHARD(ev)));
     PUTBACK;
   } else {
-    (*ev->base.vtbl->up->FETCH)(_ev, svkey);
+    if (sv_true(nval)) EvHARD_on(ev); else EvHARD_off(ev);
   }
 }
 
-static void pe_idle_STORE(pe_event *_ev, SV *svkey, SV *nval)
+WKEYMETH(_idle_max_interval)
 {
-  SV *old=0;
-  pe_idle *ev = (pe_idle*)_ev;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  int ok=0;
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 'h':
-    if (len == 4 && memEQ(key, "hard", 4)) {
-      ok=1;
-      if (sv_true(nval))
-	EvHARD_on(ev);
-      else
-	EvHARD_off(ev);
-      break;
-    }
-    break;
-  case 'm':
-    if (len == 12 && memEQ(key, "max_interval", 12)) {
-      ok=1;
-      old = ev->max_interval;
-      ev->max_interval = SvREFCNT_inc(nval);
-      break;
-    }
-    if (len == 12 && memEQ(key, "min_interval", 12)) {
-      ok=1;
-      old = ev->min_interval;
-      ev->min_interval = SvREFCNT_inc(nval);
-      break;
-    }
-    break;
-  }
-  if (ok) {
+  pe_idle *ip = (pe_idle*) ev;
+  if (!nval) {
+    dSP;
+    XPUSHs(ip->max_interval);
+    PUTBACK;
+  } else {
+    SV *old = ip->max_interval;
+    ip->max_interval = SvREFCNT_inc(nval);
     if (old) SvREFCNT_dec(old);
-    /* WILL ADAPT NEXT TIME THROUGH!
-    if (EvACTIVE(ev)) {
-      pe_idle_stop(_ev);
-      pe_idle_start(_ev, 0);
-    }
-    */
   }
-  else
-    (ev->base.vtbl->up->STORE)(_ev, svkey, nval);
+}
+
+WKEYMETH(_idle_min_interval)
+{
+  pe_idle *ip = (pe_idle*) ev;
+  if (!nval) {
+    dSP;
+    XPUSHs(ip->min_interval);
+    PUTBACK;
+  } else {
+    SV *old = ip->min_interval;
+    ip->min_interval = SvREFCNT_inc(nval);
+    if (old) SvREFCNT_dec(old);
+  }
 }
 
 static void boot_idle()
 {
-  static char *keylist[] = {
-    "hard",
-    "min_interval",
-    "max_interval"
-  };
-  pe_event_vtbl *vt = &pe_idle_vtbl;
+  pe_watcher_vtbl *vt = &pe_idle_vtbl;
   PE_RING_INIT(&Idle, 0);
-  memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
-  vt->up = &pe_event_base_vtbl;
-  vt->keys = sizeof(keylist)/sizeof(char*);
-  vt->keylist = keylist;
-  vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::idle",1));
+  memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
+  vt->keymethod = newHVhv(vt->keymethod);
+  hv_store(vt->keymethod, "hard", 4, newSViv((IV)_idle_hard), 0);
+  hv_store(vt->keymethod, "max_interval", 12,
+	   newSViv((IV)_idle_max_interval), 0);
+  hv_store(vt->keymethod, "min_interval", 12,
+	   newSViv((IV)_idle_min_interval), 0);
   vt->dtor = pe_idle_dtor;
-  vt->FETCH = pe_idle_FETCH;
-  vt->STORE = pe_idle_STORE;
   vt->start = pe_idle_start;
   vt->stop = pe_idle_stop;
   vt->alarm = pe_idle_alarm;
-  pe_register_vtbl(vt);
+  pe_register_vtbl(vt, gv_stashpv("Event::idle",1), &event_vtbl);
 }

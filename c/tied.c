@@ -1,22 +1,22 @@
-static struct pe_event_vtbl pe_tied_vtbl;
+static struct pe_watcher_vtbl pe_tied_vtbl;
 
-static pe_event *pe_tied_allocate(SV *class)
+static pe_watcher *pe_tied_allocate(SV *class)
 {
   pe_tied *ev;
   New(PE_NEWID, ev, 1, pe_tied);
   ev->base.vtbl = &pe_tied_vtbl;
-  pe_event_init((pe_event*)ev);
+  pe_watcher_init((pe_watcher*)ev);
   PE_RING_INIT(&ev->tm.ring, ev);
   ev->base.stash = gv_stashsv(class, 1);
-  return (pe_event*) ev;
+  return (pe_watcher*) ev;
 }
 
-static void pe_tied_start(pe_event *ev, int repeat)
+static void pe_tied_start(pe_watcher *ev, int repeat)
 {
   GV *gv;
   dSP;
   PUSHMARK(SP);
-  XPUSHs(sv_2mortal(event_2sv(ev)));
+  XPUSHs(sv_2mortal(watcher_2sv(ev)));
   XPUSHs(boolSV(repeat));
   PUTBACK;
   gv = gv_fetchmethod(ev->stash, "_start");
@@ -25,25 +25,25 @@ static void pe_tied_start(pe_event *ev, int repeat)
   perl_call_sv((SV*)GvCV(gv), G_DISCARD);
 }
 
-static void pe_tied_stop(pe_event *ev)
+static void pe_tied_stop(pe_watcher *ev)
 {
   GV *gv = gv_fetchmethod(ev->stash, "_stop");
   pe_timeable_stop(&((pe_tied*)ev)->tm);
   if (gv) {
     dSP;
     PUSHMARK(SP);
-    XPUSHs(sv_2mortal(event_2sv(ev)));
+    XPUSHs(sv_2mortal(watcher_2sv(ev)));
     PUTBACK;
     perl_call_sv((SV*)GvCV(gv), G_DISCARD);
   }
 }
 
-static void pe_tied_alarm(pe_event *ev, pe_timeable *_ign)
+static void pe_tied_alarm(pe_watcher *ev, pe_timeable *_ign)
 {
   GV *gv;
   dSP;
   PUSHMARK(SP);
-  XPUSHs(sv_2mortal(event_2sv(ev)));
+  XPUSHs(sv_2mortal(watcher_2sv(ev)));
   PUTBACK;
   gv = gv_fetchmethod(ev->stash, "_alarm");
   if (!gv)
@@ -51,109 +51,62 @@ static void pe_tied_alarm(pe_event *ev, pe_timeable *_ign)
   perl_call_sv((SV*)GvCV(gv), G_DISCARD);
 }
 
-static void pe_tied_postCB(pe_cbframe *fp)
+WKEYMETH(_tied_at)
 {
-  pe_event *ev = fp->ev;
-  GV *gv = gv_fetchmethod(ev->stash, "_postCB");
-  if (gv) {
+  pe_tied *tp = (pe_tied*) ev;
+  if (!nval) {
     dSP;
-    PUSHMARK(SP);
-    XPUSHs(sv_2mortal(event_2sv(ev)));
-    PUTBACK;
-    perl_call_sv((SV*)GvCV(gv), G_DISCARD);
-  }
-  pe_event_postCB(fp);
-}
-
-static void pe_tied_FETCH(pe_event *_ev, SV *svkey)
-{
-  pe_tied *ev = (pe_tied*) _ev;
-  SV *ret=0;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 'a':
-    if (len == 2 && memEQ(key, "at", 2)) {
-      ret = sv_2mortal(newSVnv(ev->tm.at));
-      break;
-    }
-    break;
-  case 'c':
-    if (len == 6 && memEQ(key, "cbtime", 6)) {
-      ret = sv_2mortal(newSVnv(ev->base.cbtime));
-      break;
-    }
-  }
-  if (ret) {
-    dSP;
-    XPUSHs(ret);
+    XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
     PUTBACK;
   } else {
-    (*ev->base.vtbl->up->FETCH)(_ev, svkey);
+    pe_timeable_stop(&tp->tm);
+    if (SvOK(nval)) {
+      tp->tm.at = SvNV(nval);
+      pe_timeable_start(&tp->tm);
+    }
   }
 }
 
-static void pe_tied_STORE(pe_event *ev, SV *svkey, SV *nval)
+WKEYMETH(_tied_cbtime)
 {
-  SV *old=0;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  int ok=0;
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 'a':
-    if (len == 2 && memEQ(key, "at", 2)) {
-      pe_timeable_stop(&((pe_tied*)ev)->tm);
-      if (SvOK(nval)) {
-	((pe_tied*)ev)->tm.at = SvNV(nval);
-	pe_timeable_start(&((pe_tied*)ev)->tm);
-      }
-      break;
+  if (!nval) {
+    dSP;
+    XPUSHs(sv_2mortal(newSVnv(ev->cbtime)));
+    PUTBACK;
+  } else
+    croak("'cbtime' is read-only");
+}
+
+WKEYMETH(_tied_flags)
+{
+  if (!nval) {
+    _watcher_flags(ev, nval);
+  } else {
+    IV nflags = SvIV(nval);
+    IV flip = nflags ^ ev->flags;
+    IV other = flip & ~(PE_CBTIME|PE_INVOKE1);
+    if (flip & PE_INVOKE1) {
+      if (nflags & PE_INVOKE1) EvINVOKE1_on(ev); else EvINVOKE1_off(ev);
     }
-    break;
-  case 'c':
-    if (len == 6 && memEQ(key, "cbtime", 6))
-      croak("'cbtime' is read-only");
-    break;
-  case 'f':
-    if (len == 5 && memEQ(key, "flags", 5)) {
-      IV nflags = SvIV(nval);
-      IV flip = nflags ^ ev->flags;
-      IV other = flip & ~(PE_CBTIME|PE_INVOKE1);
-      if (flip & PE_INVOKE1) {
-	if (nflags & PE_INVOKE1) EvINVOKE1_on(ev); else EvINVOKE1_off(ev);
-      }
-      if (flip & PE_CBTIME) {
-	if (nflags & PE_CBTIME) EvCBTIME_on(ev); else EvCBTIME_off(ev);
-      }
-      if (other)
-	warn("Other flags (0x%x) cannot be changed", other);
-      ok=1;
+    if (flip & PE_CBTIME) {
+      if (nflags & PE_CBTIME) EvCBTIME_on(ev); else EvCBTIME_off(ev);
     }
-    break;
+    if (other)
+      warn("Other flags (0x%x) cannot be changed", other);
   }
-  if (!ok) (ev->vtbl->up->STORE)(ev, svkey, nval);
 }
 
 static void boot_tied()
 {
-  static char *keylist[] = {
-    "at",
-    "cbtime"
-  };
-  pe_event_vtbl *vt = &pe_tied_vtbl;
-  memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
-  vt->up = &pe_event_base_vtbl;
-  vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event",1));
-  vt->keys = sizeof(keylist)/sizeof(char*);
-  vt->keylist = keylist;
-  vt->STORE = pe_tied_STORE;
+  pe_watcher_vtbl *vt = &pe_tied_vtbl;
+  memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
+  vt->did_require = 1; /* otherwise tries to autoload Event::Event! */
+  vt->keymethod = newHVhv(vt->keymethod);
+  hv_store(vt->keymethod, "at", 2, newSViv((IV)_tied_at), 0);
+  hv_store(vt->keymethod, "cbtime", 6, newSViv((IV)_tied_cbtime), 0);
+  hv_store(vt->keymethod, "flags", 5, newSViv((IV)_tied_flags), 0);
   vt->start = pe_tied_start;
   vt->stop = pe_tied_stop;
   vt->alarm = pe_tied_alarm;
-  vt->postCB = pe_tied_postCB;
-  pe_register_vtbl(vt);
+  pe_register_vtbl(vt, gv_stashpv("Event",1), &event_vtbl);
 }

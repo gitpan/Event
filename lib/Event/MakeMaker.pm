@@ -24,7 +24,7 @@ Event::MakeMaker - MakeMaker glue for the C-level Event API
 
 =head1 SYNOPSIS
 
-This is an advanced feature.
+This is an advanced feature of Event.
 
 =head1 DESCRIPTION
 
@@ -105,22 +105,6 @@ Just be aware of it and set your expectations accordingly.
   Ev->start((pe_event*) X11_ev, 0);
 
 =head2 BUT I NEED A NEW TYPE OF WATCHER FOR MY INTERGALACTIC INFEROMETER
-
-Are you sure?  Hopefully you can just do something like this:
-
-  struct xevent {
-    pe_io *io;
-    XEvent event;
-    ...etc...
-  };
-
-To create it you'll need to:
-
-  struct xevent *xe;
-  New(xe, 0, 1, struct xevent);
-  xe->io = Ev->new_io();
-  xe->io->ext_data = xe;   /* note: circular ref */
-  ...
 
 I'd prefer not to export the entire Event.h apparatus in favour of
 minimizing interdependencies.  If you really, really need to create a

@@ -1,3 +1,13 @@
+ACTIVE flag split into two flags: really active & should be active?
+
+replace pe_watcher::ev1 with a ring of active events?
+
+scope of pe_event should include life of SV?
+
+pe_event_base_vtbl
+
+rename c/event_vtbl.c -> c/watcher.c
+
 comp.lang.perl.announce prerequisites
   portability?  wait for Win32?
 &
@@ -30,6 +40,6 @@ loop
 
 make subclassing work as well as possible
 
-export_fail hook to autoload
+export_fail hook to autoload?
 
 accept "%f minutes" & "%f hours" for all time specifications?

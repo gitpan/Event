@@ -1,6 +1,6 @@
-static struct pe_event_vtbl pe_timer_vtbl;
+static struct pe_watcher_vtbl pe_timer_vtbl;
 
-static pe_event *pe_timer_allocate()
+static pe_watcher *pe_timer_allocate()
 {
   pe_timer *ev;
   New(PE_NEWID, ev, 1, pe_timer);
@@ -9,18 +9,18 @@ static pe_event *pe_timer_allocate()
   PE_RING_INIT(&ev->tm.ring, ev);
   ev->tm.at = 0;
   ev->interval = &PL_sv_undef;
-  pe_event_init((pe_event*) ev);
-  return (pe_event*) ev;
+  pe_watcher_init((pe_watcher*) ev);
+  return (pe_watcher*) ev;
 }
 
-static void pe_timer_dtor(pe_event *ev)
+static void pe_timer_dtor(pe_watcher *ev)
 {
   pe_timer *tm = (pe_timer*) ev;
   SvREFCNT_dec(tm->interval);
-  pe_event_dtor(ev);
+  pe_watcher_dtor(ev);
 }
 
-static void pe_timer_start(pe_event *ev, int repeat)
+static void pe_timer_start(pe_watcher *ev, int repeat)
 {
   pe_timer *tm = (pe_timer*) ev;
   if (repeat) {
@@ -41,109 +41,59 @@ static void pe_timer_start(pe_event *ev, int repeat)
   pe_timeable_start(&tm->tm);
 }
 
-static void pe_timer_stop(pe_event *ev)
+static void pe_timer_stop(pe_watcher *ev)
 { pe_timeable_stop(&((pe_timer*)ev)->tm); }
 
-static void pe_timer_alarm(pe_event *ev, pe_timeable *tm)
-{ queueEvent(ev, 1); }
-
-static void pe_timer_FETCH(pe_event *_ev, SV *svkey)
+static void pe_timer_alarm(pe_watcher *wa, pe_timeable *tm)
 {
-  pe_timer *ev = (pe_timer*) _ev;
-  SV *ret=0;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 'a':
-    if (len == 2 && memEQ(key, "at", 2)) {
-      ret = sv_2mortal(newSVnv(ev->tm.at));
-      break;
-    }
-    break;
-  case 'h':
-    if (len == 4 && memEQ(key, "hard", 4)) {
-      ret = boolSV(EvHARD(ev));
-      break;
-    }
-    break;
-  case 'w':
-    if (len == 4 && memEQ(key, "when", 4)) {
-      warn("Please use 'at' instead of 'when'");
-      ret = sv_2mortal(newSVnv(ev->tm.at));
-      break;
-    }
-    break;
-  case 'i':
-    if (len == 8 && memEQ(key, "interval", 8)) {
-      ret = ev->interval;
-      break;
-    }
-    break;
-  }
-  if (ret) {
+  pe_event *ev = (*wa->vtbl->new_event)(wa);
+  ++ev->count;
+  queueEvent(ev);
+}
+
+WKEYMETH(_timer_at)
+{
+  pe_timer *tp = (pe_timer*)ev;
+  if (!nval) {
     dSP;
-    XPUSHs(ret);
+    XPUSHs(sv_2mortal(newSVnv(tp->tm.at)));
     PUTBACK;
   } else {
-    (*ev->base.vtbl->up->FETCH)(_ev, svkey);
+    int active = EvACTIVE(ev);
+    if (active) pe_timer_stop(ev);
+    tp->tm.at = SvNV(nval);
+    if (active) pe_timer_start(ev, 0);
   }
 }
 
-static void
-pe_timer_STORE(pe_event *_ev, SV *svkey, SV *nval)
+WKEYMETH(_timer_hard) /* XXX */
 {
-  pe_timer *ev = (pe_timer*) _ev;
-  STRLEN len;
-  char *key = SvPV(svkey, len);
-  int ok=0;
-  if (len && key[0] == '-') { ++key; --len; }
-  if (!len) return;
-  switch (key[0]) {
-  case 'h':
-    if (len == 4 && memEQ(key, "hard", 4)) {
-      if (sv_true(nval))
-	EvHARD_on(ev);
-      else
-	EvHARD_off(ev);
-      ok=1;
-      break;
-    }
-    break;
-  case 'a':
-    if (len == 2 && memEQ(key, "at", 2)) {
-      int active = EvACTIVE(ev);
-      ok=1;
-      if (active)
-	pe_timer_stop(_ev);
-      ev->tm.at = SvNV(nval);
-      if (active)
-	pe_timer_start(_ev, 0);
-      break;
-    }
-    break;
-  case 'i':
-    if (len == 8 && memEQ(key, "interval", 8)) {
-      SV *old = ev->interval;
-      ev->interval = SvREFCNT_inc(nval);
-      SvREFCNT_dec(old);
-      ok=1;
-      break;
-    }
-    break;
+  if (!nval) {
+    dSP;
+    XPUSHs(boolSV(EvHARD(ev)));
+    PUTBACK;
+  } else {
+    if (sv_true(nval)) EvHARD_on(ev); else EvHARD_off(ev);
   }
-  if (!ok) (ev->base.vtbl->up->STORE)(_ev, svkey, nval);
+}
+
+WKEYMETH(_timer_interval)
+{
+  pe_timer *tp = (pe_timer*)ev;
+  if (!nval) {
+    dSP;
+    XPUSHs(tp->interval);
+    PUTBACK;
+  } else {
+    SV *old = tp->interval;
+    tp->interval = SvREFCNT_inc(nval);
+    SvREFCNT_dec(old);
+  }
 }
 
 static void boot_timer()
 {
-  static char *keylist[] = {
-    "hard",
-    "at",
-    "interval"
-  };
-  pe_event_vtbl *vt = &pe_timer_vtbl;
+  pe_watcher_vtbl *vt = &pe_timer_vtbl;
 /*
   SV *bt = perl_get_sv("^T", 0);
   if (SvNOK(bt)) {
@@ -152,16 +102,14 @@ static void boot_timer()
     BaseTime = SvIV(bt);
   }
 */
-  memcpy(vt, &pe_event_base_vtbl, sizeof(pe_event_base_vtbl));
-  vt->up = &pe_event_base_vtbl;
-  vt->stash = (HV*) SvREFCNT_inc((SV*) gv_stashpv("Event::timer",1));
-  vt->keys = sizeof(keylist)/sizeof(char*);
-  vt->keylist = keylist;
+  memcpy(vt, &pe_watcher_base_vtbl, sizeof(pe_watcher_base_vtbl));
+  vt->keymethod = newHVhv(vt->keymethod);
+  hv_store(vt->keymethod, "at", 2, newSViv((IV)_timer_at), 0);
+  hv_store(vt->keymethod, "hard", 4, newSViv((IV)_timer_hard), 0);
+  hv_store(vt->keymethod, "interval", 8, newSViv((IV)_timer_interval), 0);
   vt->dtor = pe_timer_dtor;
-  vt->FETCH = pe_timer_FETCH;
-  vt->STORE = pe_timer_STORE;
   vt->start = pe_timer_start;
   vt->stop = pe_timer_stop;
   vt->alarm = pe_timer_alarm;
-  pe_register_vtbl(vt);
+  pe_register_vtbl(vt, gv_stashpv("Event::timer",1), &event_vtbl);
 }

@@ -12,7 +12,7 @@ use base 'Exporter';
 use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-$VERSION = '0.23';
+$VERSION = '0.24';
 BOOT_XS: {
     # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
     require DynaLoader;
@@ -31,7 +31,8 @@ $DebugLevel = 0;
 $Eval = 0;		# should avoid because c_callback is exempt
 $DIED = \&default_exception_handler;
 
-@EXPORT_OK = qw(time $Now all_events all_running all_queued all_idle
+@EXPORT_OK = qw(time $Now
+		all_events all_watchers all_running all_queued all_idle
 		one_event sweep loop unloop unloop_all sleep queue
 		QUEUES PRIO_NORMAL PRIO_HIGH R W E T);
 
@@ -159,21 +160,32 @@ sub add_hooks {
     }
 }
 
+END {
+    my @all = all_watchers();
+    for (@all) { $_->cancel() }
+}
+
 #----------------------------------- backward compatibility
 
 my $backward_noise = 20;
 
 if (1) {
-    # Do you feel like you need an entwash?  Have some of this!
+    # Do you feel like you need entwash?  Have some of this!
     no strict 'refs';
 
-    # Event 0.18
+    # 0.24
+    *Event::all_events = sub {
+	carp "all_events renamed to all_watchers" if --$backward_noise >0;
+	&all_watchers
+    };
+
+    # 0.18
     *Event::queueEvent = sub {
 	carp "queueEvent renamed to queue" if --$backward_noise > 0;
 	&queue;
     };
 
-    # Event 0.12
+    # 0.12
     for my $m (qw(QUEUES PRIO_HIGH PRIO_NORMAL queueEvent)) {
 	*{"Event::Loop::$m"} = sub {
 	    carp "$m moved to Event" if --$backward_noise > 0;
@@ -201,7 +213,7 @@ if (1) {
 	};
     }
 
-    # Event 0.02
+    # 0.02
     *Loop = sub {
 	carp "please use Event::loop" if --$backward_noise > 0;
 	&loop

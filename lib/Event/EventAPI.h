@@ -20,6 +20,8 @@
   into the main Event distribution.  Listed below:
  */
 
+typedef struct pe_watcher_vtbl pe_watcher_vtbl;
+typedef struct pe_watcher pe_watcher;
 typedef struct pe_event_vtbl pe_event_vtbl;
 typedef struct pe_event pe_event;
 typedef struct pe_stat pe_stat;
@@ -27,26 +29,38 @@ typedef struct pe_ring pe_ring;
 
 struct pe_ring { void *self; pe_ring *next, *prev; };
 
-struct pe_event {
-  pe_event_vtbl *vtbl;
+#define PE_ITER_EVENT 0
+#define PE_ITER_WATCHER 1
+#define PE_ITER_FALLBACK 2
+
+struct pe_watcher {
+  pe_watcher_vtbl *vtbl;
   HV *stash;
   U32 flags;
   I32 refcnt;
   SV *desc;
-  pe_ring all, que;
+  pe_ring all;
+  pe_event *ev1; /* most recently created event */
   HV *FALLBACK;
   I16 iter;
   I16 id;
   I16 priority;
   IV running; /* SAVEINT */
   double cbtime;
-  I32 count;
   void *callback;
   void *ext_data;
   pe_stat *stats;
 };
 
-/* This must be placed directly after pe_event so the memory
+struct pe_event {
+  pe_event_vtbl *vtbl;
+  pe_watcher *up;
+  pe_ring que;
+  I16 count;
+  I16 priority;
+};
+
+/* This must be placed directly after pe_watcher so the memory
    layouts are always compatible. */
 typedef struct pe_timeable pe_timeable;
 struct pe_timeable {
@@ -62,15 +76,11 @@ struct pe_qcallback {
   void *ext_data;
 };
 
-/* close enough to zero -- this needs to be bigger if you turn
-   on lots of debugging?  Can determine clock resolution on the fly? XXX */
-#define PE_INTERVAL_EPSILON 0.00001
-
 /* PUBLIC FLAGS */
-#define PE_DEBUG	0x0100
-#define PE_REPEAT	0x0200
-#define PE_INVOKE1	0x0400
-#define PE_CBTIME	0x0800
+#define PE_DEBUG	0x1000
+#define PE_REPEAT	0x2000
+#define PE_INVOKE1	0x4000
+#define PE_CBTIME	0x8000
 
 #define EvDEBUG(ev)		((EvFLAGS(ev) & PE_DEBUG)? 2:0) /*arthimetical*/
 #define EvDEBUG_on(ev)		(EvFLAGS(ev) |= PE_DEBUG)
@@ -99,9 +109,15 @@ struct pe_qcallback {
 #define PE_E 0x4
 #define PE_T 0x8
 
+typedef struct pe_ioevent pe_ioevent;
+struct pe_ioevent {
+  pe_event base;
+  U16 got;
+};
+
 typedef struct pe_idle pe_idle;
 struct pe_idle {
-  pe_event base;
+  pe_watcher base;
   pe_timeable tm;
   pe_ring iring;
   SV *max_interval, *min_interval;
@@ -109,55 +125,50 @@ struct pe_idle {
 
 typedef struct pe_io pe_io;
 struct pe_io {
-  pe_event base;
+  pe_watcher base;
   pe_timeable tm; /*timeout*/
-  pe_timeable ttm; /*tailpoll*/
   pe_ring ioring;
   SV *handle;
   float timeout;
-  float tailpoll;
   U16 events;
-  U16 got;
 /* ifdef UNIX */
   int fd;
   int xref;  /*private: for poll*/
-  off_t size;
 /* endif */
 };
 
 typedef struct pe_signal pe_signal;
 struct pe_signal {
-  pe_event base;
+  pe_watcher base;
   pe_ring sring;
   IV signal;
 };
 
 typedef struct pe_timer pe_timer;
 struct pe_timer {
-  pe_event base;
+  pe_watcher base;
   pe_timeable tm;
   SV *interval;
 };
 
 typedef struct pe_var pe_var;
 struct pe_var {
-  pe_event base;
+  pe_watcher base;
   SV *variable;
   U16 events;
-  U16 got;
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 9
+#define EventAPI_VERSION 10
   I32 Ver;
 
   /* EVENTS */
-  void (*start)(pe_event *ev, int repeat);
-  void (*queue)(pe_event *ev, int count);
-  void (*now)(pe_event *ev);
-  void (*suspend)(pe_event *ev);
-  void (*resume)(pe_event *ev);
-  void (*cancel)(pe_event *ev);
+  void (*start)(pe_watcher *ev, int repeat);
+  void (*queue)(pe_event *ev);
+  void (*now)(pe_watcher *ev);
+  void (*suspend)(pe_watcher *ev);
+  void (*resume)(pe_watcher *ev);
+  void (*cancel)(pe_watcher *ev);
 
   pe_idle     *(*new_idle)();
   pe_timer    *(*new_timer)();

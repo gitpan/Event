@@ -21,16 +21,16 @@ static void pe_timeables_check()
   double now = EvNOW(1);
   /*  warn("timeables at %.2f\n", now); db_show_timeables();/**/
   while (tm->ring.self && tm->at < now) {
-    pe_event *ev = (pe_event*) tm->ring.self;
+    pe_watcher *ev = (pe_watcher*) tm->ring.self;
     pe_timeable *next = (pe_timeable*) tm->ring.next;
     D_TIMEABLE({
       if (EvDEBUGx(ev) >= 4)
-	warn("Event: timeable expire '%s'\n", SvPV(ev->base.desc,na));
+	warn("Event: timeable expire '%s'\n", SvPV(ev->base.desc,PL_na));
     })
     assert(!EvSUSPEND(ev));
     assert(EvACTIVE(ev));
     PE_RING_DETACH(&tm->ring);
-    (*ev->vtbl->alarm)((pe_event*)ev, tm);
+    (*ev->vtbl->alarm)((pe_watcher*)ev, tm);
     tm = next;
   }
 }
@@ -46,11 +46,17 @@ static double timeTillTimer()
 static void pe_timeable_start(pe_timeable *tm)
 {
   /* OPTIMIZE! */
-  pe_event *ev = (pe_event*) tm->ring.self;
+  pe_watcher *ev = (pe_watcher*) tm->ring.self;
   pe_timeable *rg = (pe_timeable*) Timeables.ring.next;
   assert(!EvSUSPEND(ev));
   assert(EvACTIVE(ev));
   assert(PE_RING_EMPTY(&tm->ring));
+  if (EvDEBUGx(ev)) {
+    double left = tm->at - EvNOW(1);
+    if (left < 0)
+      warn("Event: timer for '%s' set to expire immediately (%.2f)",
+	   SvPV(ev->desc, PL_na), left);
+  }
   while (rg->ring.self && rg->at < tm->at) {
     rg = (pe_timeable*) rg->ring.next;
   }
@@ -59,16 +65,16 @@ static void pe_timeable_start(pe_timeable *tm)
   /*warn("T:\n"); db_show_timeables();/**/
   D_TIMEABLE({
     if (EvDEBUGx(ev) >= 4)
-      warn("Event: timeable start '%s'\n", SvPV(ev->desc,na));
+      warn("Event: timeable start '%s'\n", SvPV(ev->desc,PL_na));
   })
 }
 
 static void pe_timeable_stop(pe_timeable *tm)
 {
   D_TIMEABLE({
-    pe_event *ev = (pe_event*) tm->ring.self;
+    pe_watcher *ev = (pe_watcher*) tm->ring.self;
     if (EvDEBUGx(ev) >= 4)
-      warn("Event: timeable stop '%s'\n", SvPV(ev->desc,na));
+      warn("Event: timeable stop '%s'\n", SvPV(ev->desc,PL_na));
   })
   PE_RING_DETACH(&tm->ring);
 }

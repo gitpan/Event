@@ -8,6 +8,7 @@ Makefile.PL
 README
 TODO
 WARNING
+c/event.c
 c/event_vtbl.c
 c/gettimeofday.c
 c/idle.c
@@ -36,7 +37,6 @@ lib/Event/signal.pm
 lib/Event/timer.pm
 lib/Event/var.pm
 patches/leak.fix
-t/0load.t
 t/bored.t
 t/eval.t
 t/hook.t
@@ -51,7 +51,6 @@ t/process.t
 t/reenter.t
 t/signal.t
 t/stats.t
-t/tail.t
 t/timer.t
 t/var.t
 typemap

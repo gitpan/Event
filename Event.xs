@@ -1,5 +1,21 @@
 /* -*- /C/ -*- sometimes */
 
+/*
+void
+all_queued()
+	PROTOTYPE:
+	PPCODE:
+	pe_watcher *ev;
+	ev = NQueue.next->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
+	  ev = ev->que.next->self;
+	}
+
+
+*/
+
+
 #define MIN_PERL_DEFINE 1
 
 #include <EXTERN.h>
@@ -35,26 +51,32 @@
 
 #include "Event.h"
 
-static int ActiveWatchers=0; /* includes EvACTIVE & EvQUEUED */
+static int ActiveWatchers=0; /* includes EvACTIVE + queued events */
 static int WarnCounter=10;
 static int Stats=0;
 static SV *DebugLevel;
 static SV *Eval;
 
-static void queueEvent(pe_event *ev, int count);
+/* close enough to zero -- this needs to be bigger if you turn
+   on lots of debugging?  Can determine clock resolution dynamically? XXX */
+static double IntervalEpsilon = 0.0001;
+static int TimeoutTooEarly=0;
+
+static void queueEvent(pe_event *ev);
 static void dequeEvent(pe_event *ev);
 
 static int pe_sys_fileno(pe_io *ev);
-static void pe_event_cancel(pe_event *ev);
-static void pe_event_suspend(pe_event *ev);
-static void pe_event_resume(pe_event *ev);
-static void pe_event_now(pe_event *ev);
-static void pe_event_start(pe_event *ev, int repeat);
-static void pe_event_stop(pe_event *ev);
+static void pe_watcher_cancel(pe_watcher *ev);
+static void pe_watcher_suspend(pe_watcher *ev);
+static void pe_watcher_resume(pe_watcher *ev);
+static void pe_watcher_now(pe_watcher *ev);
+static void pe_watcher_start(pe_watcher *ev, int repeat);
+static void pe_watcher_stop(pe_watcher *ev);
 
 #include "typemap.c"
 #include "gettimeofday.c"  /* hack? XXX */
 #include "timeable.c"
+#include "event.c"
 #include "event_vtbl.c"
 #include "idle.c"
 #include "timer.c"
@@ -73,9 +95,11 @@ PROTOTYPES: DISABLE
 BOOT:
   DebugLevel = SvREFCNT_inc(perl_get_sv("Event::DebugLevel", 1));
   Eval = SvREFCNT_inc(perl_get_sv("Event::Eval", 1));
+  boot_typemap();
   boot_gettimeofday();
   boot_timeable();
   boot_pe_event();
+  boot_pe_watcher();
   boot_idle();
   boot_timer();
   boot_io();
@@ -89,12 +113,12 @@ BOOT:
     SV *apisv;
     New(PE_NEWID, api, 1, struct EventAPI);
     api->Ver = EventAPI_VERSION;
-    api->start = pe_event_start;
+    api->start = pe_watcher_start;
     api->queue = queueEvent;
-    api->now = pe_event_now;
-    api->suspend = pe_event_suspend;
-    api->resume = pe_event_resume;
-    api->cancel = pe_event_cancel;
+    api->now = pe_watcher_now;
+    api->suspend = pe_watcher_suspend;
+    api->resume = pe_watcher_resume;
+    api->cancel = pe_watcher_cancel;
     api->tstart = pe_timeable_start;
     api->tstop  = pe_timeable_stop;
     api->new_idle =     (pe_idle*(*)())         pe_idle_allocate;
@@ -108,13 +132,6 @@ BOOT:
     sv_setiv(apisv, (IV)api);
     SvREADONLY_on(apisv);
   }
-
-int
-_sizeof()
-	CODE:
-	RETVAL = sizeof(pe_event);
-	OUTPUT:
-	RETVAL
 
 void
 _add_hook(type, code)
@@ -130,6 +147,14 @@ time()
 	PPCODE:
 	pe_cache_now();
 	XPUSHs(NowSV);
+
+int
+_timeout_too_early()
+	CODE:
+	RETVAL = TimeoutTooEarly;
+	TimeoutTooEarly=0;
+	OUTPUT:
+	RETVAL
 
 void
 sleep(tm)
@@ -191,13 +216,24 @@ null_loops_per_second(sec)
 	RETVAL
 
 void
-all_events()
+all_watchers()
 	PROTOTYPE:
 	PPCODE:
-	pe_event *ev = AllEvents.next->self;
+	pe_watcher *ev = AllWatchers.next->self;
 	while (ev) {
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
 	  ev = ev->all.next->self;
+	}
+
+void
+all_idle()
+	PROTOTYPE:
+	PPCODE:
+	pe_watcher *ev;
+	ev = Idle.prev->self;
+	while (ev) {
+	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
+	  ev = ((pe_idle*)ev)->iring.prev->self;
 	}
 
 void
@@ -206,42 +242,37 @@ all_running()
 	PPCODE:
 	int fx;
 	for (fx = CurCBFrame; fx >= 0; fx--) {
-	  pe_event *ev = (CBFrame + fx)->ev;
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
+	  pe_watcher *ev = (CBFrame + fx)->ev->up; /* XXX */
+	  XPUSHs(sv_2mortal(watcher_2sv(ev)));
 	  if (GIMME_V != G_ARRAY)
 	    break;
 	}
 
 void
-all_queued()
-	PROTOTYPE:
-	PPCODE:
-	pe_event *ev;
-	ev = NQueue.next->self;
-	while (ev) {
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
-	  ev = ev->que.next->self;
-	}
-
-void
-all_idle()
-	PROTOTYPE:
-	PPCODE:
-	pe_event *ev;
-	ev = Idle.prev->self;
-	while (ev) {
-	  XPUSHs(sv_2mortal(event_2sv(ev)));
-	  ev = ev->que.prev->self;
-	}
-
-void
-pe_event::queue(...)
+queue(...)
 	PROTOTYPE: $;$
 	PREINIT:
+	pe_watcher *wa;
+	pe_event *ev;
 	int cnt = 1;
-	CODE:
-	if (items == 2) cnt = SvIV(ST(1));
-	queueEvent(THIS, cnt);
+	PPCODE:
+	decode_sv(ST(0), &wa, 0);
+	if (items == 1) {
+	    ev = (*wa->vtbl->new_event)(wa);
+	    ++ev->count;
+	}
+	else if (items == 2) {
+	  if (SvNIOK(ST(1))) {
+	    ev = (*wa->vtbl->new_event)(wa);
+	    ev->count += SvIV(ST(1));
+	  }
+	  else {
+	    decode_sv(ST(1), 0, &ev);
+	    if (ev->up != wa)
+	      croak("queue: event doesn't match watcher");
+	  }
+	}
+	queueEvent(ev);
 
 int
 one_event(...)
@@ -295,114 +326,127 @@ queue_time(prio)
 	XPUSHs(max? sv_2mortal(newSVnv(max)) : &PL_sv_undef);
 
 
-MODULE = Event		PACKAGE = Event::Watcher
+MODULE = Event		PACKAGE = Event::Watcher::Inner
 
 void
 DESTROY(ref)
 	SV *ref
 	CODE:
 	SV *sv;
-	if (!SvRV(ref))
-	  croak("Expected RV");
+	pe_watcher *THIS;
+	assert(SvRV(ref));
 	sv = SvRV(ref);
-	/*	warn("DESTROY %x", ref);/**/
-	/* will be called twice for each Event; yuk! */
-	if (SvTYPE(sv) == SVt_PVMG) {
-	  pe_event *THIS = (pe_event*) SvIV(sv);
-	  --THIS->refcnt;
+	assert(SvTYPE(sv) == SVt_PVMG);
+	THIS = (pe_watcher*) SvIV(sv);
+	--THIS->refcnt;
 	/*  warn("id=%d --refcnt=%d flags=0x%x",
-		 THIS->id, THIS->refcnt,THIS->flags); /**/
-	  if (EvCANDESTROY(THIS) || (THIS->refcnt == 0 && PL_in_clean_objs)) {
-	    (*THIS->vtbl->dtor)(THIS);
-	  }
+		THIS->id, THIS->refcnt,THIS->flags); /**/
+	if (EvCANDESTROY(THIS)) {
+	  (*THIS->vtbl->dtor)(THIS);
 	}
-	/* else {
-	  MAGIC *mg = mg_find(sv, 'P');
-	  if (mg && SvREFCNT(SvRV(mg->mg_obj)) > 1)
-	    warn("Event untie %d (debug)", SvREFCNT(SvRV(mg->mg_obj)) - 1);
-	  sv_unmagic(sv, 'P');
-	} */
+
+MODULE = Event		PACKAGE = Event::Watcher
 
 void
-pe_event::again()
+pe_watcher::again()
 	CODE:
-	pe_event_start(THIS, 1);
+	pe_watcher_start(THIS, 1);
 
 void
-pe_event::start()
+pe_watcher::start()
 	CODE:
-	pe_event_start(THIS, 0);
+	pe_watcher_start(THIS, 0);
 
 void
-pe_event::suspend()
+pe_watcher::suspend()
 	CODE:
-	pe_event_suspend(THIS);
+	pe_watcher_suspend(THIS);
 
 void
-pe_event::resume()
+pe_watcher::resume()
 	CODE:
-	pe_event_resume(THIS);
+	pe_watcher_resume(THIS);
 
 void
-pe_event::cancel()
+pe_watcher::cancel()
 	CODE:
-	pe_event_cancel(THIS);
+	pe_watcher_cancel(THIS);
 
 void
-pe_event::now()
+pe_watcher::now()
 	CODE:
-	pe_event_now(THIS);
+	pe_watcher_now(THIS);
 
 void
-pe_event::FETCH(key)
+FETCH(obj, key)
+	SV *obj;
 	SV *key;
+	PREINIT:
+	void *vp;
+	pe_base_vtbl *vt;
 	PPCODE:
 	PUTBACK;
-	(*THIS->vtbl->FETCH)(THIS, key);
+	get_base_vtbl(obj, &vp, &vt);
+	vt->Fetch(vp, key);
 	SPAGAIN;
 
 void
-pe_event::STORE(key,nval)
+STORE(obj, key, nval)
+	SV *obj
 	SV *key
 	SV *nval
+	PREINIT:
+	void *vp;
+	pe_base_vtbl *vt;
 	PPCODE:
 	PUTBACK;
-	(*THIS->vtbl->STORE)(THIS, key, nval);
+	get_base_vtbl(obj, &vp, &vt);
+	vt->Store(vp, key, nval);
 	SPAGAIN;
 
 void
-pe_event::DELETE(key)
+FIRSTKEY(obj)
+	SV *obj
+	PREINIT:
+	void *vp;
+	pe_base_vtbl *vt;
+	PPCODE:
+	PUTBACK;
+	get_base_vtbl(obj, &vp, &vt);
+	vt->Firstkey(vp);
+	SPAGAIN;
+
+void
+NEXTKEY(obj, prevkey)
+	SV *obj;
+	SV *prevkey
+	PREINIT:
+	void *vp;
+	pe_base_vtbl *vt;
+	PPCODE:
+	PUTBACK;
+	get_base_vtbl(obj, &vp, &vt);
+	vt->Nextkey(vp);
+	SPAGAIN;
+
+void
+pe_watcher::DELETE(key)
 	SV *key
 	PPCODE:
 	PUTBACK;
-	(*THIS->vtbl->DELETE)(THIS, key);
+	pe_watcher_DELETE(THIS, key);
 	SPAGAIN;
 
 void
-pe_event::EXISTS(key)
+pe_watcher::EXISTS(key)
 	SV *key
 	PPCODE:
 	PUTBACK;
-	(*THIS->vtbl->EXISTS)(THIS, key);
+	pe_watcher_EXISTS(THIS, key);
 	SPAGAIN;
 
 void
-pe_event::FIRSTKEY()
-	PPCODE:
-	PUTBACK;
-	(*THIS->vtbl->FIRSTKEY)(THIS);
-	SPAGAIN;
-
-void
-pe_event::NEXTKEY(prevkey)
-	SV *prevkey;
-	PPCODE:
-	PUTBACK;
-	(*THIS->vtbl->NEXTKEY)(THIS);
-	SPAGAIN;
-
-void
-pe_event::stats(sec)
+pe_watcher::stats(sec)
 	int sec
 	PREINIT:
 	int ran;
@@ -415,7 +459,7 @@ pe_event::stats(sec)
 	XPUSHs(sv_2mortal(newSViv(ran)));
 	XPUSHs(sv_2mortal(newSVnv(elapse)));
 
-pe_event *
+pe_watcher *
 allocate(class)
 	SV *class
 	CODE:
@@ -479,7 +523,7 @@ DESTROY()
 
 MODULE = Event		PACKAGE = Event::idle
 
-pe_event *
+pe_watcher *
 allocate()
 	CODE:
 	RETVAL = pe_idle_allocate();
@@ -489,7 +533,7 @@ allocate()
 
 MODULE = Event		PACKAGE = Event::timer
 
-pe_event *
+pe_watcher *
 allocate()
 	CODE:
 	RETVAL = pe_timer_allocate();
@@ -499,7 +543,7 @@ allocate()
 
 MODULE = Event		PACKAGE = Event::io
 
-pe_event *
+pe_watcher *
 allocate()
 	CODE:
 	RETVAL = pe_io_allocate();
@@ -509,7 +553,7 @@ allocate()
 
 MODULE = Event		PACKAGE = Event::var
 
-pe_event *
+pe_watcher *
 allocate()
 	CODE:
 	RETVAL = pe_var_allocate();
@@ -519,7 +563,7 @@ allocate()
 
 MODULE = Event		PACKAGE = Event::signal
 
-pe_event *
+pe_watcher *
 allocate()
 	CODE:
 	RETVAL = pe_signal_allocate();

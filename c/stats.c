@@ -99,14 +99,14 @@ static void pe_stat_roll(pe_stat *st)
 
 static void pe_stat_roll_cb()
 {
-  pe_event *ev;
+  pe_watcher *ev;
   struct timeval done_tm;
   gettimeofday(&done_tm, 0);
   pe_stat_record(&totalStats, (done_tm.tv_sec-total_tm.tv_sec +
 			      (done_tm.tv_usec-total_tm.tv_usec)/1000000.0));
   gettimeofday(&total_tm, 0);
 
-  ev = AllEvents.next->self;
+  ev = AllWatchers.next->self;
   while (ev) {
     if (!ev->stats) {
       New(PE_NEWID, ev->stats, 1, pe_stat);
@@ -122,7 +122,7 @@ static void pe_stat_roll_cb()
 static void pe_stat_restart()
 {
   if (!Stats) {
-    pe_event *ev = AllEvents.next->self;
+    pe_watcher *ev = AllWatchers.next->self;
     /*    warn("reinit stats"); /**/
     while (ev) {
       if (ev->stats)
@@ -136,25 +136,25 @@ static void pe_stat_restart()
       RollTimer = (pe_timer*) pe_timer_allocate();
     RollTimer->tm.at = EvNOW(1);
     RollTimer->interval = newSVnv(PE_STAT_SECONDS);
-    ev = (pe_event*) RollTimer;
+    ev = (pe_watcher*) RollTimer;
     EvREPEAT_on(ev);
     sv_setpv(ev->desc, "Event::Stats");
     ev->priority = PE_PRIO_NORMAL + 1;
     ev->callback = (void*) pe_stat_roll_cb;
     gettimeofday(&total_tm, 0);
-    pe_event_start(ev, 0);
+    pe_watcher_start(ev, 0);
   }
   ++Stats;
 }
 
 static void pe_stat_stop()
 {
-  pe_event *ev;
+  pe_watcher *ev;
   if (Stats) {
     if (--Stats)
       return;
 
-    ev = (pe_event*) RollTimer;
+    ev = (pe_watcher*) RollTimer;
     pe_timer_stop(ev);
   }
 }
