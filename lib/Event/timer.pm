@@ -44,7 +44,6 @@ sub new {
     }
 
     $o->init(\%arg);
-    $o->start();
     $o;
 }
 

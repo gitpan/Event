@@ -90,7 +90,7 @@ or
   $w = Event::type( [attr1 => $value,]...);
 
 Where I<type> is substituted with the kind of watcher.  Built-in types
-include idle, inactivity, io, signal, timer, and var.
+include idle, io, signal, timer, and var.
 
 New watchers (hopefully) have reasonable defaults and can also be
 customized by passing extra attributes to the constructor.  When
@@ -108,12 +108,13 @@ For example:
 
    $watcher->cb(\&some_code);   # set callback
 
-   warn $watcher->desc.": ".$watcher->hits." events happened; Wow!";
+   warn $event->w->desc.": ".$event->hits." events happened; Wow!";
 
-All watchers support at least the following attributes: cb, hits,
-prio, desc, repeat, debug, and reentrant.  Most watchers also offer
-additional attributes according to their specialty.  Moreover, some
-attributes are only meaningful when passed via the constructor.
+All watchers support the following attributes: cb, cbtime, debug,
+desc, prio, max_cb_tm, reentrant, repeat, and running.  Watcher
+constructors accept the preceding and additionally: async and nice.
+All events support: hits, prio, and w.  Moreover, watchers also offer
+extra attributes according to their specialty.
 
 =head2 Shared Watcher Methods
 
@@ -123,7 +124,10 @@ The following methods are available for all watchers:
 
 =item $watcher->start
 
-Activate the watcher.  Most constructors return already active
+Activate the watcher.  Watchers refuse to C<start()> without
+sufficient configuration information to generate events.  Constructors
+always invoke C<start()> unless the C<parked=>1> option is requested.
+You will need to set the parked option if you preallocate unconfigured
 watchers.
 
 =item $watcher->again
@@ -150,8 +154,13 @@ methods.
 =item $watcher->cancel
 
 Stop and destroy C<$watcher>.  Running events are allowed to complete
-but pending events are cancelled.  If an attempt is made to use
-C<$watcher> after calling C<cancel> then an exception will be thrown.
+but pending events are cancelled.  Cancelled watchers are no longer
+valid except for read-only type operations.  For example, prio() will
+return the watcher's priority, but start() will always fail.
+
+=item $watcher->is_cancelled
+
+Reports whether the C<$watcher> has been cancelled.
 
 =item $watcher->is_active
 
@@ -176,15 +185,23 @@ The callback is invoked only when no events are pending.  If there is
 never a chance to idle, an event will be generated at least every
 C<max> seconds and not more often than C<min> seconds.
 
-=item inactivity
+=item inactivity (EXPERIMENTAL)
 
 Extra attributes: level => $level, timeout => $seconds
 
-Not yet documented.
+Inactivity watchers are similar to idle watchers.  The difference is
+that they judge idleness by whether there have been any events with
+priority higher than the threshold C<$level>.
+
+If you find these useful, then send email to the mailing list.
+Otherwise, they might be deprecated.
 
 =item var
 
-Extra attributes: var => \$var, poll => 'rw'
+Extra attributes: var => \$var, poll => 'rw', got => 'rw',
+
+Var watchers generate events when the given variable is read from or
+written to.
 
 =item timer
 
@@ -234,17 +251,36 @@ Not yet implemented.
 
 =back
     
-=head2 ATTRIBUTES
+=head2 WATCHER CONSTRUCTOR ATTRIBUTES
 
-The following attributes currently have a meaning:
+These options are only supported as constructor arguments.
 
 =over 4
 
 =item after => $seconds
 
+See the discussion of the timer watcher.
+
 =item async => $bool
 
-For use in the constructor to specify a priority of -1.
+If $bool then the watcher priority is set to -1.
+
+=item nice => $int
+
+Offset from the default priority.  All watchers have a default
+priority of ${"Event::${type}::DefaultPriority"}.
+
+=item parked => $yes
+
+By default, watcher constructors automatically invoke the C<start()>
+method.  If you don't want the watcher started then request
+C<parked=>1>.
+
+=back
+
+=head2 WATCHER ATTRIBUTES
+
+=over 4
 
 =item at => $time
 
@@ -284,24 +320,12 @@ constructed.
 The C<flag> attribute encodes information about the state of an
 event.  [XXX Fill in exact bits] [DEPRECATED?]
 
-=item got => $bits
-
-C<got> is available in the callback of watchers with C<poll>.
-C<got> is in the same format as C<poll> except that it gives what
-kind of event actually happened.  In contrast, C<poll> is just an
-expression of interest.
-
 =item hard => $bool
 
-Determines how repeating timers are recalculated.  The timer is
-restarted either before or after the callback depending on whether it
-is true or false, respectively.  In long-running callbacks this can
-make a significant difference.
-
-=item hits => $int
-
-A watcher increments C<hits> every time it registers an event.
-Signals in quick succession can be clumped into a single event.
+Determines how repeating timers (or timeouts) are recalculated.  The
+timer is restarted either before or after the callback depending on
+whether it is true or false, respectively.  In long-running callbacks
+this can make a significant difference.
 
 =item interval => $seconds
 
@@ -309,6 +333,8 @@ How long between repeating timeouts.  The C<at> attribute is
 recalculated using C<interval> upon callback return.
 
 =item level => $priority
+
+For inactivity - EXPERIMENTAL.
 
 =item max => $seconds
 
@@ -324,12 +350,6 @@ is normally disabled.  See L<Event::Stats>.
 =item min => $seconds
 
 Enforce a minimum number of seconds between triggering events.
-
-=item nice => $int
-
-For use in constructors to specify the offset from the default
-priority.  All watchers have a default priority. See
-${"Event::${type}::DefaultPriority"}.
 
 =item poll => $bits
 
@@ -349,6 +369,9 @@ Thus, both of these statements enable interest in read:
   $w->poll($w->poll . 'r');
   $w->poll($w->poll | R);
 
+A given type of watcher may support all or a subset of the available
+events.
+
 =item prio => $int
 
 Priority is used to sort the event queue.  Meaningful priorities range
@@ -361,11 +384,12 @@ immediately upon event occurance.  Use this with caution.  While it
 may seem advantageous to use negative priorities, they bypass the
 whole point of having an event queue.
 
-Event constructors also accept C<nice> as an offset from the default
-priority.  Each type of event has a default priority. Most normal
-watchers default to C<PRIO_NORMAL> and most asyncronous watchers
-default to C<PRIO_HIGH>. Default priorities are stored in
-${"Event::${type}::DefaultPriority"}.
+  ASYNC    0    1    2    3    4    5    6    IDLE
+                    HIGH      NORM
+
+You should not specify prio in the constructor.  Use C<nice> instead
+for an offset from the default priority.  Default priorities are
+stored in ${"Event::${type}::DefaultPriority"}.
 
 =item reentrant => $bool
 
@@ -418,6 +442,35 @@ attribute is unset, timeouts are serviced by C<cb>.
 =item var => $ref
 
 A reference to the variable being watched.
+
+=back
+
+=head2 EVENT ATTRIBUTES
+
+=over 4
+
+=item got => $bits
+
+C<got> is available in the callback of watchers with C<poll>.
+C<got> is in the same format as C<poll> except that it gives what
+kind of event actually happened.  In contrast, C<poll> is just an
+expression of interest.
+
+=item hits => $int
+
+A watcher increments C<hits> every time it registers an event.
+Signals in quick succession can be clumped into a single event.
+
+=item prio => $int
+
+The event's priority.  Be aware that this priority can differ from the
+watcher's priority since the watcher's priority may have changed since
+the event was generated.  Moreover, the C extension API offers the
+freedom to queue events of any priority.
+
+=item w => $watcher
+
+This method return the event's watcher.  It is read-only.
 
 =back
 
@@ -556,7 +609,7 @@ the timeout.
 
 =head1 ALSO SEE
 
-L<Time::HiRes>, L<Time::Warp>, and L<NetServer::ProcessTop>.
+L<Time::HiRes>, L<NetServer::ProcessTop>, and L<Time::Warp>.
 
 =head1 SUPPORT
 
@@ -586,9 +639,11 @@ those lists below and folks mentioned in the ChangeLog.
  Gisle Aas E<lt>F<gisle@aas.no>E<gt>
  E<lt>F<jan.dubois@ibm.net>E<gt> (Win32)
  E<lt>F<Matija.Grabnar@arnes.si>E<gt> (File::Tail)
+ Uri Guttman E<lt>F<uri@sysarch.com>E<gt>
  Nick Ing-Simmons E<lt>F<nick@ni-s.u-net.com>E<gt> (Tk)
  Mark Mielke E<lt>F<Mark.Mielke.markm@nt.com>E<gt>
  Sarathy E<lt>F<gsar@engin.umich.edu>E<gt>
+ E<lt>F<Jochen.Stenzel.gp@icn.siemens.de>E<gt>
 
 =head1 COPYRIGHT
 

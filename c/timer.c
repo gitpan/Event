@@ -20,6 +20,7 @@ static void pe_timer_dtor(pe_watcher *ev) {
 }
 
 static void pe_timer_start(pe_watcher *ev, int repeat) {
+    STRLEN n_a;
     pe_timer *tm = (pe_timer*) ev;
     if (repeat) {
 	/* We just finished the callback and need to re-insert at
@@ -27,14 +28,16 @@ static void pe_timer_start(pe_watcher *ev, int repeat) {
 	double interval;
 
 	if (!sv_2interval(tm->interval, &interval))
-	    croak("Repeating timer with no interval");
+	    croak("Event: repeating timer '%s' has no interval",
+		  SvPV(tm->base.desc, n_a));
 	if (interval <= 0)
-	    croak("Timer has non-positive interval");
+	    croak("Event: timer '%s' has non-positive interval",
+		  SvPV(tm->base.desc, n_a));
 
 	tm->tm.at = interval + (WaHARD(ev)? tm->tm.at : NVtime());
     }
     if (!tm->tm.at)
-	croak("Timer unset");
+	croak("Event: timer '%s' unset", SvPV(tm->base.desc, n_a));
 
     pe_timeable_start(&tm->tm);
 }

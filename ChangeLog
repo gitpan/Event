@@ -1,4 +1,24 @@
+2000-01-31  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.61.
+
+	* is_cancelled() method (requested by
+ 	Jochen.Stenzel.gp@icn.siemens.de)
+
+	* Doc updates.
+
+	* Prevent starting unconfigured or badly configured
+ 	watchers. Added tests. (Jochen.Stenzel.gp@icn.siemens.de)
+ 	
+	XXX DANGER! THIS CHANGE CAN BREAK EXISTING CODE !DANGER XXX
+
+	* Refuse to start cancelled watchers.  Added test & updated doc.
+	(Jochen.Stenzel.gp@icn.siemens.de).
+
 2000-01-26  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* If parked=>0 then the constructor will not invoke
+ 	$watcher->start().  (uri@sysarch.com)
 
 	* Release 0.60.
 

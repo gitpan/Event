@@ -25,7 +25,6 @@ sub new {
 
     $o->repeat(1) if defined $arg{min} || defined $arg{max};
     $o->init(\%arg);
-    $o->start;
     $o;
 }
 

@@ -49,8 +49,10 @@ static void pe_signal_dtor(pe_watcher *ev) {
 static void pe_signal_start(pe_watcher *_ev, int repeat) {
     pe_signal *ev = (pe_signal*) _ev;
     int sig = ev->signal;
-    if (sig == 0)
-	croak("No signal");
+    if (sig == 0) {
+	STRLEN n_a;
+	croak("Event: '%s' watching no signal", SvPV(ev->base.desc, n_a));
+    }
     if (PE_RING_EMPTY(&Sigring[sig]))
 	rsignal(sig, process_sighandler);
     PE_RING_UNSHIFT(&ev->sring, &Sigring[sig]);
@@ -119,12 +121,11 @@ static void pe_signal_asynccheck() {
     if (st->Hits) _signal_asynccheck(st);
 }
 
-
 static void boot_signal() {
     int xx;
     int sig;
     char **sigp;
-    /* is it perhaps a bit crufty to hardcode this list */
+    /* it is crufty to hardcode this list */
     static char *nohandle[] = { "KILL", "STOP", "ZERO", 0 };
     pe_watcher_vtbl *vt = &pe_signal_vtbl;
     Zero(&Sigstat[0], 1, pe_sig_stat);

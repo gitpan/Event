@@ -25,7 +25,6 @@ sub new {
     $o->{e_timeout} = delete $o->{timeout} || 10;
     $o->{e_level} = delete $o->{level} || PRIO_NORMAL;
     $o->init(\%arg);
-    $o->start();
     $o;
 }
 

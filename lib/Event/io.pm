@@ -14,7 +14,6 @@ sub new {
     my %arg = @_;
     my $o = allocate($class, delete $arg{attach_to} || {});
     $o->init(\%arg);
-    $o->start;
     $o;
 }
 

@@ -617,6 +617,12 @@ pe_watcher::is_queued(...)
 	XPUSHs(boolSV(WaFLAGS(THIS) & PE_QUEUED));
 
 void
+pe_watcher::is_cancelled(...)
+	PPCODE:
+	PUTBACK;
+	XPUSHs(boolSV(WaCANCELLED(THIS)));
+
+void
 pe_watcher::cb(...)
 	PPCODE:
 	PUTBACK;

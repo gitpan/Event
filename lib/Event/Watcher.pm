@@ -63,6 +63,8 @@ sub init {
 	}
     }
 
+    my $parked = delete $arg->{parked};
+
     for my $k (keys %$arg) {
 	my $m = $k;
 	if ($o->can($m)) {
@@ -74,6 +76,7 @@ sub init {
     Carp::cluck "creating ".ref($o)." desc='".$o->desc."'\n"
 	if $Event::DebugLevel >= 3;
     
+    $o->start unless $parked;
     $o;
 }
 

@@ -33,11 +33,11 @@ static void pe_io_dtor(pe_watcher *_ev) {
 }
 
 static void pe_io_start(pe_watcher *_ev, int repeat) {
+    STRLEN n_a;
+    int ok=0;
     pe_io *ev = (pe_io*) _ev;
-    if (SvOK(ev->handle)) {
-	STRLEN n_a;
+    if (SvOK(ev->handle))
 	ev->fd = pe_sys_fileno(ev->handle, SvPV(ev->base.desc, n_a));
-    }
 
     /* On Unix, it is possible to set the 'fd' in C code without
        assigning anything to the 'handle'.  This should be more
@@ -47,16 +47,21 @@ static void pe_io_start(pe_watcher *_ev, int repeat) {
 	PE_RING_UNSHIFT(&ev->ioring, &IOWatch);
 	++IOWatchCount;
 	IOWatch_OK = 0;
+	++ok;
     }
     if (ev->timeout) {
 	WaCBTIME_on(ev);
 	ev->poll |= PE_T;
 	ev->tm.at = NVtime() + ev->timeout;  /* too early okay */
 	pe_timeable_start(&ev->tm);
+	++ok;
     } else {
 	WaCBTIME_off(ev);
 	ev->poll &= ~PE_T;
     }
+    if (!ok)
+	croak("Event: attempt to start unconfigured io watcher '%s'",
+	      SvPV(ev->base.desc, n_a));
 }
 
 static void pe_io_stop(pe_watcher *_ev) {

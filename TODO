@@ -1,5 +1,3 @@
-don't invoke start method in the constructor: parked => 1 ?
-
 increase the number of priority levels?
   ASYNC    0    1    2    3    4    5    6    7    8    9   IDLE
                          HIGH           NORM
@@ -12,7 +10,6 @@ find owner for Win32 port
 documentation
   how to design new event types (in perl)
   how to design new event types (in C)??
-  distinguish between attributes and constructor attributes
 
 optimization
   update io event-mask without invalidating cache
@@ -21,13 +18,30 @@ optimization
     queue events from both sides?
   try to hoist system calls from the inner loop
 
+inactivity
+  For a single watcher, a simple timeout would surely have the same
+  effect. But if there would be a watcher grouping feature (as you
+  indicated), watching groups of watchers could provide a new dimension
+  of flexibility.
+
+add timeout for var watchers?
+
 mjtg@cus.cam.ac.uk signal discussion:
   The API rsignal overrides the current signal handler.  If the signal
   watcher is cancelled (or otherwise disabled) then rsignal is reset to
-  SIG_DFL.  You bring up a good point here.  Maybe the original handler
+  SIG_DFL.  Maybe the original handler
   should be restored.  On the other hand, assignment to %SIG will mess
   up Event watchers so maybe Event should refuse to watch a signal if a
   handler is already installed.
+
+there seems to be some sort of bug in the shutdown phase
+> Attempt to free unreferenced scalar during global destruction.
+> Use of uninitialized value during global destruction.
+> Explicit blessing to '' (assuming package main) during global
+> destruction.
+
+If I install a watcher and delay the call of loop(), what about
+events arriving in the meantime?
 
 loop
   StarvePrio?

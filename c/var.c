@@ -53,6 +53,7 @@ static I32 tracevar_w(IV ix, SV *sv)
 { pe_tracevar((pe_watcher *)ix, sv, PE_W); return 0; /*ignored*/ }
 
 static void pe_var_start(pe_watcher *_ev, int repeat) {
+    STRLEN n_a;
     struct ufuncs *ufp;
     MAGIC **mgp;
     MAGIC *mg;
@@ -60,16 +61,19 @@ static void pe_var_start(pe_watcher *_ev, int repeat) {
     SV *sv = ev->variable;
 
     if (!sv || !SvOK(sv))
-	croak("No variable specified");
+	croak("Event: var watcher '%s' watching what?", SvPV(_ev->desc, n_a));
     if (!ev->events)
-	croak("No events specified");
+	croak("Event: var watcher '%s' with no events specified",
+	      SvPV(_ev->desc, n_a));
     sv = SvRV(sv);
     if (SvREADONLY(sv))
-	croak("Cannot trace read-only variable");
+	croak("Event: '%s' cannot trace read-only variable",
+	      SvPV(_ev->desc, n_a));
     if (!SvUPGRADE(sv, SVt_PVMG))
 	croak("Trace SvUPGRADE failed");
     if (mg_find(sv, 'U'))
-	croak("Variable already being traced");
+	croak("Event: '%s' failed because var=0x%p is already being traced",
+	      SvPV(_ev->desc, n_a), sv);
 
     mgp = &SvMAGIC(sv);
     while ((mg = *mgp)) {

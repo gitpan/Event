@@ -316,6 +316,11 @@ static void pe_watcher_resume(pe_watcher *ev) {
 
 static void pe_watcher_on(pe_watcher *wa, int repeat) {
     if (WaPOLLING(wa) || WaSUSPEND(wa)) return;
+    if (WaCANCELLED(wa)) {
+	STRLEN n_a;
+	croak("Event: attempt to start cancelled watcher '%s'",
+	      SvPV(wa->desc,n_a));
+    }
     (*wa->vtbl->start)(wa, repeat);
     WaPOLLING_on(wa); /* must happen nowhere else!! */
 }
