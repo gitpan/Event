@@ -1,0 +1,157 @@
+=head1 NAME
+
+Event - Event loop processing
+
+=head1 WARNING
+
+B<THIS IS EXPERIMENTAL CODE AND IS LIKELY TO CHANGE A CONSIDERABLE AMOUNT>
+B<BEFORE IT IS RELEASED FOR GENERAL USE.>
+
+=head1 SYNOPSIS
+
+    use Event;
+    
+    # initialize application
+    
+    Event->Loop;
+    
+    # and some callback will call
+    Event->exit;
+
+
+=head1 DESCRIPTION
+
+=head1 EVENT TYPES
+
+=over 4
+
+=item idle
+
+    Event->idle( \&idle );
+
+Call C<&idle> when the loop is idle.
+
+=item atexit
+
+    $e = Event->atexit( \&cleanup )
+
+Call C<&cleanup> when the event loop is about to exit. If after registering
+an atexit handler it is not required, the the C<cancel> method can be called
+on C<$e>.
+
+=item watchvar
+
+    $e = Event->watchvar(
+	-variable => \$var,
+	-async    => 0,
+	-callback => \&watcher,
+    );
+
+Call C<&watcher> when C<$var> is changed. If C<-async> is I<true> then
+C<&watcher> will be called immediately, otherwise the call to C<&watcher> will
+be pushed onto the event queue.
+
+When called C<&watcher> will be passed C<$e> as the first argument, C<&watcher>
+may the call the C<cancel> method to stop any future changes to C<$var>
+creating events.
+
+=item timer
+    
+    $e = Event->timer(
+	-after    => 10,
+	-at	  => time + 10,
+	-interval => 2,
+	-callback => \&timeout
+    );
+
+Call C<&timeout> either after a given delay or at a given time (-after
+and -at are mutually exclusive). Then optionally call C<&timeout>
+at given intervals.
+
+When called C<&timeout> will be passed C<$e> as the first argument, and
+the time that the event was triggered as the second argument. C<&timeout>
+may the call the C<cancel> method on C<$e> to stop any future timer
+events, or if C<-interval> was not given and C<-after> was then
+C<&timeout> may call the C<again> method on C<$e> which will
+cause the event to re-occur, the time at which the event will
+re-occur is the value given by C<-after> added to the time the event
+was triggered. Due to lags in the event loop calling the callback, this time
+may already be in the past, in which case the event will be queued immediately
+
+
+=item io
+
+    $e = Event->io(
+	-handle => $sock,
+	-events => POLLREAD,
+	-callback => \&ready
+    );
+
+Call C<&ready> when C<$sock> has data to be read. C<-event> can take
+any combination of the constants that are accepted by IO::Poll.
+
+When called C<&ready> is passed C<$e> as the first argument, C<$handle>
+as the second argument and the events that happened as the third argument.
+C<&ready> may call the C<cancel> method on C<$e> to stop any future
+event handling on C<$handle>
+
+=item signal
+    
+    $e = Event->signal(
+	-signal => 'INT',
+	-callback => \&interrupt
+    );
+
+Call C<&interrupt> when an C<INT> signal is received. C<-signal> accepts
+any signal name except C<CHLD>, see below.
+
+When called C<&interrupt> will be passed C<$e> as the first argument and
+the name of the signal as the second. C<&interrupt> amy call the C<cancel>
+method on C<$e> to stop any future events being caught.
+
+
+=item process
+
+    $e = Event->process(
+	-pid => $pid,
+	-callback => \&reap
+    );
+
+Call C<&reap> when the child process with pid C<$pid> exits. If C<$pid> is
+not given then C<&reap> will be called for any process that does not
+have it's own event handler.
+
+When called C<&reap> will be passed C<$e> as the first parameter, the
+process id of the child as the second and the exit status of the child as the
+third. C<&reap> may call the C<cancel> method on C<$e> to stop
+future process events, this is only of use on event handlers where C<-pid>
+is not specified.
+
+=back
+
+=head1 FUTURE ENHANCEMENTS
+
+    # generate an event when we can successfully run an op
+    $e = Event->semaphore(
+	-semaphore => $sem,
+	-op => $op,
+	-callback => \&gotit
+    );
+    
+    # generate an event when the msg queue is/is not empty
+    $e = Event->msg(
+	-msg => $msg,
+	-callback => \&doit
+    );
+    
+=head1 AUTHOR
+
+Graham Barr E<lt>F<gbarr@pobox.com>E<gt>
+
+=head1 COPYRIGHT
+
+Copyright (c) 1997 Graham Barr. All rights reserved.
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=cut
