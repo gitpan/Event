@@ -1,7 +1,3 @@
-/*
- * Need appropriate quote from J.R.R. Tolken XXX
- */
-
 #ifndef _event_api_H_
 #define _event_api_H_
 
@@ -24,35 +20,33 @@ struct pe_ring { void *self; pe_ring *next, *prev; };
 #define PE_ITER_FALLBACK 2
 
 struct pe_watcher {
-    pe_watcher_vtbl *vtbl;	/* must match pe_event */
+    pe_watcher_vtbl *vtbl;
     SV *mysv;
-
-    double cbtime;
+    double cbtime; /* float? XXX */
     void *callback;
     void *ext_data;
     void *stats;
-    HV *stash;
     IV running; /* SAVEINT */
     U32 flags;
     SV *desc;
     pe_ring all;
-    pe_ring events;
+    pe_ring events;  /* queued events */
     HV *FALLBACK;
-    I16 id;
-    I16 iter;
-    I16 priority;
+    I16 event_counter; /* refcnt? XXX */
+    I16 id;   /* DEPRECATED */
+    I16 iter; /* DEPRECATED */
+    I16 prio;
     I16 max_cb_tm;
 };
 
 struct pe_event {
     pe_event_vtbl *vtbl;
-    SV *mysv;  /* must match layout of pe_watcher */
-
+    SV *mysv;
     pe_watcher *up;
-    pe_ring peer;
-    pe_ring que;
-    I16 count;
-    I16 priority;
+    pe_ring peer; /* homogeneous */
+    pe_ring que;  /* heterogeneous */
+    I16 hits;
+    I16 prio;
 };
 
 /* This must be placed directly after pe_watcher so the memory
@@ -167,41 +161,41 @@ struct pe_event_stats_vtbl {
 };
 
 struct EventAPI {
-#define EventAPI_VERSION 16
-  I32 Ver;
+#define EventAPI_VERSION 20
+    I32 Ver;
 
-  /* EVENTS */
-  void (*queue)(pe_event *ev);
-  void (*start)(pe_watcher *ev, int repeat);
-  void (*now)(pe_watcher *ev);
-  void (*stop)(pe_watcher *ev, int cancel_events);
-  void (*cancel)(pe_watcher *ev);
-  void (*suspend)(pe_watcher *ev);
-  void (*resume)(pe_watcher *ev);
+    /* EVENTS */
+    void (*queue)(pe_event *ev);
+    void (*start)(pe_watcher *ev, int repeat);
+    void (*now)(pe_watcher *ev);
+    void (*stop)(pe_watcher *ev, int cancel_events);
+    void (*cancel)(pe_watcher *ev);
+    void (*suspend)(pe_watcher *ev);
+    void (*resume)(pe_watcher *ev);
 
-  pe_idle     *(*new_idle)();
-  pe_timer    *(*new_timer)();
-  pe_io       *(*new_io)();
-  pe_var      *(*new_var)();
-  pe_signal   *(*new_signal)();
+    pe_idle     *(*new_idle)(HV *);
+    pe_timer    *(*new_timer)(HV *);
+    pe_io       *(*new_io)(HV *);
+    pe_var      *(*new_var)(HV *);
+    pe_signal   *(*new_signal)(HV *);
 
-  /* TIMEABLE */
-  void (*tstart)(pe_timeable *);
-  void (*tstop)(pe_timeable *);
+    /* TIMEABLE */
+    void (*tstart)(pe_timeable *);
+    void (*tstop)(pe_timeable *);
 
-  /* HOOKS */
-  pe_qcallback *(*add_hook)(char *which, void *cb, void *ext_data);
-  void (*cancel_hook)(pe_qcallback *qcb);
+    /* HOOKS */
+    pe_qcallback *(*add_hook)(char *which, void *cb, void *ext_data);
+    void (*cancel_hook)(pe_qcallback *qcb);
 
-  /* STATS */
-  void (*install_stats)(pe_event_stats_vtbl *esvtbl);
-  void (*collect_stats)(int yes);
-  pe_ring *AllWatchers;
+    /* STATS */
+    void (*install_stats)(pe_event_stats_vtbl *esvtbl);
+    void (*collect_stats)(int yes);
+    pe_ring *AllWatchers;
 
-  /* TYPEMAP */
-  SV *(*watcher_2sv)(pe_watcher *wa);
-  SV *(*event_2sv)(pe_event *ev);
-  void (*decode_sv)(SV *sv, pe_watcher **wap, pe_event **evp);
+    /* TYPEMAP */
+    SV *(*watcher_2sv)(pe_watcher *wa);
+    SV *(*event_2sv)(pe_event *ev);
+    void *(*unwrap_obj)(SV *sv);
 };
 
 static struct EventAPI *GEventAPI=0;

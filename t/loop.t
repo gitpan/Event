@@ -1,7 +1,7 @@
 # -*-perl-*-
 
 use strict;
-use Test; plan tests => 2;
+use Test; plan tests => 3;
 use Event qw(loop unloop);
 
 #$Event::DebugLevel = 3;
@@ -9,13 +9,13 @@ use Event qw(loop unloop);
 my %got;
 my $sleep = .1;
 my $sleeping;
-my $early = Event->idle(e_repeat => 1, e_cb => sub {
+my $early = Event->idle(repeat => 1, cb => sub {
 			    return if !$sleeping;
 			    unloop 'early';
 			});
-Event->idle(e_repeat => 1, e_cb => sub {
+Event->idle(repeat => 1, cb => sub {
 		my $e = shift;
-		$e->{e_reentrant} = 0;
+		$e->w->reentrant(0);
 		$sleeping = 1;
 		my $ret = loop($sleep);
 		if (!exists $got{$ret}) {
@@ -27,8 +27,9 @@ Event->idle(e_repeat => 1, e_cb => sub {
 			ok 1;
 		    }
 		}
-		$e->{e_reentrant} = 1;
+		$e->w->reentrant(1);
 		$sleeping = 0;
-		unloop if keys %got == 2;
+		unloop(0) if keys %got == 2;
 	    });
-loop;
+
+ok loop, 0;

@@ -2,20 +2,18 @@ use strict;
 package Event::signal;
 use Carp;
 use base 'Event::Watcher';
-use vars qw($DefaultPriority);
+use vars qw($DefaultPriority @ATTRIBUTE);
 $DefaultPriority = Event::PRIO_HIGH();
+@ATTRIBUTE = qw(signal);
 
 'Event::Watcher'->register;
 
 sub new {
     # lock %Event::
 
-    shift if @_ & 1;
+    my $o = allocate(shift);
     my %arg = @_;
-
-    my $o = allocate();
     $o->init(\%arg);
-#    confess "huh?" if ! $o->{signal}; XXX
     $o->start;
     $o;
 }

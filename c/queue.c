@@ -23,7 +23,7 @@ static void db_show_queue()
   pe_event *ev;
   ev = NQueue.next->self;
   while (ev) {
-    warn("0x%x : %d\n", ev, ev->priority);
+    warn("0x%x : %d\n", ev, ev->prio);
     ev = ev->que.next->self;
   }
 }
@@ -47,29 +47,29 @@ static int prepare_event(pe_event *ev, char *forwhat)
   }
   EvRUNNOW_off(wa); /* race condition? XXX */
   if (EvDEBUGx(wa) >= 3)
-    warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,na), ev->priority);
+    warn("Event: %s '%s' prio=%d\n", forwhat, SvPV(wa->desc,na), ev->prio);
   return 1;
 }
 
 static void queueEvent(pe_event *ev)
 {
-  assert(ev->count);
+  assert(ev->hits);
   if (!PE_RING_EMPTY(&ev->que)) return; /* already queued */
   if (!prepare_event(ev, "queue")) return;
 
-  if (ev->priority < 0) {  /* invoke the event immediately! */
-    ev->priority = 0;
+  if (ev->prio < 0) {  /* invoke the event immediately! */
+    ev->prio = 0;
     pe_event_invoke(ev);
     return;
   }
-  if (ev->priority >= PE_QUEUES)
-    ev->priority = PE_QUEUES-1;
+  if (ev->prio >= PE_QUEUES)
+    ev->prio = PE_QUEUES-1;
   {
     /* queue in reverse direction? XXX */ 
     /*  warn("-- adding 0x%x/%d\n", ev, prio); db_show_queue();/**/
     pe_ring *rg;
     rg = NQueue.next;
-    while (rg->self && ((pe_event*)rg->self)->priority <= ev->priority)
+    while (rg->self && ((pe_event*)rg->self)->prio <= ev->prio)
       rg = rg->next;
     PE_RING_ADD_BEFORE(&ev->que, rg);
     /*  warn("=\n"); db_show_queue();/**/
@@ -82,7 +82,7 @@ static int pe_empty_queue(maxprio)
 {
   pe_event *ev;
   ev = NQueue.next->self;
-  if (ev && ev->priority < maxprio) {
+  if (ev && ev->prio < maxprio) {
     dequeEvent(ev);
     pe_event_invoke(ev);
     return 1;

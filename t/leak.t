@@ -10,10 +10,10 @@ ok @e, 0;
 sub thrash {
     Event->idle()->cancel;
     Event->io()->cancel;
-    Event->signal(e_signal => 'INT')->cancel;
-    Event->timer(e_at => time)->cancel;
+    Event->signal(signal => 'INT')->cancel;
+    Event->timer(at => time)->cancel;
     my $var = 1;
-    Event->var(e_var => \$var)->cancel;
+    Event->var(var => \$var)->cancel;
 }
 for (1..2) { thrash(); }
 

@@ -1,17 +1,16 @@
 use strict;
 package Event::var;
 use base 'Event::Watcher';
+use vars qw(@ATTRIBUTE);
+@ATTRIBUTE = qw(var poll);
 
 'Event::Watcher'->register;
 
 sub new {
     # lock %Event::;
 
-    shift if @_ & 1;
+    my $o = allocate(shift);
     my %arg = @_;
-
-    my $o = allocate();
-
     $o->init(\%arg);
     $o->start;
     $o;

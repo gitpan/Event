@@ -21,18 +21,19 @@ sub new_pipe {
     pipe($p1,$p2);
 
     for my $p ($p1,$p2) {
-	my $io = Event->io(e_poll => 'rw', e_cb => sub {
+	my $io = Event->io(poll => 'rw', cb => sub {
 			       my $e = shift;
-			       if ($e->{e_got} & R) {
+			       my $w=$e->w;
+			       if ($e->got & R) {
 				   my $buf;
-				   sysread $e->{e_fd}, $buf, 1;
+				   sysread $w->fd, $buf, 1;
 				   ++$$cnt;
 			       }
-			       if ($e->{e_got} & W) {
-				   syswrite $e->{e_fd}, '.', 1;
+			       if ($e->got & W) {
+				   syswrite $w->fd, '.', 1;
 			       }
-			   }, e_desc => "pair $p");
-	$io->{e_fd} = $p;
+			   }, desc => "pair $p");
+	$io->fd($p);
     }
 }
 
@@ -40,12 +41,13 @@ my $count = 0;
 new_pipe(\$count);
 
 my $hit=0;
-my $once = Event->io(e_timeout => .01, e_cb => sub { ++$hit });
+my $once = Event->io(timeout => .01, repeat => 0, cb => sub { ++$hit });
 
-Event->io(e_timeout => .1, e_cb => sub {
+Event->io(timeout => .1, repeat => 0,
+	  cb => sub {
 	      ok $count > 0;
 	      ok $hit, 1;
-	      ok $once->{e_timeout}, 0;
+	      ok $once->timeout, 0;
 	      unloop;
 	  });
 

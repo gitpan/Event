@@ -2,35 +2,44 @@ use strict;
 package Event::timer;
 use Carp;
 use base 'Event::Watcher';
+use vars qw(@ATTRIBUTE);
+
+@ATTRIBUTE = qw(at hard interval);
 
 'Event::Watcher'->register;
 
 sub new {
 #    lock %Event::;
-
-    shift if @_ & 1;
+    my $o = allocate(shift);
     my %arg = @_;
-    my $o = allocate();
 
-    my $has_at = exists $arg{e_at};
-    my $has_after = exists $arg{e_after};
+    # deprecated
+    for (qw(at after interval repeat)) {
+	if (exists $arg{"e_$_"}) {
+	    carp "'e_$_' is renamed to '$_'";
+	    $arg{$_} = delete $arg{"e_$_"};
+	}
+    }
 
-    croak "'e_after' and 'e_at' are mutually exclusive"
+    my $has_at = exists $arg{at};
+    my $has_after = exists $arg{after};
+
+    croak "'after' and 'at' are mutually exclusive"
 	if $has_at && $has_after;
 
     if ($has_after) {
-	my $after = delete $arg{e_after};
-	$o->{e_at} = Event::time() + $after;
+	my $after = delete $arg{after};
+	$o->at(Event::time() + $after);
 	$has_at=1;
-	$o->{e_interval} = $after if !exists $arg{e_interval};
+	$o->interval($after) if !exists $arg{interval};
     } elsif ($has_at) {
-	$o->{e_at} = delete $arg{e_at};
+	$o->at(delete $arg{at});
     }
-    if (exists $arg{e_interval}) {
-	my $i = delete $arg{e_interval};
-	$o->{e_at} = Event::time() + (ref $i? $$i : $i) unless $has_at;
-	$o->{e_interval} = $i;
-	$o->{e_repeat} = 1 unless exists $arg{e_repeat};
+    if (exists $arg{interval}) {
+	my $i = delete $arg{interval};
+	$o->at(Event::time() + (ref $i? $$i : $i)) unless $has_at;
+	$o->interval($i);
+	$o->repeat(1) unless exists $arg{repeat};
     }
 
     $o->init(\%arg);

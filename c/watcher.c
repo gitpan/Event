@@ -2,7 +2,7 @@ static int NextID = 0;
 static pe_ring AllWatchers;
 static struct pe_watcher_vtbl pe_watcher_base_vtbl;
 
-static void pe_watcher_init(pe_watcher *ev)
+static void pe_watcher_init(pe_watcher *ev, HV *stash)
 {
   STRLEN n_a;
   assert(ev);
@@ -10,19 +10,18 @@ static void pe_watcher_init(pe_watcher *ev)
   if (!ev->vtbl->stash)
     croak("sub-class VTBL must have a stash (doesn't!)");
   if (!ev->vtbl->did_require) {
-    SV *tmp;
-    char *name = HvNAME(ev->vtbl->stash);
-    if (memEQ(name, "Event::", 7))
-      name += 7;
-    tmp = sv_2mortal(newSVpvf("Event/%s.pm", name));
-    perl_require_pv(SvPV(tmp, n_a));
-    if (sv_true(ERRSV))
-      croak("Event: could not load perl support code for Event::%s: %s",
-	    name, SvPV(ERRSV,n_a));
-    ++ev->vtbl->did_require;
+      dTHR;
+      SV *tmp;
+      char *name = HvNAME(ev->vtbl->stash);
+      if (memEQ(name, "Event::", 7))
+	  name += 7;
+      tmp = sv_2mortal(newSVpvf("Event/%s.pm", name));
+      perl_require_pv(SvPV(tmp, n_a));
+      if (sv_true(ERRSV))
+	  croak("Event: could not load perl support code for Event::%s: %s",
+		name, SvPV(ERRSV,n_a));
+      ++ev->vtbl->did_require;
   }
-  ev->stash = ev->vtbl->stash;
-  ev->mysv = 0;
   PE_RING_INIT(&ev->all, ev);
   PE_RING_INIT(&ev->events, 0);
   PE_RING_UNSHIFT(&ev->all, &AllWatchers);
@@ -32,82 +31,99 @@ static void pe_watcher_init(pe_watcher *ev)
   EvCLUMP_on(ev);
   ev->FALLBACK = 0;
   NextID = (NextID+1) & 0x7fff; /* make it look like the kernel :-, */
+  ev->event_counter = 0;
   ev->id = NextID;
   ev->desc = newSVpvn("??",2);
   ev->running = 0;
   ev->max_cb_tm = 1;  /* make default configurable? */
   ev->cbtime = 0;
-  ev->priority = PE_QUEUES;
+  ev->prio = PE_QUEUES;
   ev->callback = 0;
   ev->ext_data = 0;
   ev->stats = 0;
+  ev->mysv = stash? wrap_tiehash(ev, stash) : 0;
 }
 
-static void pe_watcher_cancel_events(pe_watcher *wa)
-{
-  pe_event *ev;
-  while (!PE_RING_EMPTY(&wa->events)) {
-    PE_RING_POP(&wa->events, ev);
-    (*ev->vtbl->dtor)(ev);
-  }
+static void pe_watcher_cancel_events(pe_watcher *wa) {
+    pe_event *ev;
+    while (!PE_RING_EMPTY(&wa->events)) {
+	PE_RING_POP(&wa->events, ev);
+	if (!ev->mysv)
+	    (*ev->vtbl->dtor)(ev);
+	else {
+	    SvREFCNT_dec(ev->mysv);
+	    ev->mysv=0;
+	}
+    }
 }
 
-static void pe_watcher_dtor(pe_watcher *ev)
-{
-  STRLEN n_a;
-  int xx;
-  assert(EvCANCELLED(ev));
-  if (EvDESTROYED(ev)) {
-    warn("Attempt to destroy watcher %x again", ev);
-    return;
-  }
-  if (EvDEBUGx(ev) >= 3)
-      warn("Watcher '%s' destroyed", SvPV(ev->desc, n_a));
-  EvDESTROYED_on(ev);
-  assert(PE_RING_EMPTY(&ev->events));
-  PE_RING_DETACH(&ev->all);
-  if (ev->mysv) {
-      invalidate_sv(ev->mysv, 0);
-      ev->mysv=0;
-  }
-  if (ev->FALLBACK)
-    SvREFCNT_dec(ev->FALLBACK);
-  if (ev->desc)
-    SvREFCNT_dec(ev->desc);
-  if (EvPERLCB(ev))
-    SvREFCNT_dec(ev->callback);
-  if (ev->stats)
-    Estat.dtor(ev->stats);
-  safefree(ev);
+static void pe_watcher_dtor(pe_watcher *wa) {
+    STRLEN n_a;
+    assert(EvCANDESTROY(wa));
+    if (EvDESTROYED(wa)) {
+	warn("Attempt to destroy watcher 0x%x again (ignored)", wa);
+	return;
+    }
+    EvDESTROYED_on(wa);
+    if (EvDEBUGx(wa) >= 3)
+	warn("Watcher '%s' destroyed", SvPV(wa->desc, n_a));
+    assert(PE_RING_EMPTY(&wa->events));
+    if (EvPERLCB(wa))
+	SvREFCNT_dec(wa->callback);
+    if (wa->FALLBACK)
+	SvREFCNT_dec(wa->FALLBACK);
+    if (wa->desc)
+	SvREFCNT_dec(wa->desc);
+    if (wa->stats)
+	Estat.dtor(wa->stats);
+    safefree(wa);
 }
 
 /********************************** *******************************/
 
 WKEYMETH(_watcher_callback)
 {
-  if (!nval) {
-    SV *ret = (EvPERLCB(ev)? (SV*) ev->callback :
-	       sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
-				   ev->callback, ev->ext_data)));
-    dSP;
-    XPUSHs(ret);
-    PUTBACK;
-  } else {
-    SV *sv;
-    SV *old=0;
-    if (EvPERLCB(ev))
-      old = (SV*) ev->callback;
-    EvPERLCB_on(ev);
-    if (!SvROK(nval) ||
-	(SvTYPE(sv=SvRV(nval)) != SVt_PVCV &&
-	 (SvTYPE(sv) != SVt_PVAV || av_len((AV*)sv) != 1))) {
-      sv_dump(sv);
-      croak("Callback must be a code ref or two element array ref");
+    if (!nval) {
+	SV *ret = (EvPERLCB(ev)?
+		   (SV*) ev->callback :
+		   (ev->callback?
+		    sv_2mortal(newSVpvf("<FPTR=0x%x EXT=0x%x>",
+					ev->callback, ev->ext_data)) :
+		    &PL_sv_undef));
+	dSP;
+	XPUSHs(ret);
+	PUTBACK;
+    } else {
+	SV *sv;
+	SV *old=0;
+	if (EvPERLCB(ev))
+	    old = (SV*) ev->callback;
+	if (!SvOK(nval)) {
+	    EvPERLCB_off(ev);
+	    ev->callback = 0;
+	    ev->ext_data = 0;
+	} else if (!SvROK(nval) ||
+		 (SvTYPE(sv=SvRV(nval)) != SVt_PVCV &&
+		  (SvTYPE(sv) != SVt_PVAV || av_len((AV*)sv) != 1))) {
+	    sv_dump(sv);
+	    croak("Callback must be a code ref or two element array ref");
+	} else {
+	    EvPERLCB_on(ev);
+	    ev->callback = SvREFCNT_inc(nval);
+	}
+	if (old)
+	    SvREFCNT_dec(old);
     }
-    ev->callback = SvREFCNT_inc(nval);
-    if (old)
-      SvREFCNT_dec(old);
-  }
+}
+
+WKEYMETH(_watcher_cbtime)
+{
+    if (!nval) {
+	dSP;
+	XPUSHs(sv_2mortal(newSVnv(ev->cbtime)));
+	PUTBACK;
+    } else
+	croak("'e_cbtime' is read-only");
 }
 
 WKEYMETH(_watcher_clump)
@@ -145,6 +161,7 @@ WKEYMETH(_watcher_debug)
 
 WKEYMETH(_watcher_flags)
 {
+    /* DEPRECATED */
   if (!nval) {
     dSP;
     XPUSHs(sv_2mortal(newSViv((ev->flags & PE_VISIBLE_FLAGS) |
@@ -152,11 +169,12 @@ WKEYMETH(_watcher_flags)
 			      (PE_RING_EMPTY(&ev->events)? 0 : PE_QUEUED))));
     PUTBACK;
   } else
-    croak("'e_flags' are read-only");
+    croak("'e_flags' is read-only");
 }
 
 WKEYMETH(_watcher_id)
 {
+    /* DEPRECATED */
   if (!nval) {
     dSP;
     XPUSHs(sv_2mortal(newSViv(ev->id)));
@@ -169,10 +187,10 @@ WKEYMETH(_watcher_priority)
 {
   if (!nval) {
     dSP;
-    XPUSHs(sv_2mortal(newSViv(ev->priority)));
+    XPUSHs(sv_2mortal(newSViv(ev->prio)));
     PUTBACK;
   } else
-    ev->priority = SvIV(nval);
+    ev->prio = SvIV(nval);
 }
 
 WKEYMETH(_watcher_reentrant)
@@ -255,8 +273,10 @@ static void pe_watcher_FETCH(void *vptr, SV *svkey)
   if (!len) return;
   mp = hv_fetch(ev->vtbl->keymethod, key, len, 0);
   if (mp) {
-    assert(*mp && SvIOK(*mp));
-    ((void(*)(pe_watcher*,SV*)) SvIVX(*mp))(ev,0);
+      if (--WarnCounter >= 0)
+	  warn("Please access '%s' via the method '%s'", key, 2+key);
+      assert(*mp && SvIOK(*mp));
+      ((void(*)(pe_watcher*,SV*)) SvIVX(*mp))(ev,0);
   }
   else if (ev->FALLBACK) {
     SV **svp = hv_fetch(ev->FALLBACK, key, len, 0);
@@ -277,6 +297,8 @@ static void pe_watcher_STORE(void *vptr, SV *svkey, SV *nval)
   if (!len) return;
   mp = hv_fetch(ev->vtbl->keymethod, key, len, 0);
   if (mp) {
+      if (--WarnCounter >= 0)
+	  warn("Please access '%s' via the method '%s'", key, 2+key);
     assert(*mp && SvIOK(*mp));
     ((void(*)(pe_watcher*,SV*)) SvIVX(*mp))(ev,nval);
   }
@@ -324,26 +346,28 @@ static void pe_watcher_FIRSTKEY(void *vptr)
 
 static void pe_watcher_DELETE(void *vptr, SV *svkey)
 {
-  STRLEN n_a;
-  pe_watcher *ev = (pe_watcher *) vptr;
-  SV *ret;
-  if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0))
-    croak("Cannot delete key '%s'", SvPV(svkey,n_a));
-  if (!ev->FALLBACK)
-    return;
-  ret = hv_delete_ent(ev->FALLBACK, svkey, 0, 0);
-  if (ret && GIMME_V != G_VOID) {
-    dSP;
-    XPUSHs(ret);  /* already mortalized */
-    PUTBACK;
-  }
+    dTHR;
+    STRLEN n_a;
+    pe_watcher *ev = (pe_watcher *) vptr;
+    SV *ret;
+    if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0))
+	croak("Cannot delete key '%s'", SvPV(svkey,n_a));
+    if (!ev->FALLBACK)
+	return;
+    ret = hv_delete_ent(ev->FALLBACK, svkey, 0, 0);
+    if (ret && GIMME_V != G_VOID) {
+	djSP;
+	XPUSHs(ret);  /* hv_delete_ent already mortalized it */
+	PUTBACK;
+    }
 }
 
 static int pe_watcher_EXISTS(void *vptr, SV *svkey)
 {
   pe_watcher *ev = (pe_watcher *) vptr;
-  if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0))
-    return 1;
+  if (hv_exists_ent(ev->vtbl->keymethod, svkey, 0)) {
+      return 1;
+  }
   if (!ev->FALLBACK)
     return 0;
   return hv_exists_ent(ev->FALLBACK, svkey, 0);
@@ -371,7 +395,6 @@ static void boot_pe_watcher()
   struct pe_watcher_vtbl *vt;
   PE_RING_INIT(&AllWatchers, 0);
   vt = &pe_watcher_base_vtbl;
-  vt->base.is_event = 0;
   vt->base.Fetch = pe_watcher_FETCH;
   vt->base.Store = pe_watcher_STORE;
   vt->base.Firstkey = pe_watcher_FIRSTKEY;
@@ -382,6 +405,7 @@ static void boot_pe_watcher()
   vt->did_require = 0;
   vt->keymethod = newHV();
   hv_store(vt->keymethod, "e_cb",         4, newSViv((IV)_watcher_callback), 0);
+  hv_store(vt->keymethod, "e_cbtime",     8, newSViv((IV)_watcher_cbtime), 0);
   hv_store(vt->keymethod, "e_clump",      7, newSViv((IV)_watcher_clump), 0);
   hv_store(vt->keymethod, "e_desc",       6, newSViv((IV)_watcher_desc), 0);
   hv_store(vt->keymethod, "e_debug",      7, newSViv((IV)_watcher_debug), 0);
@@ -411,7 +435,6 @@ static void pe_register_vtbl(pe_watcher_vtbl *vt, HV *stash,
 			     pe_event_vtbl *evt)
 {
   vt->stash = stash;
-  SvREFCNT_inc(stash);
   vt->event_vtbl = evt;
   vt->new_event = evt->new_event;
 }
@@ -420,24 +443,26 @@ static void pe_watcher_now(pe_watcher *wa)
 {
   pe_event *ev;
   if (EvSUSPEND(wa)) return;
-  EvRUNNOW_on(wa);
+  EvRUNNOW_on(wa); /* race condition XXX */
   ev = (*wa->vtbl->new_event)(wa);
-  ++ev->count;
+  ++ev->hits;
   queueEvent(ev);
 }
 
-/******************************************
-  The following methods change the status flags.  These are the only
-  methods that should venture to change these flags!
- */
+/*******************************************************************
+  The following methods change the status flags.  This is the only
+  code that should be changing these flags!
+*/
 
-static void pe_watcher_cancel(pe_watcher *ev)
-{
-  EvSUSPEND_off(ev);
-  pe_watcher_stop(ev, 1);
-  EvCANCELLED_on(ev);
-  if (EvCANDESTROY(ev))
-    (*ev->vtbl->dtor)(ev);
+static void pe_watcher_cancel(pe_watcher *wa) {
+    EvSUSPEND_off(wa);
+    pe_watcher_stop(wa, 1); /* peer */
+    EvCANCELLED_on(wa);
+    if (wa->mysv)
+	SvREFCNT_dec(wa->mysv);
+    PE_RING_DETACH(&wa->all);
+    if (EvCANDESTROY(wa)) /*cancel*/
+	(*wa->vtbl->dtor)(wa);
 }
 
 static void pe_watcher_suspend(pe_watcher *ev)

@@ -12,8 +12,7 @@ use base 'Exporter';
 use Carp;
 use vars qw($VERSION @EXPORT_OK
 	    $API $DebugLevel $Eval $DIED $Now);
-use vars qw(%KEY_REMAP);
-$VERSION = '0.33';
+$VERSION = '0.41';
 
 # If we inherit DynaLoader then we inherit AutoLoader; Bletch!
 require DynaLoader;
@@ -25,7 +24,7 @@ require DynaLoader;
 
 # Try to load Time::HiRes
 eval { require Time::HiRes; };
-die if $@ && $@ !~ /^Can\'t locate .*? at \(eval /;
+die if $@ && $@ !~ /^Can\'t locate Time/;
 
 install_time_api();  # broadcast_adjust XXX
 
@@ -35,8 +34,7 @@ $DIED = \&default_exception_handler;
 
 @EXPORT_OK = qw(time all_events all_watchers all_running all_queued all_idle
 		one_event sweep loop unloop unloop_all sleep queue
-		QUEUES PRIO_NORMAL PRIO_HIGH
-		%KEY_REMAP);
+		QUEUES PRIO_NORMAL PRIO_HIGH);
 
 sub _load_watcher {
     my $sub = shift;
@@ -57,7 +55,7 @@ sub AUTOLOAD {
 
 sub default_exception_handler {
     my ($run,$err) = @_;
-    my $desc = $run? $run->{e_desc} : '?';
+    my $desc = $run? $run->w->{e_desc} : '?';
     my $m = "Event: trapped error in '$desc': $err";
     $m .= "\n" if $m !~ m/\n$/;
     warn $m;
@@ -65,17 +63,19 @@ sub default_exception_handler {
 }
 
 sub verbose_exception_handler { #AUTOLOAD XXX
-    my ($run,$err) = @_;
+    my ($e,$err) = @_;
 
     my $m = "Event: trapped error: $err";
     $m .= "\n" if $m !~ m/\n$/;
-    return warn $m if !$run;
+    return warn $m if !$e;
 
-    $m .= " in $run --\n";
-    for my $k (sort keys %$run) {
+    my $w = $e->w;
+    $m .= "  in $w --\n";
+
+    for my $k ($w->attributes) {
 	$m .= sprintf "%18s: ", $k;
 	eval {
-	    my $v = $run->{$k};
+	    my $v = $w->$k();
 	    if (!defined $v) {
 		$m .= '<undef>';
 	    } elsif ($v =~ /^-?\d+(\.\d+)?$/) {
@@ -108,7 +108,7 @@ sub sweep {
     }
 }
 
-use vars qw($LoopLevel $ExitLevel $Result);
+use vars qw($LoopLevel $ExitLevel $Result $TopResult);
 $LoopLevel = $ExitLevel = 0;
 
 my $loop_timer;
@@ -117,15 +117,16 @@ sub loop {
     if (@_ == 1) {
 	my $how_long = shift;
 	if (!$loop_timer) {
-	    $loop_timer = Event->timer(e_desc => "Event::loop timeout",
-				       e_after => $how_long,
-				       e_cb => sub { unloop($how_long) });
-	    $loop_timer->{e_prio} = PRIO_HIGH();
+	    $loop_timer = Event->timer(desc => "Event::loop timeout",
+				       after => $how_long,
+				       cb => sub { unloop($how_long) });
+	    $loop_timer->prio(PRIO_HIGH());
 	} else {
-	    $loop_timer->{e_at} = Event::time() + $how_long,
+	    $loop_timer->at(Event::time() + $how_long),
 	}
 	$loop_timer->start;
     }
+    $TopResult = undef;
     local $Result = undef;
     local $LoopLevel = $LoopLevel+1;
     ++$ExitLevel;
@@ -144,9 +145,11 @@ sub loop {
 	last;
     }
     $loop_timer->stop if $loop_timer;
-    warn "Event: [$LoopLevel]unloop(".(defined $Result?$Result:'<undef>').")\n"
+    my $r = $Result;
+    $r = $TopResult if !defined $r;
+    warn "Event: [$LoopLevel]unloop(".(defined $r?$r:'<undef>').")\n"
 	if $Event::DebugLevel >= 3;
-    $Result;
+    $r
 }
 
 sub unloop {
@@ -155,7 +158,7 @@ sub unloop {
 }
 
 sub unloop_all {
-    $Result = shift; #propagate result somehow? XXX
+    $TopResult = shift;
     $ExitLevel = 0;
 }
 
@@ -176,41 +179,14 @@ require Event::Watcher;
 #----------------------------------- backward compatibility
 #----------------------------------- backward forward backward
 
-my $backward_noise = 20;
-
 if (1) {
     # Do you feel like you need entwash?  Have some of this!
     no strict 'refs';
 
-    # 0.25
-    %KEY_REMAP = (after		 => 'e_after',
-		  async		 => 'e_async',
-		  at             => 'e_at',
-		  callback       => 'e_cb',
-		  cbtime         => 'e_cbtime',
-		  clump          => 'e_clump',
-		  count          => 'e_hits',
-		  debug          => 'e_debug',
-		  desc           => 'e_desc',
-		  events         => 'e_poll',
-		  flags          => 'e_flags',
-		  got            => 'e_got',
-		  handle         => 'e_fd',
-		  hard           => 'e_hard',
-		  id             => 'e_id',
-		  interval       => 'e_interval',
-		  level		 => 'e_level',
-		  max_interval   => 'e_max',
-		  min_interval   => 'e_min',
-		  nice		 => 'e_nice',
-		  priority       => 'e_prio',
-		  reeentrant     => 'e_reentrant',
-		  refcnt         => 'e_refcnt',
-		  repeat         => 'e_repeat',
-		  running        => 'e_running',
-		  signal         => 'e_signal',
-		  timeout        => 'e_timeout',
-		  variable       => 'e_var');
 }
+
+package Event::Event::Io;
+use vars qw(@ISA);
+@ISA = 'Event::Event';
 
 1;

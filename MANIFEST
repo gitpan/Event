@@ -46,7 +46,6 @@ t/idle.t
 t/idle2.t
 t/inactivity.t
 t/io.t
-t/keys.t
 t/leak.t
 t/loop.t
 t/now.t

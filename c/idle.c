@@ -4,12 +4,11 @@ static pe_ring Idle;
 /*#define D_IDLE(x) x  /**/
 #define D_IDLE(x)  /**/
 
-static pe_watcher *pe_idle_allocate()
-{
+static pe_watcher *pe_idle_allocate(HV *stash) {
   pe_idle *ev;
   New(PE_NEWID, ev, 1, pe_idle);
   ev->base.vtbl = &pe_idle_vtbl;
-  pe_watcher_init((pe_watcher*) ev);
+  pe_watcher_init(&ev->base, stash);
   PE_RING_INIT(&ev->tm.ring, ev);
   PE_RING_INIT(&ev->iring, ev);
   ev->max_interval = &PL_sv_undef;
@@ -79,7 +78,7 @@ static void pe_idle_alarm(pe_watcher *wa, pe_timeable *_ignore)
       D_IDLE(warn("max '%s'\n", SvPV(wa->desc,na)));
       PE_RING_DETACH(&ip->iring);
       ev = (*wa->vtbl->new_event)(wa);
-      ++ev->count;
+      ++ev->hits;
       queueEvent(ev);
       return;
     }

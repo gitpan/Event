@@ -4,12 +4,11 @@ static pe_ring IOWatch;
 static int IOWatchCount;
 static int IOWatch_OK;
 
-static pe_watcher *pe_io_allocate()
-{
+static pe_watcher *pe_io_allocate(HV *stash) {
   pe_io *ev;
   New(PE_NEWID, ev, 1, pe_io);
   ev->base.vtbl = &pe_io_vtbl;
-  pe_watcher_init((pe_watcher*) ev);
+  pe_watcher_init(&ev->base, stash);
   PE_RING_INIT(&ev->tm.ring, ev);
   PE_RING_INIT(&ev->ioring, ev);
   ev->fd = -1;
@@ -33,7 +32,8 @@ static void pe_io_start(pe_watcher *_ev, int repeat)
 {
     pe_io *ev = (pe_io*) _ev;
     if (SvOK(ev->handle)) {
-	ev->fd = pe_sys_fileno(ev);
+	STRLEN n_a;
+	ev->fd = pe_sys_fileno(ev->handle, SvPV(ev->base.desc, n_a));
     }
     /* On Unix, it is possible to set the 'fd' in C code without
        assigning anything to the 'handle'.  This should be supported
@@ -72,14 +72,21 @@ static void pe_io_alarm(pe_watcher *_wa, pe_timeable *hit)
     double left = (_wa->cbtime + wa->timeout) - now;
     if (left < IntervalEpsilon) {
 	pe_ioevent *ev;
-	wa->timeout = 0; /*RESET*/
+	if (EvREPEAT(wa)) {
+	    wa->tm.at = now + wa->timeout;
+	    pe_timeable_start(&wa->tm);
+	} else {
+	  wa->timeout = 0; /*RESET*/
+	}
 	ev = (pe_ioevent*) (*_wa->vtbl->new_event)(_wa);
-	++ev->base.count;
+	++ev->base.hits;
 	ev->got |= PE_T;
 	queueEvent((pe_event*) ev);
     }
     else {
-	++TimeoutTooEarly;
+	/* ++TimeoutTooEarly;
+	   This branch is normal behavior and does not indicate
+	   poor clock accuracy. */
 	wa->tm.at = now + left;
 	pe_timeable_start(&wa->tm);
     }

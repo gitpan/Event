@@ -16,13 +16,13 @@ use Event qw(loop unloop);
 my $count = 3;
 
 Event->signal(
-    e_signal => 'USR1',
-    e_cb =>
+    signal => 'USR1',
+    cb =>
 	sub {
 	    my $e = shift;
 
-	    ok $e->{e_signal}, 'USR1';
-	    ok $e->{e_hits}, 2;
+	    ok $e->w->signal, 'USR1';
+	    ok $e->hits > 0;  # threads can cause signal clumping
 
 	    unloop;
 	}
@@ -30,7 +30,7 @@ Event->signal(
 
 my $idle;
 $idle = Event->idle(
-    e_cb => sub {
+    cb => sub {
 	kill 'USR1',$$;
 	kill 'USR1',$$;
 	ok 1;

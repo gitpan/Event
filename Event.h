@@ -63,7 +63,6 @@ struct pe_tied {
 
 typedef struct pe_base_vtbl pe_base_vtbl;
 struct pe_base_vtbl {
-    int is_event;   /* watcher=0, event=1 */
     void (*Fetch)(void *, SV *key);
     void (*Store)(void *, SV *key, SV *nval);
     void (*Firstkey)(void *);
@@ -73,12 +72,13 @@ struct pe_base_vtbl {
 };
 
 struct pe_event_vtbl {
-  pe_base_vtbl base;
-  HV *keymethod;
-  pe_event *(*new_event)(pe_watcher *);
-  void (*dtor)(pe_event *);
+    pe_base_vtbl base;
+    HV *stash;
+    HV *keymethod;
+    pe_event *(*new_event)(pe_watcher *);
+    void (*dtor)(pe_event *);
 
-  pe_ring freelist;
+    pe_ring freelist;
 };
 
 struct pe_watcher_vtbl {
@@ -162,4 +162,4 @@ struct pe_watcher_vtbl {
 #define EvDESTROYED_off(ev)	(EvFLAGS(ev) &= ~PE_DESTROYED)
 
 #define EvCANDESTROY(ev)					\
- (PE_RING_EMPTY(&ev->events) && ev->running == 0 && EvCANCELLED(ev))
+ (EvCANCELLED(ev) && ev->event_counter == 0 && !ev->mysv)

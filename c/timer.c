@@ -1,7 +1,6 @@
 static struct pe_watcher_vtbl pe_timer_vtbl;
 
-static pe_watcher *pe_timer_allocate()
-{
+static pe_watcher *pe_timer_allocate(HV *stash) {
   pe_timer *ev;
   New(PE_NEWID, ev, 1, pe_timer);
   assert(ev);
@@ -9,7 +8,7 @@ static pe_watcher *pe_timer_allocate()
   PE_RING_INIT(&ev->tm.ring, ev);
   ev->tm.at = 0;
   ev->interval = &PL_sv_undef;
-  pe_watcher_init((pe_watcher*) ev);
+  pe_watcher_init(&ev->base, stash);
   return (pe_watcher*) ev;
 }
 
@@ -47,7 +46,7 @@ static void pe_timer_stop(pe_watcher *ev)
 static void pe_timer_alarm(pe_watcher *wa, pe_timeable *tm)
 {
   pe_event *ev = (*wa->vtbl->new_event)(wa);
-  ++ev->count;
+  ++ev->hits;
   queueEvent(ev);
 }
 

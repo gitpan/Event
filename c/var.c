@@ -1,11 +1,10 @@
 static struct pe_watcher_vtbl pe_var_vtbl;
 
-static pe_watcher *pe_var_allocate()
-{
+static pe_watcher *pe_var_allocate(HV *stash) {
   pe_var *ev;
   New(PE_NEWID, ev, 1, pe_var);
   ev->base.vtbl = &pe_var_vtbl;
-  pe_watcher_init((pe_watcher*) ev);
+  pe_watcher_init(&ev->base, stash);
   ev->variable = &PL_sv_undef;
   ev->events = PE_W;
   EvREPEAT_on(ev);
@@ -44,7 +43,7 @@ static void pe_tracevar(pe_watcher *wa, SV *sv, int got)
   if (SvIOKp(sv)) SvIOK_on(sv);
 
   ev = (pe_ioevent*) (*wa->vtbl->new_event)(wa);
-  ++ev->base.count;
+  ++ev->base.hits;
   ev->got |= got;
   queueEvent((pe_event*) ev);
 }

@@ -7,15 +7,13 @@
 
 */
 
-static int pe_sys_fileno(pe_io *ev)
+static int pe_sys_fileno(SV *sv, char *context)
 {
-    STRLEN n_a;
-    SV *sv = ev->handle;
     IO *io;
     PerlIO *fp;
     
     if (!sv)
-	croak("Event %s: no filehandle available", SvPV(ev->base.desc, n_a));
+	croak("Event %s: no filehandle available", context);
     if (SvGMAGICAL(sv))
 	mg_get(sv);
     if (SvIOK(sv)) /* maybe non-portable but nice for unixen */
@@ -24,13 +22,12 @@ static int pe_sys_fileno(pe_io *ev)
 	sv = SvRV(sv);
     if (SvTYPE(sv) == SVt_PVGV) {
 	if (!(io=GvIO((GV*)sv)) || !(fp = IoIFP(io))) {
-	    croak("Event '%s': GLOB(0x%x) isn't a valid IO",
-		  SvPV(ev->base.desc, n_a), sv);
+	    croak("Event '%s': GLOB(0x%x) isn't a valid IO", context, sv);
 	}
 	return PerlIO_fileno(fp);
     }
     sv_dump(sv);
-    croak("Event '%s': can't find fileno", SvPV(ev->base.desc,n_a));
+    croak("Event '%s': can't find fileno", context);
     return -1;
 }
 
@@ -44,7 +41,7 @@ static void _queue_io(pe_io *wa, int got)
     return;
   }
   ev = (pe_ioevent*) (*wa->base.vtbl->new_event)((pe_watcher*) wa);
-  ++ev->base.count;
+  ++ev->base.hits;
   ev->got |= got;
   queueEvent((pe_event*) ev);
 }

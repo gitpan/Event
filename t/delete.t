@@ -2,7 +2,7 @@
 
 use strict;
 use Test; plan tests => 1;
-use Event 0.30 qw(loop unloop);
+use Event 0.40 qw(loop unloop);
 
 package Foo;
 
@@ -11,8 +11,8 @@ sub DESTROY { ++$foo }
 
 package main;
 
-my $e = Event->timer(e_after => 0,
-		     e_cb => sub { delete shift->{foo}; unloop });
+my $e = Event->timer(after => 0,
+		     cb => sub { delete shift->{foo}; unloop });
 $e->{foo} = bless [], 'Foo';
 
 loop();

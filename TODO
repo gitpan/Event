@@ -1,14 +1,10 @@
-plug typemap hole: event->watcher morph
-
-e_* key registry?
+typemap
+  why keep hash representation?  magic could be attached to any reference
 
 comp.lang.perl.announce prerequisites
   portability?  wait for Win32?
 
 rethink EvNOW
-
-debugging: SIGALRM hook to capture perl stack trace of unresponsive
-callbacks?  maximum time per callback?
 
 t/inactivity.t still fails on occation!
 
@@ -27,8 +23,6 @@ loop
 
 -----------------------------------------------------------------------
 -----------------------------------------------------------------------
-
-make subclassing work as well as possible
 
 nested 'each' on two events interfere -- hash cursors needed!
 

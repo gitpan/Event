@@ -1,13 +1,14 @@
 TYPEMAP
 
-pe_watcher *	O_WATCHER
+pe_watcher *	O_WRAP
+pe_event *	O_WRAP
 
 INPUT
 
-O_WATCHER
-	decode_sv($arg, & $var, 0);
+O_WRAP
+	$var = ($type) unwrap_obj($arg);
 
 OUTPUT
 
-O_WATCHER
-	$arg = SvREFCNT_inc(watcher_2sv($var));
+O_WRAP
+	croak("use watcher_2sv($var)");

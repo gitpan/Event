@@ -15,8 +15,8 @@ my $prev;
 $min = 100;
 my $Min = .01;
 my $Max = .2;
-Event->idle(e_min => $Min, e_max => $Max, e_desc => "*IDLE*TEST*",
-	    e_cb => sub {
+Event->idle(min => $Min, max => $Max, desc => "*IDLE*TEST*",
+	    cb => sub {
 		my $now = time;
 		if (!$prev) { $prev = time; return }
 		my $d = $now - $prev;
@@ -27,7 +27,7 @@ Event->idle(e_min => $Min, e_max => $Max, e_desc => "*IDLE*TEST*",
 		unloop('done') if ++$cnt > 10;
 	    });
 my $sleeps=0;
-Event->idle(e_repeat => 1, e_cb => sub { Event::sleep $Min; ++$sleeps });
+Event->idle(repeat => 1, cb => sub { Event::sleep $Min; ++$sleeps });
 
 Event::sleep .1; # try to let CPU settle
 loop();
@@ -35,6 +35,6 @@ loop();
 my $epsilon = .05;
 ok $sleeps > 1; #did we test anything?
 ok $min >= $Min-$epsilon;
-ok $max < $Max+$epsilon;
+ok $max < $Max+$epsilon;   # fails without high resolution clock XXX
 ok $sum/$cnt >= $min;
 ok $sum/$cnt <= $max;

@@ -1,18 +1,17 @@
 # stop -*-perl-*- ?
 
 use Carp 'verbose';
-use Test; plan tests => 13;
+use Test; plan tests => 7;
 use Event qw(all_running loop unloop sweep);
 # $Event::DebugLevel = 3;
 
+my $die = Event->idle(cb => sub { die "died\n" }, desc => 'killer');
+
 my $status = 'ok';
-
-my $die = Event->idle(e_cb => sub { die "died\n" }, e_desc => 'killer');
-
 $Event::DIED = sub {
     my ($e,$why) = @_;
 
-    ok $e->{e_desc}, 'killer';
+    ok $e->w->desc, 'killer';
     chop $why;
     ok $why, 'died';
 
@@ -24,28 +23,6 @@ $Event::DIED = sub {
 	$Event::Eval = 0;
     }
 };
-
-# simple stuff
-delete $die->{bogus};
-eval {
-    package Triumph; #peturb Carp
-    delete $die->{e_cb}
-};
-ok $@, '/delete key/';
-ok $@ =~ s/at t\/eval\.t line \d+/glooph/g, 2; #Carp verbose?
-ok exists $die->{e_cb};
-ok !exists $die->{bogus};
-
-# test 'e_' prefix detection
-{
-    my $warn='';
-    $SIG{__WARN__} = sub { $warn .= $_[0] };
-    $die->{e_reserved_key} = 1;
-    ok $warn, '/reserved/';
-    $warn='';
-    ++$die->{e_reserved_key};
-    ok $warn, '';
-}
 
 ok loop(), $status;
 

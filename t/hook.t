@@ -2,16 +2,17 @@
 
 use strict;
 use Test; plan test => 4;
-use Event qw(sweep);
+use Event qw(sweep sleep);
 
-my ($p,$c,$ac,$cb) = (0)x3;
+my ($p,$c,$ac,$cb) = (0)x4;
 
 Event::add_hooks(prepare => sub { ++$p },
 		 check => sub { ++$c },
 		 asynccheck => sub { ++$ac },
 		 callback => sub { ++$cb });
-Event->timer(e_after => 0, e_cb => sub {});
+Event->timer(after => 0, cb => sub {});
 
+sleep .5;
 sweep();
 
 ok $p,1;

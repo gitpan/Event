@@ -14,7 +14,7 @@ use ExtUtils::MakeMaker;
 
 # Parasoft's Insure++!
 push @Safe, OPTIMIZE => '-g' if 0;
-push @Safe, CC => 'insure', LD => 'insure' if 0;
+push @Safe, CC => 'insure', LD => 'insure', OPTIMIZE => '-g' if 0;
 
 my @opt=(PREREQ_PM => { Test => 1 },
 	 VERSION_FROM	=> "./lib/Event.pm",

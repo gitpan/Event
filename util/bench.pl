@@ -12,9 +12,9 @@ $TestTime = 11;
 
 # $Event::DebugLevel = 2;
 
-Event->timer(e_cb => \&unloop,
-	     e_after => $TestTime,
-	     e_nice => -1, e_desc => "End of benchmark");
+Event->timer(cb => \&unloop,
+	     after => $TestTime,
+	     nice => -1, desc => "End of benchmark");
 
 #------------------------------ Timer
 use vars qw($TimerCount $TimerExpect);
@@ -22,18 +22,18 @@ $TimerCount = 0;
 $TimerExpect = 0;
 for (1..20) {
     my $interval = .2 + .1 * int rand 3;
-    Event->timer(e_cb => sub { ++$TimerCount },
-		 e_interval => $interval);
+    Event->timer(cb => sub { ++$TimerCount },
+		 interval => $interval);
     $TimerExpect += $TestTime/$interval;
 }
 
 #------------------------------ Signals
 use vars qw($SignalCount);
 $SignalCount = 0;
-Event->signal(e_signal => 'USR1',
-	      e_cb => sub { ++$SignalCount; });
-Event->timer(e_cb => sub { kill 'USR1', $$; },
-	     e_interval => .5);
+Event->signal(signal => 'USR1',
+	      cb => sub { ++$SignalCount; });
+Event->timer(cb => sub { kill 'USR1', $$; },
+	     interval => .5);
 
 #------------------------------ IO
 use vars qw($IOCount @W);
@@ -45,13 +45,13 @@ for (1..15) {
     pipe($r,$w);
     select $w;
     $|=1; 
-    Event->io(e_fd => $r,
-	      e_cb => sub {
+    Event->io(fd => $r,
+	      cb => sub {
 		  my $buf;
 		  ++$IOCount;
 		  sysread $r, $buf, 1;
 	      },
-	      e_poll => 'r', e_desc => "fd ".fileno($r));
+	      poll => 'r', desc => "fd ".fileno($r));
     push @W, $w;
 }
 select STDOUT;
@@ -61,14 +61,14 @@ use vars qw($IdleCount);
 $IdleCount = 0;
 
 my $idle;
-$idle = Event->idle(e_min => undef, e_cb => sub {
+$idle = Event->idle(min => undef, cb => sub {
     ++$IdleCount;
     for (0..@W) {
 	my $w = $W[int rand @W];
 	syswrite $w, '.', 1;
     }
     $idle->again;
-}, e_desc => "idle");
+}, desc => "idle");
 
 #------------------------------ Loop
 
@@ -77,6 +77,7 @@ sub run {
     loop();
     time - $start;
 }
+warn "Running benchmark...\n";
 my $elapse = &run;
 
 sub pct { 
@@ -112,6 +113,26 @@ Event/Null       ".sprintf("%.2f", 100* $e_per_sec / $null)."\%
 ";
 
 __END__
+
+-------------------------------------
+
+ benchmark: 0.08
+ Event: 0.40
+ 
+ perl 5.00556
+ uname=SunOS eq1070.wks.na.deuba.com 5.5.1 Generic_103640-24 sun4u sparc SUNW,Ultra-1
+ cc='cc', optimize='-xO3 -g'
+ ccflags='-DDEBUGGING'
+ 
+ Please mail benchmark results to perl-loop@perl.org.  Thanks!
+ 
+Elapse Time:     99.37% of 11 seconds
+Timer/sec:       98.18% (801 total)
+Io/sec:          4550.053 (49735 total)
+Signals/sec      1.92
+Events/sec       4909.684
+Null/sec         93511
+Event/Null       5.25%
 
 -------------------------------------
 

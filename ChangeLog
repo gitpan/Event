@@ -1,3 +1,90 @@
+1999-05-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.41.
+
+        * Added attributes() and configure() methods.
+
+1999-05-18  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* When using eval {} inside a callback, $@ could fool Event into
+ 	thinking that an exception is being thrown.
+
+1999-05-17  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Moved attributes from hash entries to methods.
+
+1999-05-07  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix unloop('').
+
+1999-05-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.40.
+
+	* Regularize event constructors.
+
+1999-05-04  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Doc fixes catalyzed by Jochen.Stenzel.gp@icn.siemens.de.
+
+1999-04-27  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.39.
+
+1999-04-20  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Fix broken t/eval.t.
+
+1999-04-19  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* More conservative refcnt policy for watchers.
+
+1999-04-16  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.38.
+
+	* Rename 'mom' to 'w'.
+
+	* Deprecate the accessing of watcher attributes via events.
+
+	* Fix PL_ macros again.  (*Argh!*)
+
+1999-04-14  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.37.
+
+	* Redesign typemap.
+
+1999-04-12  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Make 'e_cbtime' available from perl.  Added test.
+
+1999-04-09  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.36.
+
+	* Return unloop_all($arg) from loop().
+
+	* Make compile with threaded perl.
+
+1999-04-07  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.35.
+
+	* Documentation updates and reorganization.
+
+	* Switch inactivity from e_interval to e_timeout.
+
+1999-04-06  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.34.
+
+1999-04-05  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Plug typemap holes.  Implementation still needs improvement.
+
+	* Make io timeout respect e_repeat. (gisle@aas.no).
+
 1999-03-30  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.33.

@@ -30,14 +30,13 @@ static Signal_t process_sighandler(int sig)
   ++st->hits[sig];
 }
 
-static pe_watcher *pe_signal_allocate()
-{
+static pe_watcher *pe_signal_allocate(HV *stash) {
   pe_signal *ev;
   New(PE_NEWID, ev, 1, pe_signal);
   ev->base.vtbl = &pe_signal_vtbl;
   PE_RING_INIT(&ev->sring, ev);
   ev->signal = 0;
-  pe_watcher_init((pe_watcher*) ev);
+  pe_watcher_init(&ev->base, stash);
   EvREPEAT_on(ev);
   EvINVOKE1_off(ev);
   return (pe_watcher*) ev;
@@ -97,7 +96,7 @@ static void _signal_asynccheck(pe_sig_stat *st)
     wa = Sigring[xx].next->self;
     while (wa) {
       pe_event *ev = (*wa->vtbl->new_event)(wa);
-      ev->count += got;
+      ev->hits += got;
       queueEvent(ev);
       wa = ((pe_signal*)wa)->sring.next->self;
     }
