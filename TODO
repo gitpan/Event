@@ -1,8 +1,7 @@
+find owner for Win32 port
+
 typemap
   why keep hash representation?  magic could be attached to any reference
-
-comp.lang.perl.announce prerequisites
-  portability?  wait for Win32?
 
 rethink EvNOW
 
@@ -17,14 +16,13 @@ optimization
   determine IntervalEpsilon dynamically & make available from perl
   queue events from both sides
   use fancy profiler tricks to figure out how to boost performance
+  to try hoist system calls from the inner loop
 
 loop
   StarvePrio?
 
 -----------------------------------------------------------------------
 -----------------------------------------------------------------------
-
-nested 'each' on two events interfere -- hash cursors needed!
 
 Move process.pm to external module!
 

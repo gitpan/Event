@@ -17,10 +17,9 @@ Event - Event loop processing
 =head1 DESCRIPTION
 
 The Event module provide a central facility to watch for various types
-of events and invoke a callback when these events occur.  The central
-idea is to delay the handling of events in order that they can be
-dispatched by priority when it is known to be safe for callbacks to
-execute.
+of events and invoke a callback when these events occur.  The idea is
+to delay the handling of events so that they may be dispatched in
+priority order when it is safe for callbacks to execute.
 
 =head1 PERL API
 
@@ -515,12 +514,27 @@ you need.  It is likely that all platforms will have a solid
 implementation soon, but at this point in history it is best to double
 check.
 
+=head1 WHAT ABOUT NON-PREEMPTIVE THREADS?
+
+(Contributed by artur@vogon-solutions.com 12 Jul 1999.)
+
+The Java language is oriented to use non-preemptive threads, yet even
+Java uses an event-loop for Swing (AFAIK). That is one of the reasons
+I don't use Java for network-centric applications. My belief is that
+the benefit of multi-threading is the gain in performance on SMP
+hardware.  In my view, non-preemptive threads (java green-threads) are
+usually poor design.  I find them harder to work with, harder to
+debug, and slower for a rather marginal gain in readability. I really
+like working with a state machine.  I find it leads to more stable and
+better code. It also has the benefit of abstracting away how
+concurrency is achieved.
+
 =head1 BUGS
 
 The meaning of $io->timeout(0) might change.  Use C<undef> to unset
 the timeout.
 
-=head2 WHY WINDOWS CAN BE FASTER THAN UNIX
+=head2 WHY MICROSOFT WINDOWS MIGHT BE FASTER THAN UNIX
 
   http://www.usenix.org/events/usenix99/full_papers/banga/banga_html/index.html
 

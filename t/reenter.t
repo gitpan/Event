@@ -1,4 +1,12 @@
 # deep -*- perl -*-
+BEGIN {
+    if ($^O eq 'MSWin32') {
+	print "1..0\n";
+	print "ok 1 # skipped; Win32 supports select() only on sockets\n";
+	exit;
+    }
+}
+
 use Test; plan test => 7;
 use Event qw(loop unloop one_event all_running);
 

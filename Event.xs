@@ -133,23 +133,6 @@ static HV *event_newHVhv(HV *ohv) {
     return hv;
 }
 
-/****************** KEY_REMAP */
-static HV *KREMAP;
-static int remap_noise=10;
-static SV *kremap(SV *key) /*DEPRECATED XXX*/
-{
-  STRLEN n_a;
-  HE *he;
-  SV *nk;
-  assert(KREMAP);
-  he = hv_fetch_ent(KREMAP, key, 0, 0);
-  if (!he) return key;
-  nk = HeVAL(he);
-  if (--remap_noise >= 0)
-	warn("'%s' is renamed to '%s'", SvPV(key, n_a), SvPV(nk, n_a));
-  return nk;
-}
-
 static void pe_watcher_STORE_FALLBACK(pe_watcher *wa, SV *svkey, SV *nval)
 {
     if (!wa->FALLBACK)
@@ -248,7 +231,6 @@ BOOT:
   DebugLevel = SvREFCNT_inc(perl_get_sv("Event::DebugLevel", 1));
   Eval = SvREFCNT_inc(perl_get_sv("Event::Eval", 1));
   Estat.on=0;
-  KREMAP = (HV*) SvREFCNT_inc(perl_get_hv("Event::KEY_REMAP", 1));
   boot_timeable();
   boot_hook();
   boot_pe_event();
@@ -518,7 +500,7 @@ FETCH(obj, key)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Fetch(vp, kremap(key));
+	vt->Fetch(vp, key);
 	SPAGAIN;
 
 void
@@ -535,7 +517,7 @@ STORE(obj, key, nval)
 	   SVs that hold magic that hold the event will blow up. XXX */
 	nval = sv_mortalcopy(nval);
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Store(vp, kremap(key), nval);
+	vt->Store(vp, key, nval);
 	SPAGAIN;
 
 void
@@ -573,7 +555,7 @@ DELETE(obj, key)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Delete(vp, kremap(key));
+	vt->Delete(vp, key);
 	SPAGAIN;
 
 void
@@ -586,7 +568,7 @@ EXISTS(obj, key)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	ST(0) = boolSV(vt->Exists(vp, kremap(key)));
+	ST(0) = boolSV(vt->Exists(vp, key));
 	XSRETURN(1);
 
 MODULE = Event		PACKAGE = Event::Watcher
@@ -705,7 +687,7 @@ FETCH(obj, key)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Fetch(vp, kremap(key));
+	vt->Fetch(vp, key);
 	SPAGAIN;
 
 void
@@ -722,7 +704,7 @@ STORE(obj, key, nval)
 	   SVs that hold magic that hold the event will blow up. XXX */
 	nval = sv_mortalcopy(nval);
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Store(vp, kremap(key), nval);
+	vt->Store(vp, key, nval);
 	SPAGAIN;
 
 void
@@ -760,7 +742,7 @@ DELETE(obj, key)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	vt->Delete(vp, kremap(key));
+	vt->Delete(vp, key);
 	SPAGAIN;
 
 void
@@ -773,7 +755,7 @@ EXISTS(obj, key)
 	PPCODE:
 	PUTBACK;
 	get_base_vtbl(obj, &vp, &vt);
-	ST(0) = boolSV(vt->Exists(vp, kremap(key)));
+	ST(0) = boolSV(vt->Exists(vp, key));
 	XSRETURN(1);
 
 void

@@ -1,3 +1,4 @@
+ANNOUNCE
 ChangeLog
 Event.h
 Event.xs
@@ -7,7 +8,6 @@ MANIFEST.SKIP
 Makefile.PL
 README
 TODO
-WARNING
 c/ev.c
 c/hook.c
 c/idle.c
@@ -36,8 +36,6 @@ lib/Event/semaphore.pm
 lib/Event/signal.pm
 lib/Event/timer.pm
 lib/Event/var.pm
-patches/leak.fix
-patches/time-hires
 t/bored.t
 t/delete.t
 t/eval.t
@@ -56,4 +54,3 @@ t/var.t
 typemap
 util/bench.pl
 util/filehandle.txt
-util/junk

@@ -1,3 +1,11 @@
+1999-07-10  Joshua Pritikin  <joshua.pritikin@db.com>
+
+	* Release 0.50.
+
+	* A few Win32 tweaks to get working tests to pass (jan.dubois).
+
+	* Minor cleanup in preparation for 0.50.
+
 1999-06-30  Joshua Pritikin  <joshua.pritikin@db.com>
 
 	* Release 0.44 (thanks: jan.dubois@ibm.net).
