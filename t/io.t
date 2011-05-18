@@ -3,8 +3,7 @@
 use Config;
 BEGIN {
     if ($^O eq 'MSWin32') {
-	print "1..0\n";
-	print "ok 1 # skipped; Win32 supports select() only on sockets\n";
+	print "1..0 # skipped; Win32 supports select() only on sockets\n";
 	exit;
     }
 }
@@ -86,7 +85,8 @@ Event->io(timeout => 2, repeat => 0,
 loop();
 
 my $bogus_fd_detection;
-if ($Config{osname} eq 'darwin' or $Config{archname} =~ m/^armv5tejl/) {
+if ($Config{osname} eq 'darwin' or $Config{osname} eq 'gnu' or
+    $Config{archname} =~ m/^armv5tejl/) {
     $bogus_fd_detection = 'Cannot detect bogus file descriptors';
 }
 
