@@ -79,3 +79,4 @@ Tutorial.pdf
 Tutorial.pdf-errata.txt
 util/bench.pl
 util/filehandle.txt
+META.json                                Module JSON meta-data (added by MakeMaker)
