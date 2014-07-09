@@ -19,4 +19,6 @@ no_index:
     - inc
 requires:
   Test: '1'
-version: '1.22'
+resources:
+  repository: https://github.com/mohawk2/cpan-Event.git
+version: '1.23'

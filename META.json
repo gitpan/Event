@@ -37,5 +37,12 @@
       }
    },
    "release_status" : "stable",
-   "version" : "1.22"
+   "resources" : {
+      "repository" : {
+         "type" : "git",
+         "url" : "https://github.com/mohawk2/cpan-Event.git",
+         "web" : "https://github.com/mohawk2/cpan-Event"
+      }
+   },
+   "version" : "1.23"
 }
